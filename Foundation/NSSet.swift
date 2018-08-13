@@ -298,6 +298,12 @@ extension Set : _NSBridgeable, _CFBridgeable {
     internal var _cfObject: CFSet { return _nsObject._cfObject }
 }
 
+extension NSSet : _HasCustomAnyHashableRepresentation {
+  public func _toCustomAnyHashable() -> AnyHashable? {
+    return AnyHashable(self as! Set<AnyHashable>)
+  }
+}
+
 extension NSSet : Sequence {
     public typealias Iterator = NSEnumerator.Iterator
     public func makeIterator() -> Iterator {

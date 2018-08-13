@@ -211,3 +211,9 @@ open class NotificationCenter: NSObject {
     }
 
 }
+
+extension NSNotification : _HasCustomAnyHashableRepresentation {
+    public func _toCustomAnyHashable() -> AnyHashable? {
+        return AnyHashable(self as Notification)
+    }
+}

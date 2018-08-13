@@ -362,3 +362,9 @@ extension NSCharacterSet : _StructTypeBridgeable {
         return CharacterSet._unconditionallyBridgeFromObjectiveC(self)
     }
 }
+
+extension NSCharacterSet : _HasCustomAnyHashableRepresentation {
+    public func _toCustomAnyHashable() -> AnyHashable? {
+        return AnyHashable(self as CharacterSet)
+    }
+}

@@ -21,6 +21,7 @@ class TestNSDictionary : XCTestCase {
             ("test_writeToFile", test_writeToFile),
             ("test_initWithContentsOfFile", test_initWithContentsOfFile),
             ("test_settingWithStringKey", test_settingWithStringKey),
+            ("test_AnyHashable", test_AnyHashable),
         ]
     }
         
@@ -241,4 +242,23 @@ class TestNSDictionary : XCTestCase {
         }
     }
 
+    func test_AnyHashable() {
+        let a1: AnyHashable = ["foo": 1, "bar": 2]
+        let a2: AnyHashable = NSDictionary(
+            objects: [NSNumber(value: 1), NSNumber(value: 2)],
+            forKeys: [NSString(string: "foo"), NSString(string: "bar")])
+        let b1: AnyHashable = ["foo": 2, "bar": 1]
+        let b2: AnyHashable = NSDictionary(
+            objects: [NSNumber(value: 2), NSNumber(value: 1)],
+            forKeys: [NSString(string: "foo"), NSString(string: "bar")])
+        XCTAssertEqual(a1, a2)
+        XCTAssertEqual(b1, b2)
+        XCTAssertNotEqual(a1, b1)
+        XCTAssertNotEqual(a1, b2)
+        XCTAssertNotEqual(a2, b1)
+        XCTAssertNotEqual(a2, b2)
+
+        XCTAssertEqual(a1.hashValue, a2.hashValue)
+        XCTAssertEqual(b1.hashValue, b2.hashValue)
+    }
 }

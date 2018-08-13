@@ -1098,3 +1098,27 @@ protocol _NSNumberCastingWithoutBridging {
 }
 
 extension NSNumber: _NSNumberCastingWithoutBridging {}
+
+extension NSNumber : _HasCustomAnyHashableRepresentation {
+    public func _toCustomAnyHashable() -> AnyHashable? {
+        // Note: This needs to be kept in sync with the Swift stdlib.
+        // Don't reorder checks or add new cases without also updating
+        // the AnyHashable representations of Swift's native integer
+        // types.
+        if let nsDecimalNumber: NSDecimalNumber = self as? NSDecimalNumber {
+            return AnyHashable(nsDecimalNumber.decimalValue)
+        } else if self === kCFBooleanTrue {
+            return AnyHashable(true)
+        } else if self === kCFBooleanFalse {
+            return AnyHashable(false)
+        } else if NSNumber(value: int64Value) == self {
+            return AnyHashable(int64Value)
+        } else if NSNumber(value: uint64Value) == self {
+            return AnyHashable(uint64Value)
+        } else if NSNumber(value: doubleValue) == self {
+            return AnyHashable(doubleValue)
+        } else {
+            return nil
+        }
+    }
+}

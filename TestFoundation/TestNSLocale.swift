@@ -16,6 +16,7 @@ class TestNSLocale : XCTestCase {
             ("test_hash", test_hash),
             ("test_staticProperties", test_staticProperties),
             ("test_localeProperties", test_localeProperties),
+            ("test_AnyHashable", test_AnyHashable),
         ]
     }
 
@@ -147,4 +148,19 @@ class TestNSLocale : XCTestCase {
 #endif
     }
 
+    func test_AnyHashable() {
+        let a1: AnyHashable = Locale(identifier: "en_US")
+        let a2: AnyHashable = NSLocale(localeIdentifier: "en_US")
+        let b1: AnyHashable = Locale(identifier: "de_DE")
+        let b2: AnyHashable = NSLocale(localeIdentifier: "de_DE")
+        XCTAssertEqual(a1, a2)
+        XCTAssertEqual(b1, b2)
+        XCTAssertNotEqual(a1, b1)
+        XCTAssertNotEqual(a1, b2)
+        XCTAssertNotEqual(a2, b1)
+        XCTAssertNotEqual(a2, b2)
+
+        XCTAssertEqual(a1.hashValue, a2.hashValue)
+        XCTAssertEqual(b1.hashValue, b2.hashValue)
+    }
 }

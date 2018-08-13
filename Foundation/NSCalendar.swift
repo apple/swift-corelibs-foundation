@@ -1834,3 +1834,15 @@ extension NSDateComponents : _StructTypeBridgeable {
         return DateComponents._unconditionallyBridgeFromObjectiveC(self)
     }
 }
+
+extension NSCalendar : _HasCustomAnyHashableRepresentation {
+    public func _toCustomAnyHashable() -> AnyHashable? {
+        return AnyHashable(self as Calendar)
+    }
+}
+
+extension NSDateComponents : _HasCustomAnyHashableRepresentation {
+    public func _toCustomAnyHashable() -> AnyHashable? {
+        return AnyHashable(_bridgeToSwift())
+    }
+}

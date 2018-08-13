@@ -29,6 +29,7 @@ class TestTimeZone: XCTestCase {
 
             ("test_customMirror", test_tz_customMirror),
             ("test_knownTimeZones", test_knownTimeZones),
+            ("test_AnyHashable", test_AnyHashable),
         ]
     }
 
@@ -197,5 +198,21 @@ class TestTimeZone: XCTestCase {
         for tz in timeZones {
             XCTAssertNotNil(TimeZone(identifier: tz), "Cant instantiate valid timeZone: \(tz)")
         }
+    }
+
+    func test_AnyHashable() {
+        let a1: AnyHashable = TimeZone(identifier: "GMT+0000")!
+        let a2: AnyHashable = NSTimeZone(name: "GMT+0000")!
+        let b1: AnyHashable = TimeZone(identifier: "GMT-0400")!
+        let b2: AnyHashable = NSTimeZone(name: "GMT-0400")!
+        XCTAssertEqual(a1, a2)
+        XCTAssertEqual(b1, b2)
+        XCTAssertNotEqual(a1, b1)
+        XCTAssertNotEqual(a1, b2)
+        XCTAssertNotEqual(a2, b1)
+        XCTAssertNotEqual(a2, b2)
+
+        XCTAssertEqual(a1.hashValue, a2.hashValue)
+        XCTAssertEqual(b1.hashValue, b2.hashValue)
     }
 }

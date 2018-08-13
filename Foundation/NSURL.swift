@@ -1321,3 +1321,21 @@ extension NSURLQueryItem : _StructTypeBridgeable {
     }
 }
 
+
+extension NSURL : _HasCustomAnyHashableRepresentation {
+    public func _toCustomAnyHashable() -> AnyHashable? {
+        return AnyHashable(self as URL)
+    }
+}
+
+extension NSURLComponents : _HasCustomAnyHashableRepresentation {
+    public func _toCustomAnyHashable() -> AnyHashable? {
+        return AnyHashable(self as URLComponents)
+    }
+}
+
+extension NSURLQueryItem : _HasCustomAnyHashableRepresentation {
+    public func _toCustomAnyHashable() -> AnyHashable? {
+        return AnyHashable(self as URLQueryItem)
+    }
+}

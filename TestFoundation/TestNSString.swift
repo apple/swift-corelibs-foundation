@@ -92,6 +92,7 @@ class TestNSString: LoopbackServerTest {
             ("test_getLineStart", test_getLineStart),
             ("test_substringWithRange", test_substringWithRange),
             ("test_createCopy", test_createCopy),
+            ("test_AnyHashable", test_AnyHashable),
         ]
     }
 
@@ -1230,6 +1231,22 @@ class TestNSString: LoopbackServerTest {
         XCTAssertNotEqual(string, stringCopy)
         XCTAssertEqual(string, "foobar")
         XCTAssertEqual(stringCopy, "foo")
+    }
+
+    func test_AnyHashable() {
+        let a1: AnyHashable = "Hello"
+        let a2: AnyHashable = NSString(string: "Hello")
+        let b1: AnyHashable = "world"
+        let b2: AnyHashable = NSString(string: "world")
+        XCTAssertEqual(a1, a2)
+        XCTAssertEqual(b1, b2)
+        XCTAssertNotEqual(a1, b1)
+        XCTAssertNotEqual(a1, b2)
+        XCTAssertNotEqual(a2, b1)
+        XCTAssertNotEqual(a2, b2)
+
+        XCTAssertEqual(a1.hashValue, a2.hashValue)
+        XCTAssertEqual(b1.hashValue, b2.hashValue)
     }
 }
 

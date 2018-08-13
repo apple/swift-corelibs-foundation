@@ -25,6 +25,7 @@ class TestNSSet : XCTestCase {
             ("test_CountedSetRemoveObject", test_CountedSetRemoveObject),
             ("test_CountedSetCopying", test_CountedSetCopying),
             ("test_mutablesetWithDictionary", test_mutablesetWithDictionary),
+            ("test_AnyHashable", test_AnyHashable),
         ]
     }
     
@@ -223,5 +224,21 @@ class TestNSSet : XCTestCase {
         aSet.add(["world": "again"])
         dictionary.setObject(aSet, forKey: key)
         XCTAssertNotNil(dictionary.description) //should not crash
+    }
+
+    func test_AnyHashable() {
+        let a1: AnyHashable = [1, 2] as Set<Int>
+        let a2: AnyHashable = NSSet(array: [NSNumber(value: 1), NSNumber(value: 2)])
+        let b1: AnyHashable = [3, 4] as Set<Int>
+        let b2: AnyHashable = NSSet(array: [NSNumber(value: 3), NSNumber(value: 4)])
+        XCTAssertEqual(a1, a2)
+        XCTAssertEqual(b1, b2)
+        XCTAssertNotEqual(a1, b1)
+        XCTAssertNotEqual(a1, b2)
+        XCTAssertNotEqual(a2, b1)
+        XCTAssertNotEqual(a2, b2)
+
+        XCTAssertEqual(a1.hashValue, a2.hashValue)
+        XCTAssertEqual(b1.hashValue, b2.hashValue)
     }
 }

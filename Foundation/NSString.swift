@@ -1324,6 +1324,12 @@ extension NSString {
 
 extension NSString : ExpressibleByStringLiteral { }
 
+extension NSString : _HasCustomAnyHashableRepresentation {
+  public func _toCustomAnyHashable() -> AnyHashable? {
+    return AnyHashable(self as String)
+  }
+}
+
 open class NSMutableString : NSString {
     open func replaceCharacters(in range: NSRange, with aString: String) {
         guard type(of: self) === NSString.self || type(of: self) === NSMutableString.self else {

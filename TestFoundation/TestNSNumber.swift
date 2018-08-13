@@ -36,6 +36,7 @@ class TestNSNumber : XCTestCase {
             ("test_stringValue", test_stringValue),
             ("test_Equals", test_Equals),
             ("test_boolValue", test_boolValue),
+            ("test_AnyHashable", test_AnyHashable),
         ]
     }
     
@@ -1261,5 +1262,132 @@ class TestNSNumber : XCTestCase {
         XCTAssertEqual(NSNumber(value: Int.min).boolValue, false)   // Darwin compatibility
         XCTAssertEqual(NSNumber(value: Int.min + 1).boolValue, true)
         XCTAssertEqual(NSNumber(value: Int(-1)).boolValue, true)
+    }
+
+    func test_AnyHashable() {
+        func hash(_ seed: Int, _ value: AnyHashable) -> Int {
+            var hasher = Hasher()
+            hasher.combine(seed)
+            hasher.combine(value)
+            return hasher.finalize()
+        }
+
+        func checkThatHashEncodingsDiffer(
+            _ left: AnyHashable, _ right: AnyHashable,
+            _ message: @autoclosure () -> String? = nil,
+            file: StaticString = #file,
+            line: UInt = #line) {
+            for i in 0 ..< 10 {
+                if hash(i, left) != hash(i, right) {
+                    // We found a proof that left and right have
+                    // different hash encodings.
+                    return
+                }
+            }
+            XCTFail(
+                message() ?? "\(left) and \(right) have the same hash encoding",
+                file: file, line: line)
+        }
+        func checkEquivalenceGroups(_ groups: [[AnyHashable]], file: StaticString = #file, line: UInt = #line) {
+            // Check that items in the same group compare & hash the same.
+            for gi in 0 ..< groups.count {
+                let group = groups[gi]
+                for i in 0 ..< group.count {
+                    for j in 0 ..< i {
+                        let a = group[i]
+                        let b = group[j]
+                        XCTAssertEqual(
+                            a, b,
+                            "Non-equal values at indices \(gi)/\(i) and \(gi)/\(j)",
+                            file: file, line: line)
+                        XCTAssertEqual(
+                            a.hashValue, b.hashValue,
+                            """
+                            hashValue mismatch between values at indices \(gi)/\(i) and \(gi)/\(j)
+                            \(i): \(a)
+                            \(j): \(b)
+                            """,
+                            file: file, line: line)
+                    }
+                }
+            }
+            // Check that items in different groups compare and hash different.
+            for gi in 0 ..< groups.count {
+                for i in 0 ..< groups[gi].count {
+                    for gj in 0 ..< gi {
+                        for j in 0 ..< groups[gj].count {
+                            XCTAssertNotEqual(groups[gi][i], groups[gj][j],
+                                "Equal values at indices \(gi)/\(i) and \(gj)/\(j)",
+                                file: file, line: line)
+                            checkThatHashEncodingsDiffer(
+                                groups[gi][i], groups[gj][j],
+                                "Values at indices \(gi)/\(i) and \(gj)/\(j) hash the same",
+                                file: file, line: line)
+                        }
+                    }
+                }
+            }
+        }
+        checkEquivalenceGroups([
+                [
+                    0,
+                    NSNumber(value: 0 as Int),
+                    NSNumber(value: 0 as Int8),
+                    NSNumber(value: 0 as Int16),
+                    NSNumber(value: 0 as Int32),
+                    NSNumber(value: 0 as Int64),
+                    NSNumber(value: 0 as UInt),
+                    NSNumber(value: 0 as UInt8),
+                    NSNumber(value: 0 as UInt16),
+                    NSNumber(value: 0 as UInt32),
+                    NSNumber(value: 0 as UInt64),
+                    NSNumber(value: 0 as Float),
+                    NSNumber(value: 0 as Double)
+                ],
+                [
+                    1,
+                    NSNumber(value: 1 as Int),
+                    NSNumber(value: 1 as Int8),
+                    NSNumber(value: 1 as Int16),
+                    NSNumber(value: 1 as Int32),
+                    NSNumber(value: 1 as Int64),
+                    NSNumber(value: 1 as UInt),
+                    NSNumber(value: 1 as UInt8),
+                    NSNumber(value: 1 as UInt16),
+                    NSNumber(value: 1 as UInt32),
+                    NSNumber(value: 1 as UInt64),
+                    NSNumber(value: 1 as Float),
+                    NSNumber(value: 1 as Double)
+                ],
+                [
+                    42,
+                    NSNumber(value: 42 as Int),
+                    NSNumber(value: 42 as Int8),
+                    NSNumber(value: 42 as Int16),
+                    NSNumber(value: 42 as Int32),
+                    NSNumber(value: 42 as Int64),
+                    NSNumber(value: 42 as UInt),
+                    NSNumber(value: 42 as UInt8),
+                    NSNumber(value: 42 as UInt16),
+                    NSNumber(value: 42 as UInt32),
+                    NSNumber(value: 42 as UInt64),
+                    NSNumber(value: 42 as Float),
+                    NSNumber(value: 42 as Double)
+                ],
+                [
+                    -42,
+                    NSNumber(value: -42 as Int),
+                    NSNumber(value: -42 as Int8),
+                    NSNumber(value: -42 as Int16),
+                    NSNumber(value: -42 as Int32),
+                    NSNumber(value: -42 as Int64),
+                    NSNumber(value: -42 as Float),
+                    NSNumber(value: -42 as Double)
+                ],
+                [
+                    NSNumber(value: 4.25 as Float),
+                    NSNumber(value: 4.25 as Double)
+                ]
+            ])
     }
 }

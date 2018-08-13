@@ -20,6 +20,7 @@ class TestURLRequest : XCTestCase {
             ("test_mutableCopy_3", test_mutableCopy_3),
             ("test_methodNormalization", test_methodNormalization),
             ("test_description", test_description),
+            ("test_AnyHashable", test_AnyHashable),
         ]
     }
     
@@ -244,5 +245,23 @@ class TestURLRequest : XCTestCase {
 
         request.url = nil
         XCTAssertEqual(request.description, "url: nil")
+    }
+
+    func test_AnyHashable() {
+        let url1 = URL(string: "https://swift.org")!
+        let url2 = URL(string: "https://github.com/apple/swift")!
+        let a1: AnyHashable = URLRequest(url: url1)
+        let a2: AnyHashable = NSURLRequest(url: url1)
+        let b1: AnyHashable = URLRequest(url: url2)
+        let b2: AnyHashable = NSURLRequest(url: url2)
+        XCTAssertEqual(a1, a2)
+        XCTAssertEqual(b1, b2)
+        XCTAssertNotEqual(a1, b1)
+        XCTAssertNotEqual(a1, b2)
+        XCTAssertNotEqual(a2, b1)
+        XCTAssertNotEqual(a2, b2)
+
+        XCTAssertEqual(a1.hashValue, a2.hashValue)
+        XCTAssertEqual(b1.hashValue, b2.hashValue)
     }
 }

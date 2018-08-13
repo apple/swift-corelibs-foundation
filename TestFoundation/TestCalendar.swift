@@ -23,9 +23,10 @@ class TestCalendar: XCTestCase {
             ("test_customMirror", test_customMirror),
             ("test_ampmSymbols", test_ampmSymbols),
             ("test_currentCalendarRRstability", test_currentCalendarRRstability),
+            ("test_AnyHashable", test_AnyHashable),
         ]
     }
-    
+
     func test_allCalendars() {
         for identifier in [
             Calendar.Identifier.buddhist,
@@ -192,6 +193,22 @@ class TestCalendar: XCTestCase {
         XCTAssertEqual(calendar.firstWeekday, calendarMirror.descendant("firstWeekday") as? Int)
         XCTAssertEqual(calendar.minimumDaysInFirstWeek, calendarMirror.descendant("minimumDaysInFirstWeek") as? Int)
     }
+
+    func test_AnyHashable() {
+        let a1: AnyHashable = Calendar(identifier: Calendar.Identifier.buddhist)
+        let a2: AnyHashable = NSCalendar(identifier: NSCalendar.Identifier.buddhist)!
+        let b1: AnyHashable = Calendar(identifier: Calendar.Identifier.chinese)
+        let b2: AnyHashable = NSCalendar(identifier: NSCalendar.Identifier.chinese)!
+        XCTAssertEqual(a1, a2)
+        XCTAssertEqual(b1, b2)
+        XCTAssertNotEqual(a1, b1)
+        XCTAssertNotEqual(a1, b2)
+        XCTAssertNotEqual(a2, b1)
+        XCTAssertNotEqual(a2, b2)
+
+        XCTAssertEqual(a1.hashValue, a2.hashValue)
+        XCTAssertEqual(b1.hashValue, b2.hashValue)
+    }
 }
 
 class TestNSDateComponents: XCTestCase {
@@ -199,6 +216,7 @@ class TestNSDateComponents: XCTestCase {
     static var allTests: [(String, (TestNSDateComponents) -> () throws -> Void)] {
         return [
             ("test_copyNSDateComponents", test_copyNSDateComponents),
+            ("test_AnyHashable", test_AnyHashable),
         ]
     }
 
@@ -222,5 +240,23 @@ class TestNSDateComponents: XCTestCase {
         components.hour = 12
         XCTAssertEqual(components.hour, 12)
         XCTAssertEqual(copy.hour, 14)
+    }
+
+    func test_AnyHashable() {
+        let d1 = DateComponents(year: 2018, month: 8, day: 1)
+        let d2 = DateComponents(year: 2014, month: 6, day: 2)
+        let a1: AnyHashable = d1
+        let a2: AnyHashable = d1._bridgeToObjectiveC()
+        let b1: AnyHashable = d2
+        let b2: AnyHashable = d2._bridgeToObjectiveC()
+        XCTAssertEqual(a1, a2)
+        XCTAssertEqual(b1, b2)
+        XCTAssertNotEqual(a1, b1)
+        XCTAssertNotEqual(a1, b2)
+        XCTAssertNotEqual(a2, b1)
+        XCTAssertNotEqual(a2, b2)
+
+        XCTAssertEqual(a1.hashValue, a2.hashValue)
+        XCTAssertEqual(b1.hashValue, b2.hashValue)
     }
 }

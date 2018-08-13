@@ -276,6 +276,12 @@ extension TimeZone : _NSBridgeable, _CFBridgeable {
     var _cfObject : CFTimeZone { return _nsObject._cfObject }
 }
 
+extension NSTimeZone : _HasCustomAnyHashableRepresentation {
+    public func _toCustomAnyHashable() -> AnyHashable? {
+        return AnyHashable(self._swiftObject)
+    }
+}
+
 extension NSTimeZone {
 
     public enum NameStyle : Int {

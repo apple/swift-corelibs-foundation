@@ -517,6 +517,12 @@ extension NSAffineTransform : _StructTypeBridgeable {
     }
 }
 
+extension NSAffineTransform : _HasCustomAnyHashableRepresentation {
+    public func _toCustomAnyHashable() -> AnyHashable? {
+        return AnyHashable(self as AffineTransform)
+    }
+}
+
 extension AffineTransform : Codable {
     public init(from decoder: Decoder) throws {
         var container = try decoder.unkeyedContainer()

@@ -234,14 +234,8 @@ extension Measurement : _ObjectiveCBridgeable {
 
 @available(macOS 10.12, iOS 10.0, watchOS 3.0, tvOS 10.0, *)
 extension NSMeasurement : _HasCustomAnyHashableRepresentation {
-    // Must be @nonobjc to avoid infinite recursion during bridging.
-    @nonobjc
     public func _toCustomAnyHashable() -> AnyHashable? {
-#if DEPLOYMENT_RUNTIME_SWIFT
-        return AnyHashable(Measurement._unconditionallyBridgeFromObjectiveC(self))
-#else
         return AnyHashable(self as Measurement)
-#endif
     }
 }
 

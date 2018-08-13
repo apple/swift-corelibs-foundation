@@ -246,6 +246,11 @@ extension Date : _NSBridgeable, _CFBridgeable {
     internal var _cfObject: CFType { return _nsObject._cfObject }
 }
 
+extension NSDate : _HasCustomAnyHashableRepresentation {
+    public func _toCustomAnyHashable() -> AnyHashable? {
+        return AnyHashable(self as Date)
+    }
+}
 
 open class NSDateInterval : NSObject, NSCopying, NSSecureCoding {
     
@@ -417,5 +422,11 @@ extension NSDateInterval : _StructTypeBridgeable {
     
     public func _bridgeToSwift() -> DateInterval {
         return DateInterval._unconditionallyBridgeFromObjectiveC(self)
+    }
+}
+
+extension NSDateInterval : _HasCustomAnyHashableRepresentation {
+    public func _toCustomAnyHashable() -> AnyHashable? {
+        return AnyHashable(self as DateInterval)
     }
 }

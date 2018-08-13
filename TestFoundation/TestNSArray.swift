@@ -31,6 +31,7 @@ class TestNSArray : XCTestCase {
             ("test_sortUsingFunction", test_sortUsingFunction),
             ("test_sortUsingComparator", test_sortUsingComparator),
             ("test_equality", test_equality),
+            ("test_AnyHashable", test_AnyHashable),
             ("test_copying", test_copying),
             ("test_mutableCopying", test_mutableCopying),
             ("test_writeToFile", test_writeToFile),
@@ -584,6 +585,16 @@ class TestNSArray : XCTestCase {
         XCTAssertFalse(objectsArray1 == objectsArray2)
         XCTAssertFalse(objectsArray1.isEqual(objectsArray2))
         XCTAssertFalse(objectsArray1.isEqual(to: Array(objectsArray2)))
+    }
+
+    func test_AnyHashable() {
+        let a1: AnyHashable = [1, 2, 3]
+        let a2: AnyHashable = NSArray(array: [
+                NSNumber(value: 1),
+                NSNumber(value: 2),
+                NSNumber(value: 3)])
+        XCTAssertEqual(a1, a2)
+        XCTAssertEqual(a1.hashValue, a2.hashValue)
     }
 
     /// - Note: value type conversion will destroy identity. So use index(of:) instead of indexOfObjectIdentical(to:)

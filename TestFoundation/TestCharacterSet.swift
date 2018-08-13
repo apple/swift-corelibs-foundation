@@ -74,6 +74,7 @@ class TestCharacterSet : XCTestCase {
             ("test_formUnion", test_formUnion),
             ("test_union", test_union),
             ("test_SR5971", test_SR5971),
+            ("test_AnyHashable", test_AnyHashable),
         ]
     }
     
@@ -367,5 +368,20 @@ class TestCharacterSet : XCTestCase {
         let charset2 = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789&+")
         XCTAssertTrue(charset2.contains("+"))
     }
-    
+
+    func test_AnyHashable() {
+        let a1: AnyHashable = CharacterSet.letters
+        let a2: AnyHashable = NSCharacterSet.letters
+        let b1: AnyHashable = CharacterSet.alphanumerics
+        let b2: AnyHashable = CharacterSet.alphanumerics
+        XCTAssertEqual(a1, a2)
+        XCTAssertEqual(b1, b2)
+        XCTAssertNotEqual(a1, b1)
+        XCTAssertNotEqual(a1, b2)
+        XCTAssertNotEqual(a2, b1)
+        XCTAssertNotEqual(a2, b2)
+
+        XCTAssertEqual(a1.hashValue, a2.hashValue)
+        XCTAssertEqual(b1.hashValue, b2.hashValue)
+    }
 }

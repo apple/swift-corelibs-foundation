@@ -56,6 +56,7 @@ class TestURL : XCTestCase {
             ("test_itemNSCoding", test_itemNSCoding),
             ("test_dataRepresentation", test_dataRepresentation),
             ("test_description", test_description),
+            ("test_AnyHashable", test_AnyHashable),
         ]
     }
     
@@ -511,6 +512,22 @@ class TestURL : XCTestCase {
         let relativeURL = urlComponents.url(relativeTo: url)
         XCTAssertEqual(relativeURL?.description, "//:abcd@amazon.in:8080 -- http://amazon.in")
     }
+
+    func test_AnyHashable() {
+        let a1: AnyHashable = URL(string: "https://swift.org")!
+        let a2: AnyHashable = NSURL(string: "https://swift.org")!
+        let b1: AnyHashable = URL(string: "https://github.org/apple/swift")!
+        let b2: AnyHashable = NSURL(string: "https://github.org/apple/swift")!
+        XCTAssertEqual(a1, a2)
+        XCTAssertEqual(b1, b2)
+        XCTAssertNotEqual(a1, b1)
+        XCTAssertNotEqual(a1, b2)
+        XCTAssertNotEqual(a2, b1)
+        XCTAssertNotEqual(a2, b2)
+
+        XCTAssertEqual(a1.hashValue, a2.hashValue)
+        XCTAssertEqual(b1.hashValue, b2.hashValue)
+    }
 }
     
 class TestURLComponents : XCTestCase {
@@ -524,6 +541,7 @@ class TestURLComponents : XCTestCase {
             ("test_createURLWithComponents", test_createURLWithComponents),
             ("test_path", test_path),
             ("test_percentEncodedPath", test_percentEncodedPath),
+            ("test_AnyHashable", test_AnyHashable),
         ]
     }
     
@@ -669,5 +687,45 @@ class TestURLComponents : XCTestCase {
 
         let c6 = URLComponents(string: "http://swift.org:80/foo/b%20r")
         XCTAssertEqual(c6?.percentEncodedPath, "/foo/b%20r")
+    }
+
+    func test_AnyHashable() {
+        let a1: AnyHashable = URLComponents(string: "https://swift.org/about/#swiftorg-and-open-source")!
+        let a2: AnyHashable = NSURLComponents(string: "https://swift.org/about/#swiftorg-and-open-source")!
+        let b1: AnyHashable = URLComponents(string: "https://swift.org/blog/welcome/")!
+        let b2: AnyHashable = NSURLComponents(string: "https://swift.org/blog/welcome/")!
+        XCTAssertEqual(a1, a2)
+        XCTAssertEqual(b1, b2)
+        XCTAssertNotEqual(a1, b1)
+        XCTAssertNotEqual(a1, b2)
+        XCTAssertNotEqual(a2, b1)
+        XCTAssertNotEqual(a2, b2)
+
+        XCTAssertEqual(a1.hashValue, a2.hashValue)
+        XCTAssertEqual(b1.hashValue, b2.hashValue)
+    }
+}
+
+class TestURLQueryItem : XCTestCase {
+    static var allTests: [(String, (TestURLQueryItem) -> () throws -> Void)] {
+        return [
+            ("test_AnyHashable", test_AnyHashable),
+        ]
+    }
+
+    func test_AnyHashable() {
+        let a1: AnyHashable = URLQueryItem(name: "foo", value: "bar")
+        let a2: AnyHashable = NSURLQueryItem(name: "foo", value: "bar")
+        let b1: AnyHashable = URLQueryItem(name: "bumfuzzle", value: "brompfen")
+        let b2: AnyHashable = NSURLQueryItem(name: "bumfuzzle", value: "brompfen")
+        XCTAssertEqual(a1, a2)
+        XCTAssertEqual(b1, b2)
+        XCTAssertNotEqual(a1, b1)
+        XCTAssertNotEqual(a1, b2)
+        XCTAssertNotEqual(a2, b1)
+        XCTAssertNotEqual(a2, b2)
+
+        XCTAssertEqual(a1.hashValue, a2.hashValue)
+        XCTAssertEqual(b1.hashValue, b2.hashValue)
     }
 }

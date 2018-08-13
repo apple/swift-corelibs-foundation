@@ -321,6 +321,8 @@ class TestAffineTransform : XCTestCase {
         let ref = NSAffineTransform()
         let val = AffineTransform.identity
         XCTAssertEqual(ref.hashValue, val.hashValue)
+        XCTAssertEqual(ref as AnyHashable, val as AnyHashable)
+        XCTAssertEqual((ref as AnyHashable).hashValue, (val as AnyHashable).hashValue)
     }
 
     func test_hashing_values() {
@@ -336,6 +338,8 @@ class TestAffineTransform : XCTestCase {
             let ref = NSAffineTransform()
             ref.transformStruct = NSAffineTransformStruct(m11: val.m11, m12: val.m12, m21: val.m21, m22: val.m22, tX: val.tX, tY: val.tY)
             XCTAssertEqual(ref.hashValue, val.hashValue)
+            XCTAssertEqual(ref as AnyHashable, val as AnyHashable)
+            XCTAssertEqual((ref as AnyHashable).hashValue, (val as AnyHashable).hashValue)
         }
     }
 

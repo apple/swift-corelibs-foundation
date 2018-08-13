@@ -25,6 +25,7 @@ class TestDate : XCTestCase {
             ("test_IsEqualToDate", test_IsEqualToDate),
             ("test_timeIntervalSinceReferenceDate", test_timeIntervalSinceReferenceDate),
             ("test_recreateDateComponentsFromDate", test_recreateDateComponentsFromDate),
+            ("test_AnyHashable", test_AnyHashable),
         ]
     }
     
@@ -151,5 +152,21 @@ class TestDate : XCTestCase {
         XCTAssertEqual(recreatedComponents.weekOfMonth, 2)
         XCTAssertEqual(recreatedComponents.weekOfYear, 45)
         XCTAssertEqual(recreatedComponents.yearForWeekOfYear, 2017)
+    }
+
+    func test_AnyHashable() {
+        let a1: AnyHashable = Date(timeIntervalSinceReferenceDate: 1000)
+        let a2: AnyHashable = NSDate(timeIntervalSinceReferenceDate: 1000)
+        let b1: AnyHashable = Date(timeIntervalSinceReferenceDate: 5000)
+        let b2: AnyHashable = NSDate(timeIntervalSinceReferenceDate: 5000)
+        XCTAssertEqual(a1, a2)
+        XCTAssertEqual(b1, b2)
+        XCTAssertNotEqual(a1, b1)
+        XCTAssertNotEqual(a1, b2)
+        XCTAssertNotEqual(a2, b1)
+        XCTAssertNotEqual(a2, b2)
+
+        XCTAssertEqual(a1.hashValue, a2.hashValue)
+        XCTAssertEqual(b1.hashValue, b2.hashValue)
     }
 }

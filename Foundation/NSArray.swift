@@ -935,6 +935,20 @@ open class NSMutableArray : NSArray {
     }
 }
 
+extension NSArray : _HasCustomAnyHashableRepresentation {
+    public func _toCustomAnyHashable() -> AnyHashable? {
+        // FIXME: I want to return AnyHashable(self as! [AnyHashable])
+        // here, but a direct conversion to AnyHashable can fail with nested
+        // collections.
+        var a: [AnyHashable] = []
+        a.reserveCapacity(self.count)
+        for member in self {
+            a.append(member as AnyObject as! AnyHashable)
+        }
+        return AnyHashable(a)
+    }
+}
+
 extension NSArray : Sequence {
     final public func makeIterator() -> Iterator {
         return Iterator(self)

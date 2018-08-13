@@ -257,3 +257,9 @@ extension NSLocale : _StructTypeBridgeable {
         return Locale._unconditionallyBridgeFromObjectiveC(self)
     }
 }
+
+extension NSLocale : _HasCustomAnyHashableRepresentation {
+    public func _toCustomAnyHashable() -> AnyHashable? {
+        return AnyHashable(self as Locale)
+    }
+}

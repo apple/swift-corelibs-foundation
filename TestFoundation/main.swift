@@ -30,6 +30,7 @@ XCTMain([
     testCase(TestNSCompoundPredicate.allTests),
     testCase(TestNSData.allTests),
     testCase(TestDate.allTests),
+    testCase(TestDateInterval.allTests),
     testCase(TestNSDateComponents.allTests),
     testCase(TestDateFormatter.allTests),
     testCase(TestDecimal.allTests),
