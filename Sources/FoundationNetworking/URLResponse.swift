@@ -46,8 +46,11 @@ open class URLResponse : NSObject, NSSecureCoding, NSCopying {
             self.textEncodingName = encodedEncodingName as String
         }
         
-        if let encodedFilename = aDecoder.decodeObject(of: NSString.self, forKey: "NS.suggestedFilename") {
-            self.suggestedFilename = encodedFilename as String
+        if let encodedFilename = aDecoder.decodeObject(of: NSString.self, forKey: "NS.suggestedFilename")?.lastPathComponent,
+           !encodedFilename.isEmpty {
+            self.suggestedFilename = encodedFilename
+        } else {
+            self.suggestedFilename = "Unknown"
         }
     }
     
