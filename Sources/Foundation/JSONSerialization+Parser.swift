@@ -73,7 +73,7 @@ internal struct JSONParser {
             case UInt8(ascii: "-"), UInt8(ascii: "0") ... UInt8(ascii: "9"):
                 reader.moveReaderIndex(forwardBy: whitespace)
                 let number = try self.reader.readNumber()
-                return .number(number)
+                return .inputNumber(number)
             case ._space, ._return, ._newline, ._tab:
                 whitespace += 1
                 continue
@@ -263,7 +263,7 @@ extension JSONParser {
             try self.readUTF8StringTillNextUnescapedQuote()
         }
         
-        mutating func readNumber() throws -> String {
+        mutating func readNumber() throws -> _JSONNumber {
             try self.parseNumber()
         }
         
@@ -516,7 +516,7 @@ extension JSONParser {
         }
         
         // MARK: Numbers
-        
+
         private enum ControlCharacter {
             case operand
             case decimalPoint
@@ -524,13 +524,36 @@ extension JSONParser {
             case expOperator
         }
 
-        private mutating func parseNumber() throws -> String {
+
+        private func accumalateMagnitude(_ magnitude: UInt64?, value: UInt64) -> UInt64? {
+            guard let number = magnitude else { return nil }
+            let (newValue, overflow) = number.multipliedReportingOverflow(by: 10)
+            if overflow { return nil }
+            let (newMagnitude, overflow2) = newValue.addingReportingOverflow(value)
+            return overflow2 ? nil : newMagnitude
+        }
+
+        private func finalExponent(negativeExponent: Bool, exponentValue: Int?, fractionExponent: Int?) -> Int {
+            var result = (exponentValue ?? 0)
+            if negativeExponent { result = -1 * result }
+            result += (fractionExponent ?? 0)
+            return result
+        }
+
+
+        private mutating func parseNumber() throws -> _JSONNumber {
             var pastControlChar: ControlCharacter = .operand
             var numbersSinceControlChar: UInt = 0
             var hasLeadingZero = false
+            let numberStartIndex = self.readerIndex
+
+            // Tracking digits for integer/exponent, eg parsing 12.34e3, _integerMagnitude = 1234, fractionExponent = -2, exponentValue = 3
+            var integerMagnitude: UInt64? = 0   // set to nil when UInt64.max is exceeded
+            var fractionExponent: Int?
+            var exponentValue: Int?
+            var negativeExponent = false
 
             // parse first character
-
             guard let ascii = self.peek() else {
                 preconditionFailure("Why was this function called, if there is no 0...9 or -")
             }
@@ -542,39 +565,53 @@ extension JSONParser {
             case UInt8(ascii: "1") ... UInt8(ascii: "9"):
                 numbersSinceControlChar = 1
                 pastControlChar = .operand
+                integerMagnitude = UInt64(ascii - UInt8(ascii: "0"))
             case UInt8(ascii: "-"):
                 numbersSinceControlChar = 0
                 pastControlChar = .operand
             default:
                 preconditionFailure("Why was this function called, if there is no 0...9 or -")
             }
-
             var numberchars = 1
-            
+
             // parse everything else
             while let byte = self.peek(offset: numberchars) {
                 switch byte {
-                case UInt8(ascii: "0"):
+                case UInt8(ascii: "0") ... UInt8(ascii: "9"):
                     if hasLeadingZero {
                         throw JSONError.numberWithLeadingZero(index: readerIndex + numberchars)
                     }
-                    if numbersSinceControlChar == 0, pastControlChar == .operand {
+                    if byte == UInt8(ascii: "0"), numbersSinceControlChar == 0, pastControlChar == .operand {
                         // the number started with a minus. this is the leading zero.
                         hasLeadingZero = true
                     }
                     numberchars += 1
                     numbersSinceControlChar += 1
-                case UInt8(ascii: "1") ... UInt8(ascii: "9"):
-                    if hasLeadingZero {
-                        throw JSONError.numberWithLeadingZero(index: readerIndex + numberchars)
+
+                    let digitValue = byte - UInt8(ascii: "0")
+                    if var newExponentValue = exponentValue {
+                        // 'e' or 'E' has passed so all digits are now exponent digits
+                        newExponentValue = (newExponentValue * 10) + Int(digitValue)
+                        if newExponentValue > 324 {
+                            // Exponent is too large to store in a Double. Use 32767 if Float80 or Float128 is ever supported
+                            self.moveReaderIndex(forwardBy: numberchars)
+                            let jsonString = self.makeStringFast(self[numberStartIndex ..< self.readerIndex])
+                            throw JSONError.numberIsNotRepresentableInSwift(parsed: jsonString)
+                        }
+                        exponentValue = newExponentValue
+                    } else  {
+                        integerMagnitude = accumalateMagnitude(integerMagnitude, value: UInt64(digitValue))
+                        if let newFractionExponent = fractionExponent {
+                            fractionExponent = newFractionExponent - 1
+                        }
                     }
-                    numberchars += 1
-                    numbersSinceControlChar += 1
+
                 case UInt8(ascii: "."):
                     guard numbersSinceControlChar > 0, pastControlChar == .operand else {
                         throw JSONError.unexpectedCharacter(ascii: byte, characterIndex: readerIndex + numberchars)
                     }
 
+                    fractionExponent = 0
                     numberchars += 1
                     hasLeadingZero = false
                     pastControlChar = .decimalPoint
@@ -587,6 +624,7 @@ extension JSONParser {
                         throw JSONError.unexpectedCharacter(ascii: byte, characterIndex: readerIndex + numberchars)
                     }
 
+                    exponentValue = 0
                     numberchars += 1
                     hasLeadingZero = false
                     pastControlChar = .exp
@@ -595,7 +633,7 @@ extension JSONParser {
                     guard numbersSinceControlChar == 0, pastControlChar == .exp else {
                         throw JSONError.unexpectedCharacter(ascii: byte, characterIndex: readerIndex + numberchars)
                     }
-
+                    negativeExponent = (byte == UInt8(ascii: "-"))
                     numberchars += 1
                     pastControlChar = .expOperator
                     numbersSinceControlChar = 0
@@ -603,10 +641,11 @@ extension JSONParser {
                     guard numbersSinceControlChar > 0 else {
                         throw JSONError.unexpectedCharacter(ascii: byte, characterIndex: readerIndex + numberchars)
                     }
-                    let numberStartIndex = self.readerIndex
                     self.moveReaderIndex(forwardBy: numberchars)
+                    let jsonString = self.makeStringFast(self[numberStartIndex ..< self.readerIndex])
+                    let exponent = finalExponent(negativeExponent: negativeExponent, exponentValue: exponentValue, fractionExponent: fractionExponent)
 
-                    return self.makeStringFast(self[numberStartIndex ..< self.readerIndex])
+                    return _JSONNumber(jsonString: jsonString, integerMagnitude: integerMagnitude, exponent: exponent)
                 default:
                     throw JSONError.unexpectedCharacter(ascii: byte, characterIndex: readerIndex + numberchars)
                 }
@@ -617,7 +656,9 @@ extension JSONParser {
             }
 
             defer { self.readerIndex = self.array.endIndex }
-            return String(decoding: self.array.suffix(from: readerIndex), as: Unicode.UTF8.self)
+            let jsonString = String(decoding: self.array.suffix(from: readerIndex), as: Unicode.UTF8.self)
+            let exponent = finalExponent(negativeExponent: negativeExponent, exponentValue: exponentValue, fractionExponent: fractionExponent)
+            return _JSONNumber(jsonString: jsonString, integerMagnitude: integerMagnitude, exponent: exponent)
         }
     }
 }
@@ -640,7 +681,6 @@ extension UInt8 {
     
     internal static let _quote = UInt8(ascii: "\"")
     internal static let _backslash = UInt8(ascii: "\\")
-    
 }
 
 extension Array where Element == UInt8 {

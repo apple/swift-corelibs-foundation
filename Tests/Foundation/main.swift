@@ -55,6 +55,7 @@ var allTestCases = [
     testCase(TestIndexSet.allTests),
     testCase(TestISO8601DateFormatter.allTests),
     testCase(TestJSONSerialization.allTests),
+    testCase(TestJSONNumber.allTests),
     testCase(TestNSKeyedArchiver.allTests),
     testCase(TestNSKeyedUnarchiver.allTests),
     testCase(TestLengthFormatter.allTests),

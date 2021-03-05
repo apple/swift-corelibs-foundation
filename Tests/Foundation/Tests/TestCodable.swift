@@ -546,6 +546,42 @@ class TestCodable : XCTestCase {
             }
         }
     }
+
+    func test_decimal_double() {
+        // SR-7054
+        struct DoubleItem : Codable {
+            var name: String
+            var price: Double
+        }
+
+        struct DecimalItem : Codable {
+            var name: String
+            var price: Decimal
+        }
+
+        let jsonString = """
+        { "name": "Gum ball", "price": 46.984765 }
+        """
+        let jsonData = jsonString.data(using: .utf8)!
+
+        let decoder = JSONDecoder()
+        do {
+            let doubleItem = try decoder.decode(DoubleItem.self, from: jsonData)
+            print(doubleItem)
+            XCTAssertEqual(doubleItem.price.description, "46.984765")
+
+
+            let decimalItem = try decoder.decode(DecimalItem.self, from: jsonData)
+            print(decimalItem)
+            print(type(of: decimalItem.price))
+            XCTAssertEqual(decimalItem.price.description, "46.984765")
+            let jobj = try? JSONSerialization.jsonObject(with: jsonData)
+            print("jobj:", jobj ?? "nil")
+        }
+        catch {
+            XCTFail(error as! String)
+        }
+    }
 }
 
 extension TestCodable {
@@ -569,6 +605,7 @@ extension TestCodable {
             ("test_DateComponents_JSON", test_DateComponents_JSON),
             ("test_Measurement_JSON", test_Measurement_JSON),
             ("test_URLComponents_JSON", test_URLComponents_JSON),
+            ("test_decimal_double", test_decimal_double),
         ]
     }
 }

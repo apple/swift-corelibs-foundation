@@ -515,10 +515,10 @@ extension NSNumber {
     public var decimalValue: Decimal {
         if let d = self as? NSDecimalNumber {
             return d.decimal
+        } else if let d = self as? _NSJSONNumber {
+            return d.decimal
         } else {
             return Decimal(self.doubleValue)
         }
     }
 }
-
-

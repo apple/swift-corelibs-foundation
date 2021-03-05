@@ -36,6 +36,7 @@ target_sources(TestFoundation PRIVATE
   Tests/TestIndexSet.swift
   Tests/TestISO8601DateFormatter.swift
   Tests/TestJSONEncoder.swift
+  Tests/TestJSONNumber.swift
   Tests/TestJSONSerialization.swift
   Tests/TestLengthFormatter.swift
   Tests/TestMassFormatter.swift

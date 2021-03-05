@@ -53,6 +53,8 @@ class TestJSONEncoder : XCTestCase {
         _testFragment(value: "test", fragment: "\"test\"")
         let v: Int? = nil
         _testFragment(value: v, fragment: "null")
+        // SR-12244
+        _testFragment(value: Decimal(string: "27.31")!, fragment: "27.31")
     }
 
     // MARK: - Encoding Top-Level Empty Types
@@ -607,8 +609,29 @@ class TestJSONEncoder : XCTestCase {
         test_codingOf(value: Double(1.5), toAndFrom: "1.5")
     }
 
-    func test_codingOfDecimal() {
+    func test_codingOfDecimal() throws {
         test_codingOf(value: Decimal.pi, toAndFrom: "3.14159265358979323846264338327950288419")
+
+        struct Foo: Codable {
+            var decimal: Decimal
+        }
+
+        let json = "{ \"decimal\": 27.31 }".data(using: .utf8)!
+        let result = try XCTUnwrap( JSONSerialization.jsonObject(with: json) as? [String: Any])
+        print(result)
+        let d = try XCTUnwrap(result["decimal"] as? NSNumber)
+        print(type(of: d))
+        XCTAssertTrue(d != nil)
+
+        let result2 = try XCTUnwrap( JSONSerialization.jsonObject(with: json) as? [String: Double])
+        print(result2)
+        let d2 = try XCTUnwrap(result2["decimal"])
+        print(type(of: d2))
+        XCTAssertNotNil(d2)
+
+        let decoder = JSONDecoder()
+        let foo = try decoder.decode(Foo.self, from: json)
+        XCTAssertEqual(foo.decimal, try XCTUnwrap(Decimal(string: "27.31")))
     }
 
     func test_codingOfString() {
@@ -704,7 +727,7 @@ class TestJSONEncoder : XCTestCase {
             ("UInt64", "0"), ("UInt64", "1"), ("UInt64", "18446744073709551615"),
 
             ("Double", "0"), ("Double", "1"), ("Double", "-1"), ("Double", "2.2250738585072014e-308"), ("Double", "1.7976931348623157e+308"),
-            ("Double", "5e-324"), ("Double", "3.141592653589793"),
+            ("Double", "5e-324"), ("Double", "3.141592653589794"),
 
             ("Decimal", "1.2"), ("Decimal", "3.14159265358979323846264338327950288419"),
             ("Decimal", "3402823669209384634633746074317682114550000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),

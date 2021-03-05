@@ -459,7 +459,7 @@ extension JSONEncoderImpl: _SpecialTreatmentEncoder {
         case let url as URL:
             return .string(url.absoluteString)
         case let decimal as Decimal:
-            return .number(decimal.description)
+            return .outputNumber(decimal.description)
         case let object as [String: Encodable]: // this emits a warning, but it works perfectly
             return try self.wrapObject(object, for: nil)
         case let date as Date:
@@ -507,7 +507,7 @@ extension _SpecialTreatmentEncoder {
         if string.hasSuffix(".0") {
             string.removeLast(2)
         }
-        return .number(string)
+        return .outputNumber(string)
     }
     
     fileprivate func wrapEncodable<E: Encodable>(_ encodable: E, for additionalKey: CodingKey?) throws -> JSONValue? {
@@ -519,7 +519,7 @@ extension _SpecialTreatmentEncoder {
         case let url as URL:
             return .string(url.absoluteString)
         case let decimal as Decimal:
-            return .number(decimal.description)
+            return .outputNumber(decimal.description)
         case let object as [String: Encodable]:
             return try self.wrapObject(object, for: additionalKey)
         default:
@@ -537,10 +537,10 @@ extension _SpecialTreatmentEncoder {
             return encoder.value ?? .null
 
         case .secondsSince1970:
-            return .number(date.timeIntervalSince1970.description)
+            return .outputNumber(date.timeIntervalSince1970.description)
 
         case .millisecondsSince1970:
-            return .number((date.timeIntervalSince1970 * 1000).description)
+            return .outputNumber((date.timeIntervalSince1970 * 1000).description)
 
         case .iso8601:
             if #available(macOS 10.12, iOS 10.0, watchOS 3.0, tvOS 10.0, *) {
@@ -751,7 +751,7 @@ extension JSONKeyedEncodingContainer {
     }
     
     @inline(__always) private mutating func encodeFixedWidthInteger<N: FixedWidthInteger>(_ value: N, key: CodingKey) throws {
-        self.object.set(.number(value.description), for: key.stringValue)
+        self.object.set(.outputNumber(value.description), for: key.stringValue)
     }
 }
 
@@ -872,7 +872,7 @@ private struct JSONUnkeyedEncodingContainer: UnkeyedEncodingContainer, _SpecialT
 
 extension JSONUnkeyedEncodingContainer {
     @inline(__always) private mutating func encodeFixedWidthInteger<N: FixedWidthInteger>(_ value: N) throws {
-        self.array.append(.number(value.description))
+        self.array.append(.outputNumber(value.description))
     }
 
     @inline(__always) private mutating func encodeFloatingPoint<F: FloatingPoint & CustomStringConvertible>(_ float: F) throws {
@@ -971,7 +971,7 @@ private struct JSONSingleValueEncodingContainer: SingleValueEncodingContainer, _
 extension JSONSingleValueEncodingContainer {
     @inline(__always) private mutating func encodeFixedWidthInteger<N: FixedWidthInteger>(_ value: N) throws {
         self.preconditionCanEncodeNewValue()
-        self.impl.singleValue = .number(value.description)
+        self.impl.singleValue = .outputNumber(value.description)
     }
     
     @inline(__always) private mutating func encodeFloatingPoint<F: FloatingPoint & CustomStringConvertible>(_ float: F) throws {
@@ -1011,7 +1011,9 @@ extension JSONValue {
                 bytes.append(contentsOf: [UInt8]._false)
             case .string(let string):
                 self.encodeString(string, to: &bytes)
-            case .number(let string):
+            case .inputNumber(let jsonNumber):
+                bytes.append(contentsOf: jsonNumber.description.utf8)
+            case .outputNumber(let string):
                 bytes.append(contentsOf: string.utf8)
             case .array(let array):
                 var iterator = array.makeIterator()
@@ -1070,7 +1072,9 @@ extension JSONValue {
                 bytes.append(contentsOf: [UInt8]._false)
             case .string(let string):
                 self.encodeString(string, to: &bytes)
-            case .number(let string):
+            case .inputNumber(let jsonNumber):
+                bytes.append(contentsOf: jsonNumber.description.utf8)
+            case .outputNumber(let string):
                 bytes.append(contentsOf: string.utf8)
             case .array(let array):
                 var iterator = array.makeIterator()
@@ -1529,14 +1533,14 @@ extension JSONDecoderImpl: Decoder {
     }
     
     private func unwrapDecimal() throws -> Decimal {
-        guard case .number(let numberString) = self.json else {
+        guard case .inputNumber(let jsonNumber) = self.json else {
             throw DecodingError.typeMismatch(Decimal.self, DecodingError.Context(codingPath: self.codingPath, debugDescription: ""))
         }
         
-        guard let decimal = Decimal(string: numberString) else {
+        guard let decimal = jsonNumber.exactlyDecimal else {
             throw DecodingError.dataCorrupted(.init(
                 codingPath: self.codingPath,
-                debugDescription: "Parsed JSON number <\(numberString)> does not fit in \(Decimal.self)."))
+                debugDescription: "Parsed JSON number <\(jsonNumber)> does not fit in \(Decimal.self)."))
         }
         
         return decimal
@@ -1572,18 +1576,20 @@ extension JSONDecoderImpl: Decoder {
         for additionalKey: CodingKey? = nil,
         as type: T.Type) throws -> T
     {
-        if case .number(let number) = value {
-            guard let floatingPoint = T(number) else {
-                var path = self.codingPath
-                if let additionalKey = additionalKey {
-                    path.append(additionalKey)
-                }
-                throw DecodingError.dataCorrupted(.init(
-                    codingPath: path,
-                    debugDescription: "Parsed JSON number <\(number)> does not fit in \(T.self)."))
+        if case .inputNumber(let jsonNumber) = value {
+            if type == Double.self, let number = jsonNumber.exactlyDouble {
+                return number as! T
             }
-            
-            return floatingPoint
+            if type == Float.self, let number = jsonNumber.exactlyFloat {
+                return number as! T
+            }
+            var path = self.codingPath
+            if let additionalKey = additionalKey {
+                path.append(additionalKey)
+            }
+            throw DecodingError.dataCorrupted(.init(
+                codingPath: path,
+                debugDescription: "Parsed JSON number <\(jsonNumber)> does not fit in \(T.self)."))
         }
 
         if case .string(let string) = value,
@@ -1607,57 +1613,48 @@ extension JSONDecoderImpl: Decoder {
         for additionalKey: CodingKey? = nil,
         as type: T.Type) throws -> T
     {
-        guard case .number(let number) = value else {
+        guard case .inputNumber(let jsonNumber) = value else {
             throw self.createTypeMismatchError(type: T.self, for: additionalKey, value: value)
         }
 
-        // this is the fast pass. Number directly convertible to Integer
-        if let integer = T(number) {
-            return integer
+        if type == UInt8.self, let number = jsonNumber.exactlyUInt8 {
+            return number as! T
         }
-        
-        // this is the really slow path... If the fast path has failed. For example for "34.0" as
-        // an integer, we try to go through NSNumber
-        if let nsNumber = NSNumber.fromJSONNumber(number) {
-            if type == UInt8.self, NSNumber(value: nsNumber.uint8Value) == nsNumber {
-                return nsNumber.uint8Value as! T
-            }
-            if type == Int8.self, NSNumber(value: nsNumber.int8Value) == nsNumber {
-                return nsNumber.uint8Value as! T
-            }
-            if type == UInt16.self, NSNumber(value: nsNumber.uint16Value) == nsNumber {
-                return nsNumber.uint16Value as! T
-            }
-            if type == Int16.self, NSNumber(value: nsNumber.int16Value) == nsNumber {
-                return nsNumber.uint16Value as! T
-            }
-            if type == UInt32.self, NSNumber(value: nsNumber.uint32Value) == nsNumber {
-                return nsNumber.uint32Value as! T
-            }
-            if type == Int32.self, NSNumber(value: nsNumber.int32Value) == nsNumber {
-                return nsNumber.uint32Value as! T
-            }
-            if type == UInt64.self, NSNumber(value: nsNumber.uint64Value) == nsNumber {
-                return nsNumber.uint64Value as! T
-            }
-            if type == Int64.self, NSNumber(value: nsNumber.int64Value) == nsNumber {
-                return nsNumber.uint64Value as! T
-            }
-            if type == UInt.self, NSNumber(value: nsNumber.uintValue) == nsNumber {
-                return nsNumber.uintValue as! T
-            }
-            if type == Int.self, NSNumber(value: nsNumber.uintValue) == nsNumber {
-                return nsNumber.intValue as! T
-            }
+        if type == Int8.self, let number = jsonNumber.exactlyInt8 {
+            return number as! T
         }
-        
+        if type == UInt16.self, let number = jsonNumber.exactlyUInt16 {
+            return number as! T
+        }
+        if type == Int16.self, let number = jsonNumber.exactlyInt16 {
+            return number as! T
+        }
+        if type == UInt32.self, let number = jsonNumber.exactlyUInt32 {
+            return number as! T
+        }
+        if type == Int32.self, let number = jsonNumber.exactlyInt32 {
+            return number as! T
+        }
+        if type == UInt64.self, let number = jsonNumber.exactlyUInt64 {
+            return number as! T
+        }
+        if type == Int64.self, let number = jsonNumber.exactlyInt64 {
+            return number as! T
+        }
+        if type == UInt.self, let number = jsonNumber.exactlyUInt {
+            return number as! T
+        }
+        if type == Int.self, let number = jsonNumber.exactlyInt {
+            return number as! T
+        }
+
         var path = self.codingPath
         if let additionalKey = additionalKey {
             path.append(additionalKey)
         }
         throw DecodingError.dataCorrupted(.init(
             codingPath: path,
-            debugDescription: "Parsed JSON number <\(number)> does not fit in \(T.self)."))
+            debugDescription: "Parsed JSON number <\(jsonNumber)> does not fit in \(T.self)."))
     }
     
     private func createTypeMismatchError(type: Any.Type, for additionalKey: CodingKey? = nil, value: JSONValue) -> DecodingError {

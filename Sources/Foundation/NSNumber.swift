@@ -55,9 +55,12 @@ extension Int8 : _ObjectiveCBridgeable {
     }
 
     public static func _conditionallyBridgeFromObjectiveC(_ x: NSNumber, result: inout Int8?) -> Bool {
-        guard let value = Int8(exactly: x) else { return false }
-        result = value
-        return true
+        if let jn = x as? _NSJSONNumber {
+            result = Int8(exactly: jn)
+        } else {
+            result = Int8(exactly: x)
+        }
+        return result != nil
     }
 
     public static func _unconditionallyBridgeFromObjectiveC(_ source: NSNumber?) -> Int8 {
@@ -95,9 +98,12 @@ extension UInt8 : _ObjectiveCBridgeable {
     }
 
     public static func _conditionallyBridgeFromObjectiveC(_ x: NSNumber, result: inout UInt8?) -> Bool {
-        guard let value = UInt8(exactly: x) else { return false }
-        result = value
-        return true
+        if let jn = x as? _NSJSONNumber {
+            result = UInt8(exactly: jn)
+        } else {
+            result = UInt8(exactly: x)
+        }
+        return result != nil
     }
 
     public static func _unconditionallyBridgeFromObjectiveC(_ source: NSNumber?) -> UInt8 {
@@ -135,9 +141,12 @@ extension Int16 : _ObjectiveCBridgeable {
     }
 
     public static func _conditionallyBridgeFromObjectiveC(_ x: NSNumber, result: inout Int16?) -> Bool {
-        guard let value = Int16(exactly: x) else { return false }
-        result = value
-        return true
+        if let jn = x as? _NSJSONNumber {
+            result = Int16(exactly: jn)
+        } else {
+            result = Int16(exactly: x)
+        }
+        return result != nil
     }
 
     public static func _unconditionallyBridgeFromObjectiveC(_ source: NSNumber?) -> Int16 {
@@ -175,9 +184,12 @@ extension UInt16 : _ObjectiveCBridgeable {
     }
 
     public static func _conditionallyBridgeFromObjectiveC(_ x: NSNumber, result: inout UInt16?) -> Bool {
-        guard let value = UInt16(exactly: x) else { return false }
-        result = value
-        return true
+        if let jn = x as? _NSJSONNumber {
+            result = UInt16(exactly: jn)
+        } else {
+            result = UInt16(exactly: x)
+        }
+        return result != nil
     }
 
     public static func _unconditionallyBridgeFromObjectiveC(_ source: NSNumber?) -> UInt16 {
@@ -215,9 +227,12 @@ extension Int32 : _ObjectiveCBridgeable {
     }
 
     public static func _conditionallyBridgeFromObjectiveC(_ x: NSNumber, result: inout Int32?) -> Bool {
-        guard let value = Int32(exactly: x) else { return false }
-        result = value
-        return true
+        if let jn = x as? _NSJSONNumber {
+            result = Int32(exactly: jn)
+        } else {
+            result = Int32(exactly: x)
+        }
+        return result != nil
     }
 
     public static func _unconditionallyBridgeFromObjectiveC(_ source: NSNumber?) -> Int32 {
@@ -255,9 +270,12 @@ extension UInt32 : _ObjectiveCBridgeable {
     }
 
     public static func _conditionallyBridgeFromObjectiveC(_ x: NSNumber, result: inout UInt32?) -> Bool {
-        guard let value = UInt32(exactly: x) else { return false }
-        result = value
-        return true
+        if let jn = x as? _NSJSONNumber {
+            result = UInt32(exactly: jn)
+        } else {
+            result = UInt32(exactly: x)
+        }
+        return result != nil
     }
 
     public static func _unconditionallyBridgeFromObjectiveC(_ source: NSNumber?) -> UInt32 {
@@ -295,9 +313,12 @@ extension Int64 : _ObjectiveCBridgeable {
     }
 
     public static func _conditionallyBridgeFromObjectiveC(_ x: NSNumber, result: inout Int64?) -> Bool {
-        guard let value = Int64(exactly: x) else { return false }
-        result = value
-        return true
+        if let jn = x as? _NSJSONNumber {
+            result = Int64(exactly: jn)
+        } else {
+            result = Int64(exactly: x)
+        }
+        return result != nil
     }
 
     public static func _unconditionallyBridgeFromObjectiveC(_ source: NSNumber?) -> Int64 {
@@ -335,9 +356,12 @@ extension UInt64 : _ObjectiveCBridgeable {
     }
 
     public static func _conditionallyBridgeFromObjectiveC(_ x: NSNumber, result: inout UInt64?) -> Bool {
-        guard let value = UInt64(exactly: x) else { return false }
-        result = value
-        return true
+        if let jn = x as? _NSJSONNumber {
+            result = UInt64(exactly: jn)
+        } else {
+            result = UInt64(exactly: x)
+        }
+        return result != nil
     }
 
     public static func _unconditionallyBridgeFromObjectiveC(_ source: NSNumber?) -> UInt64 {
@@ -375,9 +399,12 @@ extension Int : _ObjectiveCBridgeable {
     }
     
     public static func _conditionallyBridgeFromObjectiveC(_ x: NSNumber, result: inout Int?) -> Bool {
-        guard let value = Int(exactly: x) else { return false }
-        result = value
-        return true
+        if let jn = x as? _NSJSONNumber {
+            result = Int(exactly: jn)
+        } else {
+            result = Int(exactly: x)
+        }
+        return result != nil
     }
     
     public static func _unconditionallyBridgeFromObjectiveC(_ source: NSNumber?) -> Int {
@@ -415,9 +442,12 @@ extension UInt : _ObjectiveCBridgeable {
     }
     
     public static func _conditionallyBridgeFromObjectiveC(_ x: NSNumber, result: inout UInt?) -> Bool {
-        guard let value = UInt(exactly: x) else { return false }
-        result = value
-        return true
+        if let jn = x as? _NSJSONNumber {
+            result = UInt(exactly: jn)
+        } else {
+            result = UInt(exactly: x)
+        }
+        return result != nil
     }
     
     public static func _unconditionallyBridgeFromObjectiveC(_ source: NSNumber?) -> UInt {
@@ -463,11 +493,15 @@ extension Float : _ObjectiveCBridgeable {
     }
     
     public static func _conditionallyBridgeFromObjectiveC(_ x: NSNumber, result: inout Float?) -> Bool {
-        if x.floatValue.isNaN {
-            result = x.floatValue
-            return true
+        if let jn = x as? _NSJSONNumber {
+            result = Float(exactly: jn)
+        } else {
+            if x.floatValue.isNaN {
+                result = x.floatValue
+                return true
+            }
+            result = Float(exactly: x)
         }
-        result = Float(exactly: x)
         return result != nil
     }
     
@@ -516,11 +550,15 @@ extension Double : _ObjectiveCBridgeable {
     }
     
     public static func _conditionallyBridgeFromObjectiveC(_ x: NSNumber, result: inout Double?) -> Bool {
-        if x.doubleValue.isNaN {
-            result = x.doubleValue
-            return true
+        if let jn = x as? _NSJSONNumber {
+            result = Double(exactly: jn)
+        } else {
+            if x.doubleValue.isNaN {
+                result = x.doubleValue
+                return true
+            }
+            result = Double(exactly: x)
         }
-        result = Double(exactly: x)
         return result != nil
     }
     
@@ -563,18 +601,14 @@ extension Bool : _ObjectiveCBridgeable {
     }
     
     public static func _conditionallyBridgeFromObjectiveC(_ x: NSNumber, result: inout Bool?) -> Bool {
-        if x === kCFBooleanTrue || NSNumber(value: 1) == x {
-            result = true
-            return true
-        } else if x === kCFBooleanFalse || NSNumber(value: 0) == x {
-            result = false
-            return true
+        if let jn = x as? _NSJSONNumber {
+            result = Bool(exactly: jn)
+        } else {
+            result = Bool(exactly: x)
         }
-
-        result = nil
-        return false
+        return result != nil
     }
-    
+
     public static func _unconditionallyBridgeFromObjectiveC(_ source: NSNumber?) -> Bool {
         var result: Bool?
         guard let src = source else { return false }
@@ -594,7 +628,7 @@ extension NSNumber : ExpressibleByFloatLiteral, ExpressibleByIntegerLiteral, Exp
 
 }
 
-private struct CFSInt128Struct {
+internal struct CFSInt128Struct {
     var high: Int64
     var low: UInt64
 }
@@ -903,7 +937,7 @@ open class NSNumber : NSValue {
         return .init(truncatingIfNeeded: value.low)
     }
 
-    private var int128Value: CFSInt128Struct {
+    internal var int128Value: CFSInt128Struct {
         var value = CFSInt128Struct(high: 0, low: 0)
         CFNumberGetValue(_cfObject, kCFNumberSInt128Type, &value)
         return value
@@ -1099,10 +1133,6 @@ open class NSNumber : NSValue {
         case kCFNumberSInt64Type:
             valuePtr.assumingMemoryBound(to: Int64.self).pointee = int64Value
         case kCFNumberSInt128Type:
-            struct CFSInt128Struct {
-                var high: Int64
-                var low: UInt64
-            }
             let val = int64Value
             valuePtr.assumingMemoryBound(to: CFSInt128Struct.self).pointee = CFSInt128Struct.init(high: (val < 0) ? -1 : 0, low: UInt64(bitPattern: val))
         case kCFNumberFloat32Type:
