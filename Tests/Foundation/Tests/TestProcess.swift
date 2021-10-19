@@ -12,7 +12,7 @@ class TestProcess : XCTestCase {
     func test_exit0() throws {
         let process = Process()
         let executableURL = xdgTestHelperURL()
-        if #available(OSX 10.13, *) {
+        if #available(macOS 10.13, *) {
             process.executableURL = executableURL
         } else {
             // Fallback on earlier versions
@@ -971,7 +971,12 @@ internal func runTask(_ arguments: [String], environment: [String: String]? = ni
     let process = Process()
 
     var arguments = arguments
-    process.launchPath = arguments.removeFirst()
+    if #available(macOS 10.13, *) {
+        process.executableURL = URL(fileURLWithPath:arguments.removeFirst())
+    } else {
+        // Fallback on earlier versions
+        process.launchPath = arguments.removeFirst()
+    }
     process.arguments = arguments
     // Darwin Foundation doesnt allow .environment to be set to nil although the documentation
     // says it is an optional. https://developer.apple.com/documentation/foundation/process/1409412-environment
