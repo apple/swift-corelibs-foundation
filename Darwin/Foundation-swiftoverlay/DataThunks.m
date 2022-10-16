@@ -106,7 +106,7 @@ static NSError *_NSErrorWithFilePathAndErrno(NSInteger posixErrno, id pathOrURL,
     }
     
     NSString *key = [pathOrURL isKindOfClass:[NSURL self]] ? NSURLErrorKey : NSFilePathErrorKey;
-    NSDictionary *userInfo = @{pathOrURL : key, [NSError errorWithDomain:NSPOSIXErrorDomain code:posixErrno userInfo:nil] : NSUnderlyingErrorKey};
+    NSDictionary *userInfo = @{key : pathOrURL, NSUnderlyingErrorKey : [NSError errorWithDomain:NSPOSIXErrorDomain code:posixErrno userInfo:nil]};
     NSError *error = [NSError errorWithDomain:NSCocoaErrorDomain code:code userInfo:userInfo];
     [userInfo release];
     return error;
