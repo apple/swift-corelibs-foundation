@@ -61,7 +61,7 @@ static _CFBundleFileVersion _CFBundleVersionForFileName(CFStringRef fileName, Bo
 }
 
 // Splits up a string into its various parts. Note that the out-types must be released by the caller if they exist.
-CF_PRIVATE void _CFBundleSplitFileName(CFStringRef fileName, CFStringRef *noProductOrPlatform, CFStringRef *endType, CFStringRef *startType, CFStringRef expectedProduct, CFStringRef expectedPlatform, Boolean searchForFallbackProduct, _CFBundleFileVersion *version) {
+CF_PRIVATE void _CFBundleSplitFileName(CFStringRef fileName, CFStringRef *noProductOrPlatform, CFStringRef *endType, CFStringRef *startType, CFStringRef expectedProduct, CFStringRef expectedPlatform, _CFBundleSplitFileNameFallbackProductSearchOption fallbackSearchOption, _CFBundleFileVersion *version) {
     CFIndex fileNameLen = CFStringGetLength(fileName);
 
     if (endType || startType) {
@@ -104,7 +104,7 @@ CF_PRIVATE void _CFBundleSplitFileName(CFStringRef fileName, CFStringRef *noProd
     Boolean searchForProductName = true;
 #else
     Boolean searchForProductName = false;
-#endif
+#endif // TARGET_OS_IPHONE
     *version = _CFBundleVersionForFileName(fileName, searchForProductName, expectedProduct, expectedPlatform, &productRange, &platformRange);
 
     Boolean foundPlatform = _CFBundleFileVersionFoundMatchingPlatform(*version);

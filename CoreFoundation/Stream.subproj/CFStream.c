@@ -11,6 +11,7 @@
 #include <CoreFoundation/CFRuntime.h>
 #include <CoreFoundation/CFNumber.h>
 #include <string.h>
+#include "CFInternal.h"
 #include "CFStreamInternal.h"
 #include "CFRuntime_Internal.h"
 #include <stdio.h>
@@ -49,7 +50,7 @@ enum {
    RunLoop+RunLoopMode pair that it's scheduled in.  If the stream is scheduled in more than
    one loop or mode, it can't share RunLoopSources with others, and is not in this dict.
 */
-static CFLock_t sSourceLock = CFLockInit;
+static os_unfair_lock sSourceLock = OS_UNFAIR_LOCK_INIT;
 static CFMutableDictionaryRef sSharedSources = NULL;
 
 // Just reads the bits, for those cases where we don't want to go through any callback checking
@@ -189,7 +190,7 @@ static void _CFStreamDetachSource(struct _CFStream* stream) {
 			CFIndex count;
 			CFIndex i;
             
-            __CFLock(&sSourceLock);
+            os_unfair_lock_lock(&sSourceLock);
             
             runLoopAndSourceKey = (CFArrayRef)CFDictionaryGetValue(sSharedSources, stream);
             list = (CFMutableArrayRef)CFDictionaryGetValue(sSharedSources, runLoopAndSourceKey);
@@ -218,7 +219,7 @@ static void _CFStreamDetachSource(struct _CFStream* stream) {
 			
             __CFBitClear(stream->flags, SHARED_SOURCE);
 
-            __CFUnlock(&sSourceLock);
+            os_unfair_lock_unlock(&sSourceLock);
         }
     }
 }
@@ -630,7 +631,7 @@ static void _cfstream_shared_signalEventSync(void* info)
 #endif
         struct _CFStream* stream = NULL;
         
-        __CFLock(&sSourceLock);
+        os_unfair_lock_lock(&sSourceLock);
         
         /* Looks like, we grab the first stream that wants an event... */
         /* Note that I grab an extra retain when I pull out the stream here... */
@@ -676,7 +677,7 @@ static void _cfstream_shared_signalEventSync(void* info)
             }
         }
         
-        __CFUnlock(&sSourceLock);
+        os_unfair_lock_unlock(&sSourceLock);
         
         /* We're sitting here now, possibly with a stream that needs to be processed by the common routine */
         if (stream) {
@@ -1386,7 +1387,7 @@ CF_PRIVATE void _CFStreamScheduleWithRunLoop(struct _CFStream *stream, CFRunLoop
         
         CFArrayRef runLoopAndSourceKey = CFArrayCreate(kCFAllocatorSystemDefault, a, sizeof(a) / sizeof(a[0]), &kCFTypeArrayCallBacks);
 
-        __CFLock(&sSourceLock);
+        os_unfair_lock_lock(&sSourceLock);
         
         if (!sSharedSources)
             sSharedSources = CFDictionaryCreateMutable(kCFAllocatorSystemDefault, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
@@ -1434,7 +1435,7 @@ CF_PRIVATE void _CFStreamScheduleWithRunLoop(struct _CFStream *stream, CFRunLoop
         
         __CFBitSet(stream->flags, SHARED_SOURCE);
 
-        __CFUnlock(&sSourceLock);
+        os_unfair_lock_unlock(&sSourceLock);
     }
     else if (__CFBitIsSet(stream->flags, SHARED_SOURCE)) {
         /* We were sharing, but now we'll get our own source */
@@ -1457,7 +1458,7 @@ CF_PRIVATE void _CFStreamScheduleWithRunLoop(struct _CFStream *stream, CFRunLoop
             (void(*)(void *))_cfstream_solo_signalEventSync
         };
 
-        __CFLock(&sSourceLock);
+        os_unfair_lock_lock(&sSourceLock);
         
         runLoopAndSourceKey = (CFArrayRef)CFRetain((CFTypeRef)CFDictionaryGetValue(sSharedSources, stream));
         listOfStreamsSharingASource = (CFMutableArrayRef)CFDictionaryGetValue(sSharedSources, runLoopAndSourceKey);
@@ -1484,7 +1485,7 @@ CF_PRIVATE void _CFStreamScheduleWithRunLoop(struct _CFStream *stream, CFRunLoop
 		
         __CFBitClear(stream->flags, SHARED_SOURCE);
 
-        __CFUnlock(&sSourceLock);
+        os_unfair_lock_unlock(&sSourceLock);
         
 		CFRunLoopSourceRef source = CFRunLoopSourceCreate(alloc, 0, &ctxt);
 		_CFStreamSetSource(stream, source, FALSE);
@@ -1578,7 +1579,7 @@ CF_PRIVATE void _CFStreamUnscheduleFromRunLoop(struct _CFStream *stream, CFRunLo
         CFMutableArrayRef list;
         CFIndex count, i;
 
-        __CFLock(&sSourceLock);
+        os_unfair_lock_lock(&sSourceLock);
         
         runLoopAndSourceKey = (CFArrayRef)CFDictionaryGetValue(sSharedSources, stream);
         list = (CFMutableArrayRef)CFDictionaryGetValue(sSharedSources, runLoopAndSourceKey);
@@ -1605,7 +1606,7 @@ CF_PRIVATE void _CFStreamUnscheduleFromRunLoop(struct _CFStream *stream, CFRunLo
 
         __CFBitClear(stream->flags, SHARED_SOURCE);
 
-        __CFUnlock(&sSourceLock);
+        os_unfair_lock_unlock(&sSourceLock);
     }
     
     _CFStreamLock(stream);
@@ -1665,6 +1666,7 @@ typedef int64_t OSAtomic_int64_aligned64_t;
 #endif
 
 static CFRunLoopRef sLegacyRL = NULL;
+
 #if TARGET_OS_MAC
 static volatile OSAtomic_int64_aligned64_t sPerformCount = 0;
 #endif
@@ -1926,7 +1928,7 @@ CF_EXPORT CFIndex _CFStreamInstanceSize(void) {
 
 #if TARGET_OS_WIN32
 void __CFStreamCleanup(void) {
-    __CFLock(&sSourceLock);
+    os_unfair_lock_lock(&sSourceLock);
     if (sSharedSources) {
         CFIndex count = CFDictionaryGetCount(sSharedSources);
         if (count == 0) {
@@ -1951,7 +1953,7 @@ void __CFStreamCleanup(void) {
 #endif
         }
     }
-    __CFUnlock(&sSourceLock);
+    os_unfair_lock_unlock(&sSourceLock);
 }
 #endif
 

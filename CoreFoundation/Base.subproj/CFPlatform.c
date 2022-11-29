@@ -24,9 +24,7 @@
 
 #define _CFEmitInternalDiagnostics 0
 
-
 #if TARGET_OS_WIN32
-#include <lm.h>
 #include <shellapi.h>
 #include <shlobj.h>
 #include <WinIoCtl.h>
@@ -58,7 +56,6 @@ extern void __CFGetUGIDs(uid_t *euid, gid_t *egid);
 char **_CFArgv(void) { return *_NSGetArgv(); }
 int _CFArgc(void) { return *_NSGetArgc(); }
 #endif
-
 
 #if !TARGET_OS_WASI
 CF_PRIVATE Boolean _CFGetCurrentDirectory(char *path, int maxlen) {
@@ -107,13 +104,13 @@ static const char *__CFprogname = NULL;
 
 const char **_CFGetProgname(void) {
     if (!__CFprogname)
-        _CFProcessPath();		// sets up __CFprogname as a side-effect
+        _CFProcessPath();        // sets up __CFprogname as a side-effect
     return &__CFprogname;
 }
 
 const char **_CFGetProcessPath(void) {
     if (!__CFProcessPath)
-        _CFProcessPath();		// sets up __CFProcessPath as a side-effect
+        _CFProcessPath();        // sets up __CFProcessPath as a side-effect
     return &__CFProcessPath;
 }
 
@@ -136,25 +133,25 @@ const char *_CFProcessPath(void) {
     wchar_t buf[CFMaxPathSize] = {0};
     DWORD rlen = GetModuleFileNameW(NULL, buf, sizeof(buf) / sizeof(buf[0]));
     if (0 < rlen) {
-	char asciiBuf[CFMaxPathSize] = {0};
-	int res = WideCharToMultiByte(CP_UTF8, 0, buf, rlen, asciiBuf, sizeof(asciiBuf) / sizeof(asciiBuf[0]), NULL, NULL);
-	if (0 < res) {
+    char asciiBuf[CFMaxPathSize] = {0};
+    int res = WideCharToMultiByte(CP_UTF8, 0, buf, rlen, asciiBuf, sizeof(asciiBuf) / sizeof(asciiBuf[0]), NULL, NULL);
+    if (0 < res) {
             _CFSetProgramNameFromPath(asciiBuf);
-	}
+    }
     }
     if (!__CFProcessPath) {
-	__CFProcessPath = "";
+    __CFProcessPath = "";
         __CFprogname = __CFProcessPath;
     }
     return __CFProcessPath;
 #elif TARGET_OS_MAC
 #if TARGET_OS_OSX
     if (!__CFProcessIsRestricted()) {
-	const char *path = (char *)__CFgetenv("CFProcessPath");
-	if (path) {
+    const char *path = (char *)__CFgetenv("CFProcessPath");
+    if (path) {
             _CFSetProgramNameFromPath(path);
-	    return __CFProcessPath;
-	}
+        return __CFProcessPath;
+    }
     }
 #endif
 
@@ -167,7 +164,7 @@ const char *_CFProcessPath(void) {
     }
 
     if (!__CFProcessPath) {
-	__CFProcessPath = "";
+    __CFProcessPath = "";
         __CFprogname = __CFProcessPath;
     }
     return __CFProcessPath;
@@ -249,7 +246,7 @@ const char *_CFProcessPath(void) {
 #endif // TARGET_OS_WASI
 
 #if TARGET_OS_MAC || TARGET_OS_WIN32 || TARGET_OS_BSD
-CF_CROSS_PLATFORM_EXPORT Boolean _CFIsMainThread(void) {
+CF_EXPORT_NONOBJC_ONLY Boolean _CFIsMainThread(void) {
 #if defined(__OpenBSD__)
     return pthread_equal(pthread_self(), _CFMainPThread) != 0;
 #else
@@ -264,12 +261,12 @@ CF_CROSS_PLATFORM_EXPORT Boolean _CFIsMainThread(void) {
 #include <syscall.h>
 #else
 #include <sys/syscall.h>
-#endif // __has_include(<syscall.h>)
+#endif
 
 Boolean _CFIsMainThread(void) {
     return syscall(SYS_gettid) == getpid();
 }
-#endif // TARGET_OS_LINUX
+#endif
 
 #if !TARGET_OS_WASI
 CF_PRIVATE CFStringRef _CFProcessNameString(void) {
@@ -287,7 +284,8 @@ CF_PRIVATE CFStringRef _CFProcessNameString(void) {
     }
     return __CFProcessNameString;
 }
-#endif // !TARGET_OS_WASI
+#endif
+
 
 #if TARGET_OS_MAC || TARGET_OS_LINUX || TARGET_OS_BSD
 
@@ -440,7 +438,7 @@ CF_EXPORT CFStringRef CFCopyUserName(void) {
 #define pw_gecos pw_name
 #endif
 
-CF_CROSS_PLATFORM_EXPORT CFStringRef CFCopyFullUserName(void) {
+CF_EXPORT_NONOBJC_ONLY CFStringRef CFCopyFullUserName(void) {
     CFStringRef result = NULL;
 #if TARGET_OS_MAC || TARGET_OS_LINUX || TARGET_OS_BSD
     uid_t euid;
@@ -578,44 +576,15 @@ CF_EXPORT CFURLRef CFCopyHomeDirectoryURLForUser(CFStringRef uName) {
         return result;
     }
 #elif TARGET_OS_WIN32
-    if (uName == NULL) {
-      return CFCopyHomeDirectoryURL();
+    // This code can only get the directory for the current user
+    CFStringRef userName = uName ? CFCopyUserName() : NULL;
+    if (uName && !CFEqual(uName, userName)) {
+        CFLog(kCFLogLevelError, CFSTR("CFCopyHomeDirectoryURLForUser(): Unable to get home directory for other user"));
+        if (userName) CFRelease(userName);
+        return NULL;
     }
-
-    CFStringRef home = NULL;
-    LPUSER_INFO_1 pBuffer = NULL;
-    DWORD dwEntriesRead = 0;
-    DWORD dwEntries = 0;
-    DWORD dwToken = 0;
-    NTSTATUS nStatus;
-    do {
-      nStatus = NetUserEnum(NULL, 1, FILTER_NORMAL_ACCOUNT, (LPBYTE*)&pBuffer,
-                            MAX_PREFERRED_LENGTH, &dwEntriesRead, &dwEntries,
-                            &dwToken);
-      if (nStatus == NERR_Success || nStatus == ERROR_MORE_DATA) {
-        for (unsigned uiEntry = 0; !home && uiEntry < dwEntriesRead; ++uiEntry) {
-          CFStringRef name =
-              CFStringCreateWithCStringNoCopy(kCFAllocatorSystemDefault,
-                                              pBuffer[uiEntry].usri1_name,
-                                              kCFStringEncodingUTF16,
-                                              kCFAllocatorNull);
-
-          if (CFEqual(uName, name)) {
-            home = pBuffer[uiEntry].usri1_home_dir
-                      ? CFStringCreateWithCString(kCFAllocatorSystemDefault,
-                                                  pBuffer[uiEntry].usri1_home_dir,
-                                                  kCFStringEncodingUTF16)
-                      : CFSTR("");
-          }
-
-          CFRelease(name);
-        }
-      }
-      NetApiBufferFree(pBuffer);
-      pBuffer = NULL;
-    } while (nStatus == ERROR_MORE_DATA);
-
-    return home;
+    if (userName) CFRelease(userName);
+    return CFCopyHomeDirectoryURL();
 #else
 #error Dont know how to compute users home directories on this platform
 #endif
@@ -758,7 +727,6 @@ CF_PRIVATE void __CFTSDWindowsInitialize() {
 CF_PRIVATE void __CFTSDWindowsCleanup() {
     FlsFree(__CFTSDIndexKey);
 }
-
 #else
 
 static _CFThreadSpecificKey __CFTSDIndexKey;
@@ -1544,7 +1512,7 @@ void _CF_dispatch_once(dispatch_once_t *predicate, void (^block)(void)) {
 #pragma mark -
 #pragma mark Windows and Linux Helpers
 
-#if TARGET_OS_WIN32 || (TARGET_OS_LINUX && !defined(_GNU_SOURCE))
+#if TARGET_OS_WIN32
 
 #include <stdio.h>
 
@@ -1572,6 +1540,92 @@ CF_PRIVATE int asprintf(char **ret, const char *format, ...) {
 }
 
 #endif
+
+int _CFThreadSetName(_CFThreadRef thread, const char *_Nonnull name) {
+#if TARGET_OS_MAC
+    if (pthread_equal(pthread_self(), thread)) {
+        return pthread_setname_np(name);
+    }
+    return EINVAL;
+#elif TARGET_OS_WIN32
+    // Convert To UTF-16
+    int szLength =
+        MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, name, -1, NULL, 0);
+    if (szLength == 0) {
+        return EINVAL;
+    }
+
+    WCHAR *pszThreadDescription = calloc(szLength + 1, sizeof(WCHAR));
+    MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, name, -1,
+                        pszThreadDescription, szLength);
+
+    // Set Thread Name
+    SetThreadDescription(thread, pszThreadDescription);
+
+    // Free Conversion
+    free(pszThreadDescription);
+
+    return 0;
+#elif TARGET_OS_LINUX
+    return pthread_setname_np(thread, name);
+#elif TARGET_OS_BSD
+    pthread_set_name_np(thread, name);
+    return 0;
+#else
+    return -1;
+#endif
+}
+
+int _CFThreadGetName(char *buf, int length) {
+#if TARGET_OS_MAC
+    return pthread_getname_np(pthread_self(), buf, length);
+#elif TARGET_OS_BSD
+    pthread_get_name_np(pthread_self(), buf, length);
+    return 0;
+#elif TARGET_OS_ANDROID
+    // Android did not get pthread_getname_np until API 26, but prctl seems to
+    // return at most 15 chars of the name + null terminator.
+    char *buffer[16] = {0};
+    if (prctl(PR_GET_NAME, buffer, 0, 0, 0) != 0) {
+        return -1;
+    }
+    size_t sz = MIN(strnlen(buffer, 15), length - 1);
+    memcpy(buf, buffer, sz);
+    buf[sz] = 0;
+    return 0;
+#elif TARGET_OS_LINUX
+    return pthread_getname_np(pthread_self(), buf, length);
+#elif TARGET_OS_WIN32
+    *buf = '\0';
+
+    // Get Thread Name
+    PWSTR pszThreadDescription = NULL;
+    HRESULT hr = GetThreadDescription(GetCurrentThread(), &pszThreadDescription);
+    if (FAILED(hr)) {
+        return -1;
+    }
+
+    // Convert to UTF-8
+    int szLength =
+        WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, pszThreadDescription,
+                            -1, NULL, 0, NULL, NULL);
+    if (szLength) {
+        char *buffer = calloc(szLength + 1, sizeof(char));
+        WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, pszThreadDescription,
+                            -1, buffer, szLength, NULL, NULL);
+        memcpy(buf, buffer, length - 1);
+        buf[MIN(szLength, length - 1)] = '\0';
+        free(buffer);
+    }
+
+    // Free Result
+    LocalFree(pszThreadDescription);
+
+    return 0;
+#else
+    return -1;
+#endif
+}
 
 #if DEPLOYMENT_RUNTIME_SWIFT
 #include <fcntl.h>
@@ -1672,89 +1726,6 @@ _CFThreadRef _CFThreadCreate(const _CFThreadAttributes attrs, void *_Nullable (*
 #endif
 }
 
-CF_CROSS_PLATFORM_EXPORT int _CFThreadSetName(_CFThreadRef thread, const char *_Nonnull name) {
-#if TARGET_OS_MAC
-    if (pthread_equal(pthread_self(), thread)) {
-        return pthread_setname_np(name);
-    }
-    return EINVAL;
-#elif TARGET_OS_WIN32
-    // Convert To UTF-16
-    int szLength =
-        MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, name, -1, NULL, 0);
-    if (szLength == 0) {
-        return EINVAL;
-    }
-
-    WCHAR *pszThreadDescription = calloc(szLength + 1, sizeof(WCHAR));
-    MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, name, -1,
-                        pszThreadDescription, szLength);
-
-    // Set Thread Name
-    SetThreadDescription(thread, pszThreadDescription);
-
-    // Free Conversion
-    free(pszThreadDescription);
-
-    return 0;
-#elif TARGET_OS_LINUX
-    return pthread_setname_np(thread, name);
-#elif TARGET_OS_BSD
-    pthread_set_name_np(thread, name);
-    return 0;
-#endif
-}
-
-CF_CROSS_PLATFORM_EXPORT int _CFThreadGetName(char *buf, int length) {
-#if TARGET_OS_MAC
-    return pthread_getname_np(pthread_self(), buf, length);
-#elif TARGET_OS_ANDROID
-    // Android did not get pthread_getname_np until API 26, but prctl seems to
-    // return at most 15 chars of the name + null terminator.
-    char *buffer[16] = {0};
-    if (prctl(PR_GET_NAME, buffer, 0, 0, 0) != 0) {
-        return -1;
-    }
-    size_t sz = MIN(strnlen(buffer, 15), length - 1);
-    memcpy(buf, buffer, sz);
-    buf[sz] = 0;
-    return 0;
-#elif TARGET_OS_LINUX
-    return pthread_getname_np(pthread_self(), buf, length);
-#elif TARGET_OS_BSD
-    pthread_get_name_np(pthread_self(), buf, length);
-    return 0;
-#elif TARGET_OS_WIN32
-    *buf = '\0';
-
-    // Get Thread Name
-    PWSTR pszThreadDescription = NULL;
-    HRESULT hr = GetThreadDescription(GetCurrentThread(), &pszThreadDescription);
-    if (FAILED(hr)) {
-        return -1;
-    }
-
-    // Convert to UTF-8
-    int szLength =
-        WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, pszThreadDescription,
-                            -1, NULL, 0, NULL, NULL);
-    if (szLength) {
-        char *buffer = calloc(szLength + 1, sizeof(char));
-        WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, pszThreadDescription,
-                            -1, buffer, szLength, NULL, NULL);
-        memcpy(buf, buffer, MIN(szLength, length - 1));
-        buf[MIN(szLength, length - 1)] = '\0';
-        free(buffer);
-    }
-
-    // Free Result
-    LocalFree(pszThreadDescription);
-
-    return 0;
-#endif
-    return -1;
-}
-
 CF_EXPORT char **_CFEnviron(void) {
 #if TARGET_OS_MAC
     return *_NSGetEnviron();
@@ -1769,11 +1740,11 @@ CF_EXPORT char **_CFEnviron(void) {
 }
 
 #if TARGET_OS_WIN32
-CF_CROSS_PLATFORM_EXPORT int _CFOpenFileWithMode(const unsigned short *path, int opts, mode_t mode) {
+CF_EXPORT_NONOBJC_ONLY int _CFOpenFileWithMode(const unsigned short *path, int opts, mode_t mode) {
     return _wopen(path, opts, mode);
 }
 #else
-CF_CROSS_PLATFORM_EXPORT int _CFOpenFileWithMode(const char *path, int opts, mode_t mode) {
+CF_EXPORT_NONOBJC_ONLY int _CFOpenFileWithMode(const char *path, int opts, mode_t mode) {
     return open(path, opts, mode);
 }
 #endif
@@ -1782,7 +1753,7 @@ int _CFOpenFile(const char *path, int opts) {
     return open(path, opts, 0);
 }
 
-CF_CROSS_PLATFORM_EXPORT void *_CFReallocf(void *ptr, size_t size) {
+CF_EXPORT_NONOBJC_ONLY void *_CFReallocf(void *ptr, size_t size) {
 #if TARGET_OS_WIN32 || TARGET_OS_LINUX || TARGET_OS_WASI || defined(__OpenBSD__)
     void *mem = realloc(ptr, size);
     if (mem == NULL && ptr != NULL && size != 0) {

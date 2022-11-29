@@ -76,7 +76,7 @@ struct __CFUserNotification {
     CFOptionFlags _responseFlags;
     CFStringRef _sessionID;
     CFDictionaryRef _responseDictionary;
-    CFMachPortRef _machPort;
+    _Atomic(CFMachPortRef) _machPort;
     CFUserNotificationCallBack _callout;
 };
 
@@ -116,10 +116,10 @@ CFTypeID CFUserNotificationGetTypeID(void) {
 
 static void __CFUserNotificationDeallocate(CFTypeRef cf) {
     CFUserNotificationRef userNotification = (CFUserNotificationRef)cf;
-    if (userNotification->_machPort) {
-        CFMachPortInvalidate(userNotification->_machPort);
-        CFRelease(userNotification->_machPort);
-        userNotification->_machPort = NULL; // NOTE: this is still potentially racey and should probably have a CAS (for now this is just a stop-gap to reduce an already very rare crash potential) <rdar://problem/21077032>
+    CFMachPortRef port = atomic_exchange(&userNotification->_machPort, NULL);
+    if (port) {
+        CFMachPortInvalidate(port);
+        CFRelease(port);
     } else if (MACH_PORT_NULL != userNotification->_replyPort) {
         mach_port_mod_refs(mach_task_self(), userNotification->_replyPort, MACH_PORT_RIGHT_RECEIVE, -1);
     }
@@ -190,10 +190,10 @@ static SInt32 _CFUserNotificationSendRequest(CFAllocatorRef allocator, CFStringR
     
 #if TARGET_OS_OSX
     const char *namebuffer = NOTIFICATION_PORT_NAME_MAC;
-    const CFIndex nameLen = sizeof(NOTIFICATION_PORT_NAME_MAC);
+    const nameLen = sizeof(NOTIFICATION_PORT_NAME_MAC);
 #else
     const char *namebuffer = NOTIFICATION_PORT_NAME_IOS;
-    const CFIndex nameLen = sizeof(NOTIFICATION_PORT_NAME_IOS);
+    const nameLen = sizeof(NOTIFICATION_PORT_NAME_IOS);
 #endif
     
     if (sessionID) {
@@ -256,7 +256,10 @@ CFUserNotificationRef CFUserNotificationCreate(CFAllocatorRef allocator, CFTimeI
     mach_port_t replyPort = MACH_PORT_NULL;
 
     if (!allocator) allocator = __CFGetDefaultAllocator();
-    retval = mach_port_allocate(mach_task_self(), MACH_PORT_RIGHT_RECEIVE, &replyPort);
+    mach_port_options_t opts = {
+        .flags = MPO_REPLY_PORT,
+    };
+    retval = mach_port_construct(mach_task_self(), &opts, 0, &replyPort);
     if (ERR_SUCCESS == retval && MACH_PORT_NULL != replyPort) retval = _CFUserNotificationSendRequest(allocator, sessionID, replyPort, token, timeout, flags, dictionary);
     if (ERR_SUCCESS == retval) {
         userNotification = (CFUserNotificationRef)_CFRuntimeCreateInstance(allocator, CFUserNotificationGetTypeID(), sizeof(struct __CFUserNotification) - sizeof(CFRuntimeBase), NULL);
@@ -290,9 +293,11 @@ static void _CFUserNotificationMachPortCallBack(CFMachPortRef port, void *m, CFI
             CFRelease(responseData);
         }
     }
-    CFMachPortInvalidate(userNotification->_machPort);
-    CFRelease(userNotification->_machPort);
-    userNotification->_machPort = NULL;
+    CFMachPortRef mp = atomic_exchange(&userNotification->_machPort, NULL);
+    if (mp) {
+        CFMachPortInvalidate(mp);
+        CFRelease(mp);
+    }
     mach_port_mod_refs(mach_task_self(), userNotification->_replyPort, MACH_PORT_RIGHT_RECEIVE, -1);
     userNotification->_replyPort = MACH_PORT_NULL;
     userNotification->_callout(userNotification, responseFlags);
@@ -327,10 +332,10 @@ SInt32 CFUserNotificationReceiveResponse(CFUserNotificationRef userNotification,
                         CFRelease(responseData);
                     }
                 }
-                if (userNotification->_machPort) {
-                    CFMachPortInvalidate(userNotification->_machPort);
-                    CFRelease(userNotification->_machPort);
-                    userNotification->_machPort = NULL;
+                CFMachPortRef mp = atomic_exchange(&userNotification->_machPort, NULL);
+                if (mp) {
+                    CFMachPortInvalidate(mp);
+                    CFRelease(mp);
                 }
                 mach_port_mod_refs(mach_task_self(), userNotification->_replyPort, MACH_PORT_RIGHT_RECEIVE, -1);
                 userNotification->_replyPort = MACH_PORT_NULL;

@@ -95,6 +95,7 @@
 		4704393326BDFF34000D213E /* TestAttributedStringCOW.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4704392F26BDFF33000D213E /* TestAttributedStringCOW.swift */; };
 		4704393426BDFF34000D213E /* TestAttributedString.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4704393026BDFF33000D213E /* TestAttributedString.swift */; };
 		4704393526BDFF34000D213E /* TestAttributedStringSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4704393126BDFF34000D213E /* TestAttributedStringSupport.swift */; };
+		473FF26228D3C77F00605657 /* CFBundle_Strings.h in Headers */ = {isa = PBXBuildFile; fileRef = 473FF26128D3C77F00605657 /* CFBundle_Strings.h */; };
 		474E124D26BCD6D00016C28A /* AttributedString+Locking.swift in Sources */ = {isa = PBXBuildFile; fileRef = 474E124C26BCD6D00016C28A /* AttributedString+Locking.swift */; };
 		476E415226BDAA150043E21E /* Morphology.swift in Sources */ = {isa = PBXBuildFile; fileRef = 476E415126BDAA150043E21E /* Morphology.swift */; };
 		4778104C26BC9F810071E8A1 /* FoundationAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4778104526BC9F810071E8A1 /* FoundationAttributes.swift */; };
@@ -835,6 +836,7 @@
 		4704392F26BDFF33000D213E /* TestAttributedStringCOW.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TestAttributedStringCOW.swift; sourceTree = "<group>"; };
 		4704393026BDFF33000D213E /* TestAttributedString.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TestAttributedString.swift; sourceTree = "<group>"; };
 		4704393126BDFF34000D213E /* TestAttributedStringSupport.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TestAttributedStringSupport.swift; sourceTree = "<group>"; };
+		473FF26128D3C77F00605657 /* CFBundle_Strings.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CFBundle_Strings.h; sourceTree = "<group>"; };
 		474E124C26BCD6D00016C28A /* AttributedString+Locking.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AttributedString+Locking.swift"; sourceTree = "<group>"; };
 		476E415126BDAA150043E21E /* Morphology.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Morphology.swift; sourceTree = "<group>"; };
 		4778104526BC9F810071E8A1 /* FoundationAttributes.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FoundationAttributes.swift; sourceTree = "<group>"; };
@@ -1696,6 +1698,7 @@
 		5B5D88E41BBC9B2D00234F36 /* PlugIn */ = {
 			isa = PBXGroup;
 			children = (
+				473FF26128D3C77F00605657 /* CFBundle_Strings.h */,
 				5B5D88EE1BBC9B5C00234F36 /* CFBundle_Binary.c */,
 				5B5D88E71BBC9B5C00234F36 /* CFBundle_BinaryTypes.h */,
 				5B5D88ED1BBC9B5C00234F36 /* CFBundle_Grok.c */,
@@ -2477,6 +2480,7 @@
 				5B7C8AEB1BEA81AC00C5B690 /* CFBigNumber.h in Headers */,
 				5B6E11A71DA451E7009B48A3 /* CFLocale_Private.h in Headers */,
 				EA66F6671BF2F2F100136161 /* CoreFoundation.h in Headers */,
+				473FF26228D3C77F00605657 /* CFBundle_Strings.h in Headers */,
 				5B7C8AFF1BEA81AC00C5B690 /* CFURLPriv.h in Headers */,
 				5B7C8AEE1BEA81AC00C5B690 /* CFBundle_Internal.h in Headers */,
 				5B7C8AF01BEA81AC00C5B690 /* CFPlugIn_Factory.h in Headers */,

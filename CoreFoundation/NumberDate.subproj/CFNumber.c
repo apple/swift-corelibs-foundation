@@ -87,15 +87,21 @@ struct __CFBoolean {
 
 DECLARE_STATIC_CLASS_REF(__NSCFBoolean);
 
+#if DEPLOYMENT_RUNTIME_OBJC
+#define _CF_CONSTANT_OBJECT_SECTION __attribute__((section(("__DATA,__const_cfobj2"))))
+#else
+#define _CF_CONSTANT_OBJECT_SECTION
+#endif
+
+_CF_CONSTANT_OBJECT_SECTION
 _CF_CONSTANT_OBJECT_BACKING struct __CFBoolean __kCFBooleanTrue = {
     INIT_CFRUNTIME_BASE_WITH_CLASS(__NSCFBoolean, _kCFRuntimeIDCFBoolean)
 };
-const CFBooleanRef kCFBooleanTrue = &__kCFBooleanTrue;
 
+_CF_CONSTANT_OBJECT_SECTION
 _CF_CONSTANT_OBJECT_BACKING struct __CFBoolean __kCFBooleanFalse = {
     INIT_CFRUNTIME_BASE_WITH_CLASS(__NSCFBoolean, _kCFRuntimeIDCFBoolean)
 };
-const CFBooleanRef kCFBooleanFalse = &__kCFBooleanFalse;
 
 static CFStringRef __CFBooleanCopyDescription(CFTypeRef cf) {
     CFBooleanRef boolean = (CFBooleanRef)cf;
@@ -992,6 +998,7 @@ const CFRuntimeClass __CFNumberClass = {
     __CFNumberCopyFormattingDescription,
     __CFNumberCopyDescription
 };
+
 
 
 CFTypeID CFNumberGetTypeID(void) {

@@ -80,6 +80,8 @@ enum {
     _kCFRuntimeIDCFRelativeDateTimeFormatter = 67,
     _kCFRuntimeIDCFListFormatter = 68,
     _kCFRuntimeIDCFDateIntervalFormatter = 69,
+    _kCFRuntimeIDCFXNotificationRegistrar = 70,
+    _kCFRuntimeIDCFDateInterval = 71,
 
     // If you are adding a new value, it goes below this line.:
     
@@ -159,7 +161,9 @@ CF_PRIVATE const CFRuntimeClass __CFPreferencesDomainClass;
 
 CF_PRIVATE const CFRuntimeClass __CFMachPortClass;
 
-
+#if (TARGET_OS_MAC || TARGET_OS_WIN32 || DEPLOYMENT_RUNTIME_SWIFT)
+CF_PRIVATE const CFRuntimeClass __CFMessagePortClass;
+#endif
 CF_PRIVATE const CFRuntimeClass __CFRunLoopModeClass;
 CF_PRIVATE const CFRuntimeClass __CFRunLoopClass;
 CF_PRIVATE const CFRuntimeClass __CFRunLoopSourceClass;
@@ -179,6 +183,7 @@ CF_PRIVATE const CFRuntimeClass __CFDateComponentsClass;
 CF_PRIVATE const CFRuntimeClass __CFRelativeDateTimeFormatterClass;
 CF_PRIVATE const CFRuntimeClass __CFListFormatterClass;
 CF_PRIVATE const CFRuntimeClass __CFDateIntervalFormatterClass;
+CF_PRIVATE const CFRuntimeClass __CFDateIntervalClass;
 
 #pragma mark - Private initialiers to run at process start time
 
@@ -187,10 +192,6 @@ CF_PRIVATE void __CFCharacterSetInitialize(void);
 
 #if TARGET_OS_WIN32
 CF_PRIVATE void __CFTSDWindowsInitialize(void);
-#endif
-
-#if TARGET_OS_MAC || TARGET_OS_IPHONE || TARGET_OS_WIN32
-CF_PRIVATE void __CFXPreferencesInitialize(void);
 #endif
 
 #endif /* CFRuntime_Internal_h */

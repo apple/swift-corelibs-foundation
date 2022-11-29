@@ -12,6 +12,9 @@
  This file is for the use of the CoreFoundation project only.
  */
 
+#ifndef __COREFOUNDATION_CFLOCALEINTERNAL__
+#define __COREFOUNDATION_CFLOCALEINTERNAL__ 1
+
 #include <CoreFoundation/CFString.h>
 
 CF_EXPORT CFStringRef const kCFLocaleAlternateQuotationBeginDelimiterKey;
@@ -125,4 +128,53 @@ CF_EXPORT CFStringRef const kCFCalendarIdentifierCoptic;
 CF_EXPORT CFStringRef const kCFCalendarIdentifierEthiopicAmeteMihret;
 CF_EXPORT CFStringRef const kCFCalendarIdentifierEthiopicAmeteAlem;
 
+#define LOCALE_PREFS_APPLY( F ) \
+    F( AppleLanguages ); \
+    F( AppleLocale ); \
+    F( AppleMetricUnits ); \
+    F( AppleMeasurementUnits ); \
+    F( AppleTemperatureUnit ); \
+    F( AppleCollationOrder ); \
+    F( AppleFirstWeekday ); \
+    F( AppleMinDaysInFirstWeek ); \
+    F( AppleICUDateTimeSymbols ); \
+    F( AppleICUForce24HourTime ); \
+    F( AppleICUForce12HourTime ); \
+    F( AppleICUDateFormatStrings ); \
+    F( AppleICUTimeFormatStrings ); \
+    F( AppleICUNumberFormatStrings ); \
+    F( AppleICUNumberSymbols );
+    
+typedef struct {
+#define DECLARE_PREF(X) CFTypeRef X;
+    LOCALE_PREFS_APPLY(DECLARE_PREF);
+} __CFLocalePrefs;
 
+CF_PRIVATE __CFLocalePrefs const *__CFLocaleGetPrefs(CFLocaleRef locale);
+
+#define __CFLocaleNonObjCGetPref(locale, key) ({ __CFLocalePrefs const * const prefs = __CFLocaleGetPrefs(locale); prefs ? prefs->key : NULL; })
+
+#if __OBJC__
+#import <Foundation/NSLocale.h>
+@interface NSLocale(NSInternal)
+- (id)_prefForKey:(NSString *)key;
+@end
+
+#define __CFLocaleGetPref(locale, key) ( \
+    CF_IS_OBJC(CFLocaleGetTypeID(), (const void *)locale) \
+        ? ((CFTypeRef(*)(CFTypeRef, SEL, CFStringRef))objc_msgSend)(locale, @selector(_prefForKey:), CFSTR(#key)) \
+        : __CFLocaleNonObjCGetPref(locale, key) \
+    );
+#elif DEPLOYMENT_RUNTIME_SWIFT
+
+// Do not declare this function here so that we avoid reentrancy issues between CFInternal.h defining CF_SWIFT_FUNCDISPATCHV and it importing this very header.
+CF_PRIVATE CFTypeRef __CFLocaleSwiftGetPref(CFLocaleRef locale, CFStringRef key, CFTypeRef (^nonobjc)(void));
+
+#define __CFLocaleGetPref(locale, key) \
+    __CFLocaleSwiftGetPref((locale), CFSTR(#key), ^{ return __CFLocaleNonObjCGetPref(locale, key); })
+
+#else
+#define __CFLocaleGetPref(locale, key) __CFLocaleNonObjCGetPref(locale, key)
+#endif
+
+#endif // __COREFOUNDATION_CFLOCALEINTERNAL__

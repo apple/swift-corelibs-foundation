@@ -20,13 +20,15 @@ typedef CF_ENUM(CFIndex, URLPredefinedCharacterSet) {
     kURLPathAllowedCharacterSet     = 3,
     kURLQueryAllowedCharacterSet    = 4,
     kURLFragmentAllowedCharacterSet = 5,
-    kURLAllowedCharacterSetIllegal  = 6
+    kURLPortAllowedCharacterSet     = 6,
+    kURLAllowedCharacterSetIllegal  = 7
 };
 
 // IMPORTANT: the kURLxxxxAllowedCharacters definitions MUST match sURLAllowedCharacters (except for the '[', ':' and ']' characters in kURLHostAllowedCharacters are not kURLHostAllowed, and ';' is not in kURLPathAllowedCharacters, but is special cased in kURLPathAllowed)
 #define kURLUserAllowedCharacters       "!$&'()*+,-.0123456789;=ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz~"
 #define kURLPasswordAllowedCharacters   "!$&'()*+,-.0123456789;=ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz~"
 #define kURLHostAllowedCharacters       "!$&'()*+,-.0123456789:;=ABCDEFGHIJKLMNOPQRSTUVWXYZ[]_abcdefghijklmnopqrstuvwxyz~"
+#define kURLPortAllowedCharacters       "0123456789"
 #define kURLPathAllowedCharacters       "!$&'()*+,-./0123456789:=@ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz~" // ";" is disallowed in paths for compatibility with API which uses rfc1808 parsing where ";" was the separator between path and param. ":" is allowed only after a "/" (it cannot be in the first segment in some cases)
 #define kURLQueryAllowedCharacters      "!$&'()*+,-./0123456789:;=?@ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz~"
 #define kURLFragmentAllowedCharacters   "!$&'()*+,-./0123456789:;=?@ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz~"
@@ -176,6 +178,7 @@ static void InitializeURLAllowedCharacterSets(void)
         sURLAllowedCharacterSets[kURLUserAllowedCharacterSet] = CFCharacterSetCreateWithCharactersInString(kCFAllocatorDefault, CFSTR(kURLUserAllowedCharacters));
         sURLAllowedCharacterSets[kURLPasswordAllowedCharacterSet] = CFCharacterSetCreateWithCharactersInString(kCFAllocatorDefault, CFSTR(kURLPasswordAllowedCharacters));
         sURLAllowedCharacterSets[kURLHostAllowedCharacterSet] = CFCharacterSetCreateWithCharactersInString(kCFAllocatorDefault, CFSTR(kURLHostAllowedCharacters));
+        sURLAllowedCharacterSets[kURLPortAllowedCharacterSet] = CFCharacterSetCreateWithCharactersInString(kCFAllocatorDefault, CFSTR(kURLPortAllowedCharacters));
         sURLAllowedCharacterSets[kURLPathAllowedCharacterSet] = CFCharacterSetCreateWithCharactersInString(kCFAllocatorDefault, CFSTR(kURLPathAllowedCharacters));
         sURLAllowedCharacterSets[kURLQueryAllowedCharacterSet] = CFCharacterSetCreateWithCharactersInString(kCFAllocatorDefault, CFSTR(kURLQueryAllowedCharacters));
         sURLAllowedCharacterSets[kURLFragmentAllowedCharacterSet] = CFCharacterSetCreateWithCharactersInString(kCFAllocatorDefault, CFSTR(kURLFragmentAllowedCharacters));
@@ -239,6 +242,10 @@ CF_EXPORT CFCharacterSetRef _CFURLComponentsGetURLHostAllowedCharacterSet() {
     return ( GetURLAllowedCharacterSet(kURLHostAllowedCharacterSet) );
 }
 
+CF_EXPORT CFCharacterSetRef _CFURLComponentsGetURLPortAllowedCharacterSet() {
+    return ( GetURLAllowedCharacterSet(kURLPortAllowedCharacterSet) );
+}
+
 CF_EXPORT CFCharacterSetRef _CFURLComponentsGetURLPathAllowedCharacterSet() {
     return ( GetURLAllowedCharacterSet(kURLPathAllowedCharacterSet) );
 }
@@ -284,11 +291,9 @@ CF_EXPORT CFStringRef _CFStringCreateByAddingPercentEncodingWithAllowedCharacter
             }
             else {
                 // not big enough? malloc it.
-                CFIndex mallocSize;
+                size_t mallocSize;
                 if ( _CFMultiplyBufferSizeWithoutOverflow(maxBufferSize, 4, &mallocSize) ) {
-                    if (mallocSize >= 0) {
-                        inBuf = (UInt8 *)malloc(mallocSize);
-                    }
+                    inBuf = (UInt8 *)malloc(mallocSize);
                 }
             }
             if ( inBuf ) {
@@ -461,11 +466,9 @@ CF_EXPORT CFStringRef _CFStringCreateByRemovingPercentEncoding(CFAllocatorRef al
             }
             else {
                 // not big enough? malloc it.
-                CFIndex mallocSize;
+                size_t mallocSize;
                 if ( _CFMultiplyBufferSizeWithoutOverflow(maxBufferSize, 2, &mallocSize) ) {
-                    if (mallocSize >= 0) {
-                        encodedBuf = (UInt8 *)malloc(mallocSize);
-                    }
+                    encodedBuf = (UInt8 *)malloc(mallocSize);
                 }
             }
             if ( encodedBuf ) {
@@ -730,56 +733,49 @@ CF_PRIVATE Boolean _CFURIParserParseURIReference(CFStringRef urlString, struct _
         currentCharIndex = 0;
         currentUniChar = CFStringGetCharacterFromInlineBuffer(&buf, currentCharIndex);
         
-        // The first character of scheme has to be ALPHA so this is a quick outside the while loop check for that. In the switch statement below, the default case makes sure all characters are valid in a scheme, so only the lower bounds ('A') check is needed here to make sure the character is not a DIGIT.
-        if ( currentUniChar >= 'A' ) {
-            doneParsingComponent = false;
-            while ( !doneParsingComponent ) {
-                if ( currentUniChar == 0 ) {
-                    doneParsingComponent = true;
-                    // there was no scheme so this is a relative-ref -- reset currentChar and we're done looking for a scheme
-                    currentCharIndex = 0;
-                    currentUniChar = CFStringGetCharacterFromInlineBuffer(&buf, currentCharIndex);
-                }
-                else {
-                    switch ( currentUniChar ) {
-                        case ':':
-                            // !!!: This checks to make sure the scheme is at least 1 character. However, it makes this parser completely different than CFURL's parser when the string starts with a ":" character.
-                            if ( currentCharIndex > 0 ) {
-                                parseInfo->schemeExists = true;
-                                // the scheme's offset is always 0
-                                ++currentCharIndex;
-                                currentUniChar = CFStringGetCharacterFromInlineBuffer(&buf, currentCharIndex);
-                                doneParsingComponent = true;
-                            }
-                            else {
-                                // there were no valid scheme characters before the ':' -- reset currentChar and we're done looking for a scheme
-                                currentCharIndex = 0;
-                                currentUniChar = CFStringGetCharacterFromInlineBuffer(&buf, currentCharIndex);
-                                doneParsingComponent = true;
-                            }
-                            break;
-                            // !!!: These cases are commented out because default handles them. The scheme is validated as the URI string is parsed (unlike CFURL's parser).
-                            //                    case '/':
-                            //                    case '?':
-                            //                    case '#':
-                            //                        // there was no scheme so this is a relative-ref -- reset currentChar and we're done looking for a scheme
-                            //                        currentCharIndex = 0;
-                            //                        currentUniChar = CFStringGetCharacterFromInlineBuffer(&buf, currentCharIndex);
-                            //                        doneParsingComponent = true;
-                            //                        break;
-                        default:
-                            if ( (currentUniChar <= 127) && ((sURLAllowedCharacters[currentUniChar] & kURLSchemeAllowed) != 0) ) {
-                                ++currentCharIndex;
-                                currentUniChar = CFStringGetCharacterFromInlineBuffer(&buf, currentCharIndex);
-                            }
-                            else {
-                                // invalid scheme characters  -- reset currentChar and we're done looking for a scheme
-                                currentCharIndex = 0;
-                                currentUniChar = CFStringGetCharacterFromInlineBuffer(&buf, currentCharIndex);
-                                doneParsingComponent = true;
-                            }
-                            break;
-                    }
+        doneParsingComponent = false;
+        while ( !doneParsingComponent ) {
+            if ( currentUniChar == 0 ) {
+                doneParsingComponent = true;
+                // there was no scheme so this is a relative-ref -- reset currentChar and we're done looking for a scheme
+                currentCharIndex = 0;
+                currentUniChar = CFStringGetCharacterFromInlineBuffer(&buf, currentCharIndex);
+            }
+            else {
+                switch ( currentUniChar ) {
+                    case ':':
+                        // !!!: This checks to make sure the scheme is at least 1 character. However, it makes this parser completely different than CFURL's parser when the string starts with a ":" character.
+                        if ( currentCharIndex > 0 ) {
+                            parseInfo->schemeExists = true;
+                            // the scheme's offset is always 0
+                            ++currentCharIndex;
+                            if (currentCharIndex > urlStringLength) { return false; }
+                            currentUniChar = CFStringGetCharacterFromInlineBuffer(&buf, currentCharIndex);
+                            doneParsingComponent = true;
+                        }
+                        else {
+                            // there were no valid scheme characters before the ':' -- reset currentChar and we're done looking for a scheme
+                            currentCharIndex = 0;
+                            currentUniChar = CFStringGetCharacterFromInlineBuffer(&buf, currentCharIndex);
+                            doneParsingComponent = true;
+                        }
+                        break;
+                    case '/':
+                    case '@':
+                    case '[':
+                    case ']':
+                    case '?':
+                    case '#':
+                        // there was no scheme so this is a relative-ref -- reset currentChar and we're done looking for a scheme
+                        currentCharIndex = 0;
+                        currentUniChar = CFStringGetCharacterFromInlineBuffer(&buf, currentCharIndex);
+                        doneParsingComponent = true;
+                        break;
+                    default:
+                        ++currentCharIndex;
+                        if (currentCharIndex > urlStringLength) { return false; }
+                        currentUniChar = CFStringGetCharacterFromInlineBuffer(&buf, currentCharIndex);
+                        break;
                 }
             }
         }
@@ -787,11 +783,14 @@ CF_PRIVATE Boolean _CFURIParserParseURIReference(CFStringRef urlString, struct _
         //
         // find authority
         //
-        if ( (currentUniChar == '/') && (CFStringGetCharacterFromInlineBuffer(&buf, currentCharIndex + 1) == '/') ) {
+        Boolean doubleSlashExists = ((currentUniChar == '/') && (CFStringGetCharacterFromInlineBuffer(&buf, currentCharIndex + 1) == '/'));
+        if ( doubleSlashExists ) {
             unsigned long firstComponentCharIndex;
             unsigned long componentLength;
             
-            currentCharIndex += 2;
+            if (doubleSlashExists) {
+                currentCharIndex += 2;
+            }
             currentUniChar = CFStringGetCharacterFromInlineBuffer(&buf, currentCharIndex);
             
             parseInfo->authorityExists = true;
@@ -814,6 +813,7 @@ CF_PRIVATE Boolean _CFURIParserParseURIReference(CFStringRef urlString, struct _
                             break;
                         default:
                             ++currentCharIndex;
+                            if (currentCharIndex > urlStringLength) { return false; }
                             currentUniChar = CFStringGetCharacterFromInlineBuffer(&buf, currentCharIndex);
                             break;
                     }
@@ -845,8 +845,10 @@ CF_PRIVATE Boolean _CFURIParserParseURIReference(CFStringRef urlString, struct _
                         // keep track of the obsolete param subcomponent
                         parseInfo->semicolonInPathExists = true;
                         // fall through to get next character
+                        CF_FALLTHROUGH;
                     default:
                         ++currentCharIndex;
+                        if (currentCharIndex > urlStringLength) { return false; }
                         currentUniChar = CFStringGetCharacterFromInlineBuffer(&buf, currentCharIndex);
                         break;
                 }
@@ -858,6 +860,7 @@ CF_PRIVATE Boolean _CFURIParserParseURIReference(CFStringRef urlString, struct _
         //
         if ( currentUniChar == '?' ) {
             ++currentCharIndex;
+            if (currentCharIndex > urlStringLength) { return false; }
             currentUniChar = CFStringGetCharacterFromInlineBuffer(&buf, currentCharIndex);
             
             parseInfo->queryExists = true;
@@ -875,6 +878,7 @@ CF_PRIVATE Boolean _CFURIParserParseURIReference(CFStringRef urlString, struct _
                             break;
                         default:
                             ++currentCharIndex;
+                            if (currentCharIndex > urlStringLength) { return false; }
                             currentUniChar = CFStringGetCharacterFromInlineBuffer(&buf, currentCharIndex);
                             break;
                     }
@@ -888,6 +892,7 @@ CF_PRIVATE Boolean _CFURIParserParseURIReference(CFStringRef urlString, struct _
         //
         if ( currentUniChar == '#' ) {
             ++currentCharIndex;
+            if (currentCharIndex > urlStringLength) { return false; }
             currentUniChar = CFStringGetCharacterFromInlineBuffer(&buf, currentCharIndex);
             
             parseInfo->fragmentExists = true;
@@ -900,6 +905,7 @@ CF_PRIVATE Boolean _CFURIParserParseURIReference(CFStringRef urlString, struct _
                 }
                 else {
                     ++currentCharIndex;
+                    if (currentCharIndex > urlStringLength) { return false; }
                     currentUniChar = CFStringGetCharacterFromInlineBuffer(&buf, currentCharIndex);
                 }
             }
@@ -1321,7 +1327,26 @@ CF_PRIVATE Boolean _CFURIParserURLStringIsValid(CFStringRef urlString, struct _U
     Boolean result = true;
     CFRange componentRange;
     
-    // scheme range is already valid from ParseURIReference()
+    // validate the scheme
+    componentRange = _CFURIParserGetSchemeRange(parseInfo, false);
+    if (componentRange.location != kCFNotFound && componentRange.length > 0) {
+        // According to [RFC 2396](https://www.ietf.org/rfc/rfc2396.txt)
+        // the BNF for the scheme component is:
+        //
+        //     scheme        = alpha *( alpha | digit | "+" | "-" | "." )
+        //
+        // Which means the scheme must start with ALPHA, even though it _can_
+        // contain digits. Validate here that the scheme starts with ALPHA
+        CFStringInlineBuffer buf;
+        CFStringInitInlineBuffer(urlString, &buf, componentRange);
+        UniChar firstChar = __CFStringGetCharacterFromInlineBufferQuick(&buf, 0);
+        // Only lower bounds ('A') check is needed here to make sure
+        // the character is not a DIGIT.
+        result = firstChar >= 'A';
+        if ( !result ) goto invalidComponent;
+    }
+    result = _CFURIParserValidateComponent(urlString, componentRange, kURLSchemeAllowed, false);
+    if ( !result ) goto invalidComponent;
     
     // validate the user
     componentRange = _CFURIParserGetUserinfoNameRange(parseInfo, false);

@@ -94,7 +94,7 @@ struct __CFPFactory {
 // 3. The enabled flag in each factory instance
 // 4. The plugInData inside each bundle instance (except isPlugIn, which is constant after init)
 // In order to synchronize all of this, there is one global lock for all of it.
-os_unfair_recursive_lock CFPlugInGlobalDataLock = OS_UNFAIR_RECURSIVE_LOCK_INIT;
+static os_unfair_recursive_lock CFPlugInGlobalDataLock = OS_UNFAIR_RECURSIVE_LOCK_INIT;
 static CFMutableDictionaryRef _factoriesByFactoryID = NULL; /* Value is _CFPFactoryRef */
 static CFMutableDictionaryRef _factoriesByTypeID = NULL; /* Value is array of _CFPFactoryRef */
 static CFMutableSetRef _plugInsToUnload = NULL;

@@ -139,13 +139,21 @@ static char *_CFBundleGetSectData(const char *segname, const char *sectname, uns
     for (i = 0; i < numImages; i++) {
         if (mhp == (void *)_dyld_get_image_header(i)) {
 #if TARGET_RT_64_BIT
+// rdar://88999532 (Disable warnings from macho deprecations)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
             const struct section_64 *sp = getsectbynamefromheader_64((const struct mach_header_64 *)mhp, segname, sectname);
+#pragma clang diagnostic pop
             if (sp) {
                 retval = (char *)(sp->addr + _dyld_get_image_vmaddr_slide(i));
                 localSize = (unsigned long)sp->size;
             }
 #else /* TARGET_RT_64_BIT */
+// rdar://88999532 (Disable warnings from macho deprecations)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
             const struct section *sp = getsectbynamefromheader((const struct mach_header *)mhp, segname, sectname);
+#pragma clang diagnostic pop
             if (sp) {
                 retval = (char *)(sp->addr + _dyld_get_image_vmaddr_slide(i));
                 localSize = (unsigned long)sp->size;
@@ -161,7 +169,11 @@ static char *_CFBundleGetSectData(const char *segname, const char *sectname, uns
 CF_PRIVATE CFMutableDictionaryRef _CFBundleCreateInfoDictFromMainExecutable() {
     char *bytes = NULL;
     unsigned long length = 0;
+// rdar://88999532 (Disable warnings from macho deprecations)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     if (getsegbyname(TEXT_SEGMENT)) bytes = _CFBundleGetSectData(TEXT_SEGMENT, PLIST_SECTION, &length);
+#pragma clang diagnostic pop
     return _CFBundleCreateInfoDictFromData(bytes, length);
 }
 
@@ -171,9 +183,17 @@ CF_PRIVATE Boolean _CFBundleGrokObjCImageInfoFromMainExecutable(uint32_t *objcVe
     char *bytes = NULL;
     unsigned long length = 0;
 #if TARGET_RT_64_BIT
+// rdar://88999532 (Disable warnings from macho deprecations)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     if (getsegbyname(OBJC_SEGMENT_64)) bytes = _CFBundleGetSectData(OBJC_SEGMENT_64, IMAGE_INFO_SECTION_64, &length);
+#pragma clang diagnostic pop
 #else /* TARGET_RT_64_BIT */
+// rdar://88999532 (Disable warnings from macho deprecations)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     if (getsegbyname(OBJC_SEGMENT)) bytes = _CFBundleGetSectData(OBJC_SEGMENT, IMAGE_INFO_SECTION, &length);
+#pragma clang diagnostic pop
 #endif /* TARGET_RT_64_BIT */
     if (bytes && length >= 8) {
         localVersion = *(uint32_t *)bytes;
@@ -392,6 +412,9 @@ static void _CFBundleGrokObjcImageInfoFromFile(int fd, const void *bytes, CFInde
     if (objcFlags) *objcFlags = localFlags;
 }
 
+// rdar://88999532 (Disable warnings from macho deprecations)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 static UInt32 _CFBundleGrokMachTypeForFatFile(int fd, const void *bytes, CFIndex length, Boolean swap, Boolean *isX11, CFArrayRef *architectures, CFDictionaryRef *infodict, Boolean *hasObjc, uint32_t *objcVersion, uint32_t *objcFlags) {
     CFIndex headerLength = length;
     unsigned char headerBuffer[MAGIC_BYTES_TO_READ];
@@ -465,6 +488,7 @@ static UInt32 _CFBundleGrokMachTypeForFatFile(int fd, const void *bytes, CFIndex
     }
     return machtype;
 }
+#pragma clang diagnostic pop
 
 static UInt32 _CFBundleGrokMachType(int fd, const void *bytes, CFIndex length, Boolean *isX11, CFArrayRef *architectures, CFDictionaryRef *infodict, Boolean *hasObjc, uint32_t *objcVersion, uint32_t *objcFlags) {
     unsigned int magic = *((UInt32 *)bytes), machtype = UNKNOWN_FILETYPE, cputype;

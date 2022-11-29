@@ -247,14 +247,18 @@ CFStringRef _CFErrorCreateLocalizedDescription(CFErrorRef err) {
         if (failure) {
             CFStringRef reason = _CFErrorCopyUserInfoKey(err, kCFErrorLocalizedFailureReasonKey);    // This can come from userInfo or callback
             if (reason) {
-                CFStringRef const backstopComboString = CFSTR("%@ %@");
-                CFStringRef comboString = NULL;
-#if TARGET_OS_MAC || TARGET_OS_WIN32
+                CFStringRef result = NULL;
+#if TARGET_OS_MAC || DEPLOYMENT_RUNTIME_OBJC
                 CFBundleRef cfBundle = CFBundleGetBundleWithIdentifier(CFSTR("com.apple.CoreFoundation"));
-                if (cfBundle) comboString = CFCopyLocalizedStringFromTableInBundle(CFSTR("%@ %@"), CFSTR("Error"), cfBundle, "Used for presenting the 'what failed' and 'why it failed' sections of an error message, where each one is one or more complete sentences. The first %@ corresponds to the 'what failed' (For instance 'The file could not be saved.') and the second one 'why it failed' (For instance 'The volume is out of space.')");
+                if (cfBundle) {
+                    const CFStringRef localized = CFCopyLocalizedStringFromTableInBundle(CFSTR("%@ %@"), CFSTR("Error"), cfBundle, "Used for presenting the 'what failed' and 'why it failed' sections of an error message, where each one is one or more complete sentences. The first %@ corresponds to the 'what failed' (For instance 'The file could not be saved.') and the second one 'why it failed' (For instance 'The volume is out of space.')");
+                    result = CFStringCreateWithFormat(kCFAllocatorSystemDefault, NULL, localized, failure, reason);
+                    CFRelease(localized);
+                }
 #endif
-                CFStringRef result = CFStringCreateWithFormat(kCFAllocatorSystemDefault, NULL, comboString ?: backstopComboString, failure, reason);
-                if (comboString) CFRelease(comboString);
+                if (!result) {
+                    result = CFStringCreateWithFormat(kCFAllocatorSystemDefault, NULL, CFSTR("%@ %@"), failure, reason);
+                }
                 CFRelease(failure);
                 CFRelease(reason);
                 return result;
@@ -286,7 +290,7 @@ CFStringRef _CFErrorCreateLocalizedDescription(CFErrorRef err) {
     // Then look for kCFErrorLocalizedFailureReasonKey; if there, create a full sentence from that.
     CFStringRef reason = _CFErrorCopyUserInfoKey(err, kCFErrorLocalizedFailureReasonKey);
     if (reason) {
-	CFStringRef operationFailedStr = CFCopyLocalizedStringFromTableInBundle(CFSTR("The operation couldn\\U2019t be completed. %@"), CFSTR("Error"), cfBundle, "A generic error string indicating there was a problem. The %@ will be replaced by a second sentence which indicates why the operation failed.");
+	CFStringRef const operationFailedStr = CFCopyLocalizedStringFromTableInBundle(CFSTR("The operation couldn\\U2019t be completed. %@"), CFSTR("Error"), cfBundle, "A generic error string indicating there was a problem. The %@ will be replaced by a second sentence which indicates why the operation failed.");
         CFStringRef result = CFStringCreateWithFormat(kCFAllocatorSystemDefault, NULL, operationFailedStr, reason);
 	CFRelease(operationFailedStr);
         CFRelease(reason);
@@ -298,12 +302,12 @@ CFStringRef _CFErrorCreateLocalizedDescription(CFErrorRef err) {
     CFStringRef desc = _CFErrorCopyUserInfoKey(err, kCFErrorDescriptionKey);
     CFStringRef localizedDomain = CFCopyLocalizedStringFromTableInBundle(CFErrorGetDomain(err), CFSTR("Error"), cfBundle, "These are localized in the comment above");
     if (desc) {     // We have kCFErrorDescriptionKey, so include that with the error domain and code
-	CFStringRef operationFailedStr = CFCopyLocalizedStringFromTableInBundle(CFSTR("The operation couldn\\U2019t be completed. (%@ error %ld - %@)"), CFSTR("Error"), cfBundle, "A generic error string indicating there was a problem, followed by a parenthetical sentence which indicates error domain, code, and a description when there is no other way to present an error to the user. The first %@ indicates the error domain, %ld indicates the error code, and the second %@ indicates the description; so this might become '(Mach error 42 - Server error.)' for instance.");
+	CFStringRef const operationFailedStr = CFCopyLocalizedStringFromTableInBundle(CFSTR("The operation couldn\\U2019t be completed. (%@ error %ld - %@)"), CFSTR("Error"), cfBundle, "A generic error string indicating there was a problem, followed by a parenthetical sentence which indicates error domain, code, and a description when there is no other way to present an error to the user. The first %@ indicates the error domain, %ld indicates the error code, and the second %@ indicates the description; so this might become '(Mach error 42 - Server error.)' for instance.");
 	result = CFStringCreateWithFormat(kCFAllocatorSystemDefault, NULL, operationFailedStr, localizedDomain, (long)CFErrorGetCode(err), desc);
 	CFRelease(operationFailedStr);
         CFRelease(desc);
     } else {        // We don't have kCFErrorDescriptionKey, so just use error domain and code
-	CFStringRef operationFailedStr = CFCopyLocalizedStringFromTableInBundle(CFSTR("The operation couldn\\U2019t be completed. (%@ error %ld.)"), CFSTR("Error"), cfBundle, "A generic error string indicating there was a problem, followed by a parenthetical sentence which indicates error domain and code when there is no other way to present an error to the user. The %@ indicates the error domain while %ld indicates the error code; so this might become '(Mach error 42.)' for instance.");
+	CFStringRef const operationFailedStr = CFCopyLocalizedStringFromTableInBundle(CFSTR("The operation couldn\\U2019t be completed. (%@ error %ld.)"), CFSTR("Error"), cfBundle, "A generic error string indicating there was a problem, followed by a parenthetical sentence which indicates error domain and code when there is no other way to present an error to the user. The %@ indicates the error domain while %ld indicates the error code; so this might become '(Mach error 42.)' for instance.");
 	result = CFStringCreateWithFormat(kCFAllocatorSystemDefault, NULL, operationFailedStr, localizedDomain, (long)CFErrorGetCode(err));
 	CFRelease(operationFailedStr);
     }
@@ -332,6 +336,7 @@ CFStringRef _CFErrorCreateLocalizedRecoverySuggestion(CFErrorRef err) {
 typedef struct {
     CFMutableStringRef result;
     CFIndex depth;
+    Boolean localized;
 } errorFormattingContext;
 
 static void _CFErrorFormatDebugDescriptionAux(CFErrorRef err, errorFormattingContext *context);
@@ -358,7 +363,7 @@ static void _CFErrorFormatDebugDescriptionAux(CFErrorRef err, errorFormattingCon
     if (!desc) {
         desc = debugDesc;
         debugDesc = NULL;   // Since we don't want to show the same string twice; this transfers ownership from debugDesc to desc
-        if (!desc) {
+        if (!desc && context->localized) {
             desc = _CFErrorCopyUserInfoKey(err, kCFErrorLocalizedDescriptionKey);
             if (!desc) {
                 desc = _CFErrorCopyUserInfoKey(err, kCFErrorLocalizedFailureReasonKey);
@@ -390,6 +395,16 @@ CFStringRef _CFErrorCreateDebugDescription(CFErrorRef err) {
     errorFormattingContext context;
     context.result = CFStringCreateMutable(kCFAllocatorSystemDefault, 0);
     context.depth = 0;
+    context.localized = true;
+    _CFErrorFormatDebugDescriptionAux(err, &context);
+    return context.result;
+}
+
+CFStringRef _CFErrorCreateUnlocalizedDebugDescription(CFErrorRef err) {
+    errorFormattingContext context;
+    context.result = CFStringCreateMutable(kCFAllocatorSystemDefault, 0);
+    context.depth = 0;
+    context.localized = false;
     _CFErrorFormatDebugDescriptionAux(err, &context);
     return context.result;
 }
@@ -497,41 +512,6 @@ static CFTypeRef _CFErrorPOSIXCallBack(CFErrorRef err, CFStringRef key) CF_RETUR
     if (!errStr) return NULL;
     if (CFEqual(key, kCFErrorDescriptionKey)) return errStr;	// If all we wanted was the non-localized description, we're done
     
-#if TARGET_OS_MAC
-    // We need a kCFErrorLocalizedFailureReasonKey, so look up a possible localization for the error message
-    // Look for the bundle in /System/Library/CoreServices/CoreTypes.bundle
-    CFArrayRef paths = CFCopySearchPathForDirectoriesInDomains(kCFLibraryDirectory, kCFSystemDomainMask, false);
-    if (paths) {
-	if (CFArrayGetCount(paths) > 0) {
-            CFStringRef fileSystemPath = CFURLCopyFileSystemPath((CFURLRef)CFArrayGetValueAtIndex(paths, 0), kCFURLPOSIXPathStyle);
-            if (fileSystemPath) {
-                CFStringRef path = CFStringCreateWithFormat(kCFAllocatorSystemDefault, NULL, CFSTR("%@/CoreServices/CoreTypes.bundle"), fileSystemPath);
-                CFURLRef url = CFURLCreateWithFileSystemPath(kCFAllocatorSystemDefault, path, kCFURLPOSIXPathStyle, false /* not a directory */);
-                CFRelease(fileSystemPath);
-                if (url) {
-                    CFBundleRef bundle = CFBundleCreate(kCFAllocatorSystemDefault, url);
-                    if (bundle) {
-                        // We only want to return a result if there was a localization
-                        CFStringRef notFoundPlaceholder = CFSTR("%%NOTFOUND%%");
-                        CFStringRef localizedErrStr = CFBundleCopyLocalizedString(bundle, errStr, notFoundPlaceholder, CFSTR("ErrnoErrors"));
-                        if (localizedErrStr == notFoundPlaceholder) {
-                            CFRelease(localizedErrStr);
-                            CFRelease(errStr);
-                            errStr = NULL;
-                        } else {
-                            CFRelease(errStr);
-                            errStr = localizedErrStr;
-                        }
-                        CFRelease(bundle);
-                    }
-                    CFRelease(url);
-                }
-                CFRelease(path);
-            }
-	}
-	CFRelease(paths);
-    }
-#endif
     
     return errStr;
 }

@@ -197,6 +197,7 @@ private = [
 	'CoreFoundation/StringEncodings.subproj/CFStringEncodingConverter.h',
 	'CoreFoundation/Stream.subproj/CFStreamAbstract.h',
 	'CoreFoundation/Base.subproj/CFInternal.h',
+	'CoreFoundation/Base.subproj/CFObjCTypes.h',
 	'CoreFoundation/Parsing.subproj/CFXMLInputStream.h',
 	'CoreFoundation/Parsing.subproj/CFXMLInterface.h',
 	'CoreFoundation/PlugIn.subproj/CFPlugIn_Factory.h',

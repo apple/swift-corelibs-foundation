@@ -11,10 +11,6 @@
         NOT TO BE USED OUTSIDE CF!
 */
 
-#if !CF_BUILDING_CF
-    #error The header file CFInternal.h is for the exclusive use of CoreFoundation. No other project should include it.
-#endif
-
 #if !defined(__COREFOUNDATION_CFINTERNAL__)
 #define __COREFOUNDATION_CFINTERNAL__ 1
 
@@ -23,6 +19,8 @@
 #else
 #include <TargetConditionals.h>
 #endif
+
+#include <CoreFoundation/CFPriv.h>
 
 
 #define __CF_COMPILE_YEAR__	(__DATE__[7] * 1000 + __DATE__[8] * 100 + __DATE__[9] * 10 + __DATE__[10] - 53328)
@@ -264,8 +262,14 @@ CF_PRIVATE CFIndex __CFActiveProcessorCount(void);
 
 #define __kCFLogAssertion	3
 
+#if (TARGET_OS_MAC || TARGET_OS_BSD) && !defined(__OpenBSD__) && __has_include(<sys/cdefs.h>)
+#include <sys/cdefs.h>
+#else
+#define __printflike(a, b)
+#endif
+
 // This CF-only log function uses no CF functionality, so it may be called anywhere within CF - including thread teardown or prior to full CF setup
-CF_PRIVATE void _CFLogSimple(int32_t lev, char *format, ...);
+CF_PRIVATE void _CFLogSimple(int32_t lev, char *format, ...) __printflike(2, 3);
 
 #if defined(DEBUG)
 extern void __CFGenericValidateType_(CFTypeRef cf, CFTypeID type, const char *func);
@@ -322,13 +326,12 @@ static inline void __CFRuntimeSetValue(CFTypeRef cf, uint8_t n1, uint8_t n2, uin
     __CFInfoType info = atomic_load(&(((CFRuntimeBase *)cf)->_cfinfoa));
     __CFInfoType newInfo;
     __CFInfoType mask = __CFInfoMask(n1, n2);
-	
     #if !TARGET_OS_WASI
     do {
     #endif
         // maybe don't need to do the negation part because the right side promises that we are not going to touch the rest of the word
         newInfo = (info & ~mask) | ((x << n2) & mask);
-    // Atomics are not supported on WASI, see https://bugs.swift.org/browse/SR-12097 for more details	
+    // Atomics are not supported on WASI, see https://bugs.swift.org/browse/SR-12097 for more details
     #if !TARGET_OS_WASI
     } while (!atomic_compare_exchange_weak(&(((CFRuntimeBase *)cf)->_cfinfoa), &info, newInfo));
     #else
@@ -357,11 +360,11 @@ CF_PRIVATE void __CFRuntimeSetRC(CFTypeRef cf, uint32_t rc);
 // When compiling for Swift Foundation, STATIC_CLASS_REF returns a Swift class. There's a mapping of ObjC name classes to Swift symbols in the header that defines it that should be kept up to date if more constant objects are defined.
 // On all other platforms, it returns NULL, which is okay; we only need the type ID if CF is to be used by itself.
 #if TARGET_RT_64_BIT
-    #define INIT_CFRUNTIME_BASE_WITH_CLASS(CLASS, TYPEID) {  ._cfisa = (uintptr_t)STATIC_CLASS_REF(CLASS) , ._cfinfoa = 0x0000000000000080ULL | ((TYPEID) << 8), _CFRUNTIME_BASE_INIT_SWIFT_RETAIN_COUNT }
-    #define INIT_CFRUNTIME_BASE_WITH_CLASS_AND_FLAGS(CLASS, TYPEID, FLAGS) {  ._cfisa = (uintptr_t)STATIC_CLASS_REF(CLASS) , ._cfinfoa = 0x0000000000000080ULL | ((TYPEID) << 8) | (FLAGS), _CFRUNTIME_BASE_INIT_SWIFT_RETAIN_COUNT }
+    #define INIT_CFRUNTIME_BASE_WITH_CLASS(CLASS, TYPEID) {  ._cfisa = (uintptr_t)CONSTANT_CLASS_REF(CLASS) , ._cfinfoa = 0x0000000000000080ULL | ((TYPEID) << 8), _CFRUNTIME_BASE_INIT_SWIFT_RETAIN_COUNT }
+    #define INIT_CFRUNTIME_BASE_WITH_CLASS_AND_FLAGS(CLASS, TYPEID, FLAGS) {  ._cfisa = (uintptr_t)CONSTANT_CLASS_REF(CLASS) , ._cfinfoa = 0x0000000000000080ULL | ((TYPEID) << 8) | (FLAGS), _CFRUNTIME_BASE_INIT_SWIFT_RETAIN_COUNT }
 #else // if !TARGET_RT_64_BIT
-    #define INIT_CFRUNTIME_BASE_WITH_CLASS(CLASS, TYPEID) { ._cfisa = (uintptr_t)STATIC_CLASS_REF(CLASS) , ._cfinfoa = 0x00000080UL | ((TYPEID) << 8), _CFRUNTIME_BASE_INIT_SWIFT_RETAIN_COUNT }
-    #define INIT_CFRUNTIME_BASE_WITH_CLASS_AND_FLAGS(CLASS, TYPEID, FLAGS) {  ._cfisa = (uintptr_t)STATIC_CLASS_REF(CLASS), ._cfinfoa = 0x0000000000000080ULL | ((TYPEID) << 8) | (FLAGS), _CFRUNTIME_BASE_INIT_SWIFT_RETAIN_COUNT }
+    #define INIT_CFRUNTIME_BASE_WITH_CLASS(CLASS, TYPEID) { ._cfisa = (uintptr_t)CONSTANT_CLASS_REF(CLASS) , ._cfinfoa = 0x00000080UL | ((TYPEID) << 8), _CFRUNTIME_BASE_INIT_SWIFT_RETAIN_COUNT }
+    #define INIT_CFRUNTIME_BASE_WITH_CLASS_AND_FLAGS(CLASS, TYPEID, FLAGS) {  ._cfisa = (uintptr_t)CONSTANT_CLASS_REF(CLASS), ._cfinfoa = 0x0000000000000080ULL | ((TYPEID) << 8) | (FLAGS), _CFRUNTIME_BASE_INIT_SWIFT_RETAIN_COUNT }
 #endif // TARGET_RT_64_BIT
 
 #define __CFBitIsSet(V, N)  (((V) & (1UL << (N))) != 0)
@@ -450,7 +453,7 @@ extern CFStringRef __CFCopyFormattingDescription(CFTypeRef cf, CFDictionaryRef f
 CF_PRIVATE CFStringRef _CFStringCopyWithFomatStringConfiguration(CFStringRef aFormatString, CFDictionaryRef formatConfiguration);
 CF_PRIVATE CFStringRef _CFCopyResolvedFormatStringWithConfiguration(CFTypeRef anObject, CFDictionaryRef aConfiguration, CFDictionaryRef formatOptions);
 CF_PRIVATE CFStringRef _CFStringCreateWithWidthContexts(CFDictionaryRef widthContexts);
-CF_PRIVATE CFStringRef _CFStringCreateWithMarkdownAndConfiguration(CFStringRef stringWithMarkup, CFDictionaryRef configuration, CFURLRef tableURL);
+CF_PRIVATE CFStringRef _CFStringCreateWithMarkdownAndConfiguration(CFStringRef stringWithMarkup, CFDictionaryRef configuration, CFBundleRef bundle, CFURLRef tableURL);
 CF_PRIVATE Boolean _CFStringObjCFormatRequiresInflection(CFStringRef format);
 CF_PRIVATE CFStringRef _CFStringCreateFormatWithInflectionAndArguments(CFAllocatorRef alloc, CFDictionaryRef formatOptions, CFStringRef format, va_list arguments);
 
@@ -580,125 +583,6 @@ CF_EXPORT id __NSArray0__;
 
 #include <CoreFoundation/CFLocking.h>
 
-#if _POSIX_THREADS
-typedef pthread_mutex_t _CFMutex;
-#define _CF_MUTEX_STATIC_INITIALIZER PTHREAD_MUTEX_INITIALIZER
-CF_INLINE int _CFMutexCreate(_CFMutex *lock) {
-  return pthread_mutex_init(lock, NULL);
-}
-CF_INLINE int _CFMutexDestroy(_CFMutex *lock) {
-  return pthread_mutex_destroy(lock);
-}
-CF_INLINE int _CFMutexLock(_CFMutex *lock) {
-  return pthread_mutex_lock(lock);
-}
-CF_INLINE int _CFMutexUnlock(_CFMutex *lock) {
-  return pthread_mutex_unlock(lock);
-}
-
-typedef pthread_mutex_t _CFRecursiveMutex;
-CF_INLINE int _CFRecursiveMutexCreate(_CFRecursiveMutex *mutex) {
-  pthread_mutexattr_t attr;
-  pthread_mutexattr_init(&attr);
-  pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
-
-  int result = pthread_mutex_init(mutex, &attr);
-
-  pthread_mutexattr_destroy(&attr);
-
-  return result;
-}
-CF_INLINE int _CFRecursiveMutexDestroy(_CFRecursiveMutex *mutex) {
-  return pthread_mutex_destroy(mutex);
-}
-CF_INLINE int _CFRecursiveMutexLock(_CFRecursiveMutex *mutex) {
-  return pthread_mutex_lock(mutex);
-}
-CF_INLINE int _CFRecursiveMutexUnlock(_CFRecursiveMutex *mutex) {
-  return pthread_mutex_unlock(mutex);
-}
-#elif defined(_WIN32)
-typedef SRWLOCK _CFMutex;
-#define _CF_MUTEX_STATIC_INITIALIZER SRWLOCK_INIT
-CF_INLINE int _CFMutexCreate(_CFMutex *lock) {
-  InitializeSRWLock(lock);
-  return 0;
-}
-CF_INLINE int _CFMutexDestroy(_CFMutex *lock) {
-  (void)lock;
-  return 0;
-}
-CF_INLINE int _CFMutexLock(_CFMutex *lock) {
-  AcquireSRWLockExclusive(lock);
-  return 0;
-}
-CF_INLINE int _CFMutexUnlock(_CFMutex *lock) {
-  ReleaseSRWLockExclusive(lock);
-  return 0;
-}
-
-typedef CRITICAL_SECTION _CFRecursiveMutex;
-CF_INLINE int _CFRecursiveMutexCreate(_CFRecursiveMutex *mutex) {
-  InitializeCriticalSection(mutex);
-  return 0;
-}
-CF_INLINE int _CFRecursiveMutexDestroy(_CFRecursiveMutex *mutex) {
-  DeleteCriticalSection(mutex);
-  return 0;
-}
-CF_INLINE int _CFRecursiveMutexLock(_CFRecursiveMutex *mutex) {
-  EnterCriticalSection(mutex);
-  return 0;
-}
-CF_INLINE int _CFRecursiveMutexUnlock(_CFRecursiveMutex *mutex) {
-  LeaveCriticalSection(mutex);
-  return 0;
-}
-#else
-#error "do not know how to define mutex and recursive mutex for this OS"
-#endif
-
-#if __has_include(<os/lock.h>)
-#include <os/lock.h>
-#if __has_include(<os/lock_private.h>)
-#include <os/lock_private.h>
-#define _CF_HAS_OS_UNFAIR_RECURSIVE_LOCK 1
-#else
-#define os_unfair_lock_lock_with_options(lock, options) os_unfair_lock_lock(lock)
-#define OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION (0)
-#endif
-
-#elif _POSIX_THREADS
-#define OS_UNFAIR_LOCK_INIT PTHREAD_MUTEX_INITIALIZER
-typedef pthread_mutex_t os_unfair_lock;
-typedef pthread_mutex_t * os_unfair_lock_t;
-typedef uint32_t os_unfair_lock_options_t;
-#define OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION (0)
-static void os_unfair_lock_lock(os_unfair_lock_t lock) { pthread_mutex_lock(lock); }
-static void os_unfair_lock_lock_with_options(os_unfair_lock_t lock, os_unfair_lock_options_t options) { pthread_mutex_lock(lock); }
-static void os_unfair_lock_unlock(os_unfair_lock_t lock) { pthread_mutex_unlock(lock); }
-#elif defined(_WIN32)
-#define OS_UNFAIR_LOCK_INIT CFLockInit
-#define os_unfair_lock CFLock_t
-#define os_unfair_lock_lock __CFLock
-#define os_unfair_lock_unlock __CFUnlock
-#define os_unfair_lock_lock_with_options(lock, options) __CFLock(lock)
-#define OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION
-#endif // __has_include(<os/lock.h>)
-
-#if defined(_CF_HAS_OS_UNFAIR_RECURSIVE_LOCK)
-#undef _CF_HAS_OS_UNFAIR_RECURSIVE_LOCK // Nothing to do here.
-#define _CFPerformDynamicInitOfOSRecursiveLock(lock) do {} while (0)
-#else
-#define os_unfair_recursive_lock _CFRecursiveMutex
-#define OS_UNFAIR_RECURSIVE_LOCK_INIT { 0 }
-#define _CFPerformDynamicInitOfOSRecursiveLock _CFRecursiveMutexCreate
-#define os_unfair_recursive_lock_lock _CFRecursiveMutexLock
-#define os_unfair_recursive_lock_lock_with_options(lock, more) _CFRecursiveMutexLock(lock)
-#define os_unfair_recursive_lock_unlock _CFRecursiveMutexUnlock
-#endif
-
-
 #if !__HAS_DISPATCH__
 
 typedef volatile long dispatch_once_t;
@@ -774,10 +658,6 @@ CF_PRIVATE CFMutableArrayRef _CFCreateContentsOfDirectory(CFAllocatorRef alloc, 
     /* alloc may be NULL */
     /* return value is CFArray of CFURLs */
 
-CF_PRIVATE SInt32 _CFGetPathProperties(CFAllocatorRef alloc, char *path, Boolean *exists, SInt32 *posixMode, SInt64 *size, CFDateRef *modTime, SInt32 *ownerID, CFArrayRef *dirContents);
-    /* alloc may be NULL */
-    /* any of exists, posixMode, size, modTime, and dirContents can be NULL.  Usually it is not a good idea to pass NULL for exists, since interpretting the other values sometimes requires that you know whether the file existed or not.  Except for dirContents, it is pretty cheap to compute any of these things as loing as one of them must be computed. */
-
 CF_PRIVATE SInt32 _CFGetFileProperties(CFAllocatorRef alloc, CFURLRef pathURL, Boolean *exists, SInt32 *posixMode, SInt64 *size, CFDateRef *modTime, SInt32 *ownerID, CFArrayRef *dirContents);
     /* alloc may be NULL */
     /* any of exists, posixMode, size, modTime, and dirContents can be NULL.  Usually it is not a good idea to pass NULL for exists, since interpretting the other values sometimes requires that you know whether the file existed or not.  Except for dirContents, it is pretty cheap to compute any of these things as loing as one of them must be computed. */
@@ -821,9 +701,6 @@ CF_PRIVATE CFArrayRef _CFCreateCFArrayByTokenizingString(const char *values, cha
 CF_PRIVATE void _CFIterateDirectory(CFStringRef directoryPath, Boolean appendSlashForDirectories, CFArrayRef stuffToPrefix, Boolean (^fileHandler)(CFStringRef fileName, CFStringRef fileNameWithPrefix, uint8_t fileType));
 #endif
 
-#define __CFMaxRuntimeTypes	65535
-#define __CFRuntimeClassTableSize 1024
-
 extern void _CFRuntimeSetInstanceTypeIDAndIsa(CFTypeRef cf, CFTypeID newTypeID);
 
 #if DEPLOYMENT_RUNTIME_SWIFT
@@ -855,17 +732,34 @@ extern void _CFRuntimeSetInstanceTypeIDAndIsa(CFTypeRef cf, CFTypeID newTypeID);
 #define _CF_VISIBILITY_HIDDEN_ATTRIBUTE
 #endif
 
-typedef struct __CFClassTables {
-    CFRuntimeClass const * classTable[__CFRuntimeClassTableSize];
+#define __CFRuntimeBuiltinClassCount _kCFRuntimeStartingClassID
+
+#define __CFRuntimeMaxDynamicCFTypes    1024
+#define __CFRuntimeDynamicCFTypeIDTableSizeLog2 (6)
+#define __CFRuntimeDynamicCFTypeIDTableSize (1<<__CFRuntimeDynamicCFTypeIDTableSizeLog2) // 64
+#define __CFRuntimeDynamicCFTypeIDTableCount (__CFRuntimeMaxDynamicCFTypes/__CFRuntimeDynamicCFTypeIDTableSize) // 16
+
+typedef struct {
+    CFRuntimeClass const ** dynamicClassTableArray[__CFRuntimeDynamicCFTypeIDTableCount];
     // This can be safely `_Atomic` because we just store the signed classes; you can't sign / auth _Atomic pointers
-    _Atomic(uintptr_t) objCClassTable[__CFRuntimeClassTableSize];
-} _CFClassTables;
+    _Atomic(uintptr_t) * dynamicObjCClassTableArray[__CFRuntimeDynamicCFTypeIDTableCount];
+    int32_t dynamicClassCount;
+} _CFRuntimeDynamicClassTables;
+
+CF_PRIVATE CFRuntimeClass const * const __CFRuntimeBuiltinClassTable[__CFRuntimeBuiltinClassCount];
+CF_PRIVATE _Atomic(uintptr_t) __CFRuntimeBuiltinObjCClassTable[__CFRuntimeBuiltinClassCount];
 
 // IMPORTANT: 'heap' and other memory tools look up this symbol by name. Even though it is not exported, the name is ABI. Changes must be coordinated with them.
-CF_PRIVATE _CFClassTables __CFRuntimeClassTables;
+CF_PRIVATE _CFRuntimeDynamicClassTables __CFRuntimeClassTables;
 
-#define __CFRuntimeClassTable __CFRuntimeClassTables.classTable
-#define __CFRuntimeObjCClassTable __CFRuntimeClassTables.objCClassTable
+#define __CFRuntimeDynamicClassTable (__CFRuntimeClassTables.dynamicClassTableArray)
+#define __CFRuntimeDynamicObjCClassTable (__CFRuntimeClassTables.dynamicObjCClassTableArray)
+#define __CFRuntimeTotalDynamicCFTypeCount (__CFRuntimeClassTables.dynamicClassCount)
+#define __CFRuntimeTotalCFTypeCount (__CFRuntimeBuiltinClassCount + __CFRuntimeTotalDynamicCFTypeCount)
+
+#define DYNAMIC_TYPEID(typeID) (typeID - __CFRuntimeBuiltinClassCount)
+#define DYNAMIC_TYPEID_TABLE_INDEX(typeID) (typeID >> __CFRuntimeDynamicCFTypeIDTableSizeLog2) // Divide the 1024 available type IDs into 16 different 64 count chunks
+#define DYNAMIC_TYPEID_SUBTABLE_INDEX(typeID) (typeID & (__CFRuntimeDynamicCFTypeIDTableSize - 1))
 
 #if __has_feature(ptrauth_intrinsics)
 __attribute__((visibility("hidden")))
@@ -874,57 +768,77 @@ CF_INLINE uintptr_t ___CFRUNTIME_OBJC_CLASSTABLE_PTRAUTH_DISCRIMINATOR(void cons
 }
 #endif
 
-CF_INLINE uintptr_t _GetCFRuntimeObjcClassAtIndex(CFTypeID typeID) {
-    uintptr_t obj = atomic_load_explicit(&__CFRuntimeObjCClassTable[typeID], memory_order_relaxed);
+
+CF_INLINE uintptr_t _CFRuntimeGetObjcClassAtSlot(_Atomic(uintptr_t) const * classSlot) {
+    uintptr_t obj = atomic_load_explicit(classSlot, memory_order_relaxed);
 
 #if __has_feature(ptrauth_intrinsics)
     // Auth using a discriminator that uses the address of the slot
     // in __CFRuntimeObjCClassTable and a known string discriminator.
-    void const * const slot = &__CFRuntimeObjCClassTable[typeID];
     return (uintptr_t)ptrauth_auth_data((void *)obj,
                                         ptrauth_key_process_dependent_data,
-                                        ___CFRUNTIME_OBJC_CLASSTABLE_PTRAUTH_DISCRIMINATOR(slot));
+                                        ___CFRUNTIME_OBJC_CLASSTABLE_PTRAUTH_DISCRIMINATOR(classSlot));
 #else
     return (uintptr_t)obj;
 #endif
 }
 
-CF_INLINE void _SetCFRuntimeObjcClass(uintptr_t aClass, CFTypeID typeID) {
-    uintptr_t classToStore = aClass;
+CF_INLINE void _CFRuntimeSetObjcClassAtSlot(Class aClass, _Atomic(uintptr_t) * classSlot) {
+    uintptr_t classToStore = (uintptr_t)aClass;
 
 #if __has_feature(ptrauth_intrinsics)
     // validate the current entry; ignore the return value we just want to ensure our table is in a valid state before mutation
-    _GetCFRuntimeObjcClassAtIndex(typeID);
+    _CFRuntimeGetObjcClassAtSlot(classSlot);
     // If we're using ptrauth, we'll sign using a discriminator that uses the address of the slot
     // in __CFRuntimeObjCClassTable and a known string discriminator.
     // Later we'll auth this using the the same discriminator to ensure the table hasn't been messed with
     // and that the class we've stored in the table is the one we expect it to be.
-    void const * const slot = &__CFRuntimeObjCClassTable[typeID];
     classToStore = (uintptr_t)ptrauth_sign_unauthenticated((void *)classToStore,
                                                            ptrauth_key_process_dependent_data,
-                                                           ___CFRUNTIME_OBJC_CLASSTABLE_PTRAUTH_DISCRIMINATOR(slot));
+                                                           ___CFRUNTIME_OBJC_CLASSTABLE_PTRAUTH_DISCRIMINATOR(classSlot));
 #endif
 
-    atomic_store_explicit(&__CFRuntimeObjCClassTable[typeID], classToStore, memory_order_relaxed);
+    atomic_store_explicit(classSlot, classToStore, memory_order_relaxed);
 }
 
 CF_INLINE uintptr_t __CFISAForTypeID(CFTypeID typeID) {
-    if (typeID < __CFRuntimeClassTableSize) {
-        // There is a "race" here between CFRetain / CFRelease (which call CF_IS_OBJC)
-        // and _CFRuntimeBridgeClasses. Except... that because this array is
-        // pointer-sized, the only possible races are on access to the same index in
-        // both cases.
-        // So we have two cases:
-        // - if you call CF_IS_OBJC on a CF object, it means that type has been registered
-        //   previously: no race
-        // - if you call CF_IS_OBJC on an objc object, and __CFGenericTypeID_inline
-        //   interpreted some bits of the object as a type ID, we don't really care
-        //   if the value we read is outdated or not, since we will fail the isa comparison
-        //   in CF_IS_OBJC
-
-        return _GetCFRuntimeObjcClassAtIndex(typeID);
+    if (typeID < __CFRuntimeBuiltinClassCount) {
+        return _CFRuntimeGetObjcClassAtSlot(&__CFRuntimeBuiltinObjCClassTable[typeID]);
     } else {
-        return 0;
+        int32_t const dynTypeID = DYNAMIC_TYPEID(typeID);
+        if (dynTypeID < __CFRuntimeTotalDynamicCFTypeCount) {
+            // There is a "race" here between CFRetain / CFRelease (which call CF_IS_OBJC)
+            // and _CFRuntimeBridgeClasses. Except... that because this array is
+            // pointer-sized, the only possible races are on access to the same index in
+            // both cases.
+            // So we have two cases:
+            // - if you call CF_IS_OBJC on a CF object, it means that type has been registered
+            //   previously: no race
+            // - if you call CF_IS_OBJC on an objc object, and __CFGenericTypeID_inline
+            //   interpreted some bits of the object as a type ID, we don't really care
+            //   if the value we read is outdated or not, since we will fail the isa comparison
+            //   in CF_IS_OBJC
+            int const tableIdx = DYNAMIC_TYPEID_TABLE_INDEX(dynTypeID);
+            _Atomic(uintptr_t) *table = __CFRuntimeClassTables.dynamicObjCClassTableArray[tableIdx];
+            return _CFRuntimeGetObjcClassAtSlot(&table[DYNAMIC_TYPEID_SUBTABLE_INDEX(dynTypeID)]);
+        } else {
+            return 0;
+        }
+    }
+}
+
+CF_INLINE CFRuntimeClass const * const __CFRuntimeGetClassWithTypeID(CFTypeID typeID) {
+    if (typeID < __CFRuntimeBuiltinClassCount) {
+        return __CFRuntimeBuiltinClassTable[typeID];
+    } else {
+        int32_t const dynTypeID = DYNAMIC_TYPEID(typeID);
+        if (dynTypeID < __CFRuntimeTotalDynamicCFTypeCount) {
+            int const tableIdx = DYNAMIC_TYPEID_TABLE_INDEX(dynTypeID);
+            CFRuntimeClass const ** table = __CFRuntimeClassTables.dynamicClassTableArray[tableIdx];
+            return table[DYNAMIC_TYPEID_SUBTABLE_INDEX(dynTypeID)];
+        } else {
+            return NULL;
+        }
     }
 }
 
@@ -932,7 +846,11 @@ CF_INLINE uintptr_t __CFISAForTypeID(CFTypeID typeID) {
 #define CF_OBJC_RETAINED_FUNCDISPATCHV(typeID, obj, ...) do { } while (0)
 #define CF_OBJC_CALLV(obj, ...) (0)
 #define CF_IS_OBJC(typeID, obj) (0)
-#define _CFTypeGetClass(obj) ((uintptr_t)((CFRuntimeBase *)obj)->_cfisa)
+
+static inline uintptr_t _CFTypeGetClass(const CFTypeRef obj) {
+    return (uintptr_t)((CFRuntimeBase *)obj)->_cfisa;
+}
+
 
 /* See comments in CFBase.c
 */
@@ -989,33 +907,11 @@ extern void *__CFLookupCFNetworkFunction(const char *name);
 
 #define DEFINE_WEAK_CARBONCORE_FUNC(R, N, P, A, ...)
 
-#if TARGET_OS_MAC
-
-extern void *__CFLookupCoreServicesInternalFunction(const char *name);
-
-#define DEFINE_WEAK_CORESERVICESINTERNAL_FUNC(R, N, P, A, ...)              \
-    static R __CFCoreServicesInternal_ ## N P {                             \
-        typedef R (*dyfuncptr)P;                                            \
-        static dyfuncptr dyfunc = (dyfuncptr)(~(uintptr_t)0);               \
-        static dispatch_once_t onceToken;                                   \
-        dispatch_once(&onceToken, ^{                                        \
-            dyfunc = (dyfuncptr)__CFLookupCoreServicesInternalFunction(#N); \
-        });                                                                 \
-        if (dyfunc) {                                                       \
-            return dyfunc A ;                                               \
-        }                                                                   \
-        return __VA_ARGS__ ;                                                \
-    }
-
-#else
-#define DEFINE_WEAK_CORESERVICESINTERNAL_FUNC(R, N, P, A, ...)
-#endif
-
 CF_PRIVATE CFComparisonResult _CFCompareStringsWithLocale(CFStringInlineBuffer *str1, CFRange str1Range, CFStringInlineBuffer *str2, CFRange str2Range, CFOptionFlags options, const void *compareLocale);
 
 
 CF_PRIVATE CFArrayRef _CFBundleCopyUserLanguages(void);
-
+CF_PRIVATE CFStringRef _CFLocaleCopyLocaleIdentifierByAddingLikelySubtags(CFStringRef localeID);
 
 // This should only be used in CF types, not toll-free bridged objects!
 // It should not be used with CFAllocator arguments!
@@ -1045,6 +941,8 @@ CF_PRIVATE CFSetRef __CFBinaryPlistCopyTopLevelKeys(CFAllocatorRef allocator, co
 CF_PRIVATE bool __CFBinaryPlistIsDictionary(const uint8_t *databytes, uint64_t datalen, uint64_t startOffset, const CFBinaryPlistTrailer *trailer);
 CF_PRIVATE bool __CFBinaryPlistIsArray(const uint8_t *databytes, uint64_t datalen, uint64_t startOffset, const CFBinaryPlistTrailer *trailer);
 
+CF_PRIVATE Boolean __CFDataGetBinaryPlistTopLevelInfo(CFDataRef data, uint8_t *marker, uint64_t *offset, CFBinaryPlistTrailer *trailer);
+
 #if 0
 #pragma mark -
 #pragma mark Windows Compatibility
@@ -1056,6 +954,9 @@ CF_PRIVATE bool __CFBinaryPlistIsArray(const uint8_t *databytes, uint64_t datale
 #else
 #define CF_OPENFLGS	(0)
 #endif
+
+CF_EXPORT_NONOBJC_ONLY int _CFThreadSetName(_CFThreadRef thread, const char *name);
+CF_EXPORT_NONOBJC_ONLY int _CFThreadGetName(char *buf, int length);
 
 #if TARGET_OS_WIN32
 
@@ -1134,7 +1035,7 @@ enum {
 };
 #endif
 
-#if TARGET_OS_LINUX || TARGET_OS_WIN32 || TARGET_OS_BSD
+#if !TARGET_OS_MAC
 #define QOS_CLASS_USER_INITIATED DISPATCH_QUEUE_PRIORITY_HIGH
 #define QOS_CLASS_DEFAULT DISPATCH_QUEUE_PRIORITY_DEFAULT
 #define QOS_CLASS_UTILITY DISPATCH_QUEUE_PRIORITY_LOW
@@ -1147,7 +1048,6 @@ CF_INLINE long qos_class_main() {
 CF_INLINE long qos_class_self() {
     return QOS_CLASS_DEFAULT;
 }
-
 #endif
 
 // Returns a generic dispatch queue for when you want to just throw some work
@@ -1211,19 +1111,11 @@ static inline void _CFReleaseOnCleanup(void * CF_RELEASES_ARGUMENT ptr) {
 
 #pragma mark - CF Private Globals
 
-CF_PRIVATE void *__CFAppleLanguages;
 CF_PRIVATE uint8_t __CFZombieEnabled;
 CF_PRIVATE uint8_t __CFDeallocateZombies;
 CF_PRIVATE Boolean __CFInitialized;
 CF_PRIVATE _Atomic(bool) __CFMainThreadHasExited;
 CF_PRIVATE const CFStringRef __kCFLocaleCollatorID;
-
-#if __OBJC__
-#import <Foundation/NSArray.h>
-@interface NSArray (CFBufferAdoption)
-- (instancetype)_initByAdoptingBuffer:(id *)buffer count:(NSUInteger)count size:(size_t)size;
-@end
-#endif
 
 CF_EXTERN_C_END
 

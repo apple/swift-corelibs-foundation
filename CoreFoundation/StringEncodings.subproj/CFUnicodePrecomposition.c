@@ -15,43 +15,14 @@
 #include "CFUnicodePrecomposition.h"
 #include "CFInternal.h"
 #include "CFUniCharPriv.h"
+#include "CFUniCharPrecompositionData.inc.h"
+#include "CFUniCharBitmapData.inc.h"
+#include "CFUniCharPropertyDatabase.inc.h"
 
 // Canonical Precomposition
-static UTF32Char *__CFUniCharPrecompSourceTable = NULL;
-static uint32_t __CFUniCharPrecompositionTableLength = 0;
-static uint16_t *__CFUniCharBMPPrecompDestinationTable = NULL;
-static uint32_t *__CFUniCharNonBMPPrecompDestinationTable = NULL;
 
-static const uint8_t *__CFUniCharNonBaseBitmapForBMP_P = NULL; // Adding _P so the symbol name is different from the one in CFUnicodeDecomposition.c
-static const uint8_t *__CFUniCharCombiningClassForBMP = NULL;
-
-static CFLock_t __CFUniCharPrecompositionTableLock = CFLockInit;
-
-static void __CFUniCharLoadPrecompositionTable(void) {
-
-    __CFLock(&__CFUniCharPrecompositionTableLock);
-
-    if (NULL == __CFUniCharPrecompSourceTable) {
-        const uint32_t *bytes = (const uint32_t *)CFUniCharGetMappingData(kCFUniCharCanonicalPrecompMapping);
-        uint32_t bmpMappingLength;
-
-        if (NULL == bytes) {
-            __CFUnlock(&__CFUniCharPrecompositionTableLock);
-            return;
-        }
-
-        __CFUniCharPrecompositionTableLength = *(bytes++);
-        bmpMappingLength = *(bytes++);
-        __CFUniCharPrecompSourceTable = (UTF32Char *)bytes;
-        __CFUniCharBMPPrecompDestinationTable = (uint16_t *)((intptr_t)bytes + (__CFUniCharPrecompositionTableLength * sizeof(UTF32Char) * 2));
-        __CFUniCharNonBMPPrecompDestinationTable = (uint32_t *)(((intptr_t)__CFUniCharBMPPrecompDestinationTable) + bmpMappingLength);
-
-        __CFUniCharNonBaseBitmapForBMP_P = CFUniCharGetBitmapPtrForPlane(kCFUniCharNonBaseCharacterSet, 0);
-        __CFUniCharCombiningClassForBMP = (const uint8_t *)CFUniCharGetUnicodePropertyDataForPlane(kCFUniCharCombiningProperty, 0);
-    }
-
-    __CFUnlock(&__CFUniCharPrecompositionTableLock);
-}
+static const uint8_t *__CFUniCharNonBaseBitmapForBMP_P = (const uint8_t *)__CFUniCharNonBaseCharacterSetBitmapPlane0; // Adding _P so the symbol name is different from the one in CFUnicodeDecomposition.c
+static const uint8_t *__CFUniCharCombiningClassForBMP = (const uint8_t *)__CFUniCharCombiningPriorityTablePlane0;
 
  // Adding _P so the symbol name is different from the one in CFUnicodeDecomposition.c
 #define __CFUniCharIsNonBaseCharacter	__CFUniCharIsNonBaseCharacter_P
@@ -107,8 +78,6 @@ CF_PRIVATE
 UTF32Char CFUniCharPrecomposeCharacter(UTF32Char base, UTF32Char combining) {
     uint32_t value;
 
-    if (NULL == __CFUniCharPrecompSourceTable) __CFUniCharLoadPrecompositionTable();
-
     if (!(value = __CFUniCharGetMappedValue_P((const __CFUniCharPrecomposeMappings *)__CFUniCharPrecompSourceTable, __CFUniCharPrecompositionTableLength, combining))) return 0xFFFD;
 
     // We don't have precomposition in non-BMP
@@ -147,8 +116,6 @@ bool CFUniCharPrecompose(const UTF16Char *characters, CFIndex length, CFIndex *c
     uint8_t currentClass, lastClass = 0;
     bool currentBaseIsBMP = true;
     bool isPrecomposed;
-
-    if (NULL == __CFUniCharPrecompSourceTable) __CFUniCharLoadPrecompositionTable();
 
     while (length > 0) {
         currentChar = *(characters++);

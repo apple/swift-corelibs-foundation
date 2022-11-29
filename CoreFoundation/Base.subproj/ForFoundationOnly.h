@@ -27,11 +27,13 @@
 #include <CoreFoundation/CFNumberFormatter.h>
 #include <CoreFoundation/CFBag.h>
 #include <CoreFoundation/CFCalendar.h>
+#include <CoreFoundation/CFObjCTypes.h>
 
 #if !TARGET_OS_WASI
 #include <CoreFoundation/CFStreamPriv.h>
 #include <CoreFoundation/CFRuntime.h>
 #endif
+
 #include <math.h>
 #include <limits.h>
 
@@ -59,11 +61,10 @@ CF_IMPLICIT_BRIDGING_DISABLED
 #include <mach/mach_time.h>
 #endif
 
-#if (INCLUDE_OBJC || TARGET_OS_MAC || TARGET_OS_WIN32) && !DEPLOYMENT_RUNTIME_SWIFT
+#if _CF_OBJC
 #include <objc/message.h>
 #endif
 
-#if __BLOCKS__
 /* These functions implement standard error handling for reallocation. Their parameters match their unsafe variants (realloc/CFAllocatorReallocate). They differ from reallocf as they provide a chance for you to clean up a buffers contents (in addition to freeing the buffer, etc.)
  
    The optional reallocationFailureHandler is called only when the reallocation fails (with the original buffer passed in, so you can clean up the buffer/throw/abort/etc.
@@ -72,7 +73,6 @@ CF_IMPLICIT_BRIDGING_DISABLED
  */
 CF_EXPORT void *_Nonnull __CFSafelyReallocate(void * _Nullable destination, size_t newCapacity, void (^_Nullable reallocationFailureHandler)(void *_Nonnull original, bool *_Nonnull outRecovered));
 CF_EXPORT void *_Nonnull __CFSafelyReallocateWithAllocator(CFAllocatorRef _Nullable, void * _Nullable destination, size_t newCapacity, CFOptionFlags options, void (^_Nullable reallocationFailureHandler)(void *_Nonnull original, bool *_Nonnull outRecovered));
-#endif
 
 Boolean __CFAllocatorRespectsHintZeroWhenAllocating(CFAllocatorRef _Nullable allocator);
 typedef CF_ENUM(CFOptionFlags, _CFAllocatorHint) {
@@ -125,6 +125,7 @@ CF_EXPORT CFTypeRef _Nullable _CFBundleCopyFindResources(CFBundleRef _Nullable b
 
 CF_EXPORT Boolean _CFBundleLoadExecutableAndReturnError(CFBundleRef bundle, Boolean forceGlobal, CFErrorRef _Nullable *_Nullable error);
 CF_EXPORT CFErrorRef _CFBundleCreateError(CFAllocatorRef _Nullable allocator, CFBundleRef bundle, CFIndex code);
+CF_EXPORT CFDataRef _CFBundleGetMappedStringsFile(CFIndex idx);
 
 _CF_EXPORT_SCOPE_END
 #endif
@@ -349,9 +350,7 @@ CF_EXPORT Boolean __CFStringDecodeByteStream3(const UInt8 *bytes, CFIndex len, C
 CF_EXPORT CFStringEncodingCheapEightBitToUnicodeProc __CFCharToUniCharFunc;
 
 /* Built-in constant char to unichar tables that help avoid dynamic allocation and dirtying of memory in common scenarios */
-#if TARGET_OS_OSX || TARGET_OS_IPHONE
 CF_EXPORT UniChar const __CFMacRomanCharToUnicharTable[256];
-#endif
 CF_EXPORT UniChar const __CFIdempotentCharToUniCharTable[256];
 
 /* Character class functions UnicodeData-2_1_5.txt
@@ -403,11 +402,13 @@ const char * _CFNonObjCStringGetCStringPtr(CFStringRef str, CFStringEncoding enc
 CF_EXPORT void _CFStringAppendFormatAndArgumentsAux(CFMutableStringRef outputString, CFStringRef _Nonnull (*_Nullable copyDescFunc)(void *, const void *loc), CFDictionaryRef _Nullable formatOptions, CFStringRef formatString, va_list args);
 CF_EXPORT CFStringRef  _CFStringCreateWithFormatAndArgumentsAux(CFAllocatorRef _Nullable alloc, CFStringRef _Nonnull (*_Nullable copyDescFunc)(void *, const void *loc), CFDictionaryRef _Nullable formatOptions, CFStringRef format, va_list arguments);
 
-CF_EXPORT void _CFStringAppendFormatAndArgumentsAux2(CFMutableStringRef outputString, CFStringRef _Nonnull (*_Nullable copyDescFunc)(void *, const void *loc), CFStringRef _Nonnull (*_Nullable contextDescFunc)(void *, const void *, const void *, bool, bool *), CFDictionaryRef _Nullable formatOptions, CFStringRef formatString, va_list args);
-CF_EXPORT CFStringRef _Nullable _CFStringCreateWithFormatAndArgumentsAux2(CFAllocatorRef _Nullable alloc, CFStringRef _Nonnull (*_Nullable copyDescFunc)(void *, const void *loc), CFStringRef _Nonnull (*_Nullable contextDescFunc)(void *, const void *, const void *, bool, bool *), CFDictionaryRef _Nullable formatOptions, CFStringRef format, va_list arguments);
-CF_EXPORT CFStringRef _Nullable CFStringCreateStringWithValidatedFormat(CFAllocatorRef alloc, CFDictionaryRef formatOptions, CFStringRef validFormatSpecifiers, CFStringRef format, va_list arguments, CFErrorRef _Nullable *_Nullable errorPtr) API_AVAILABLE(macos(10.13), ios(11.0), watchos(4.0), tvos(11.0));
+CF_EXPORT void _CFStringAppendFormatAndArgumentsAux2(CFMutableStringRef outputString, CFStringRef _Nonnull (*_Nullable copyDescFunc)(void *, const void *loc), CFStringRef _Nonnull (*_Nullable contextDescFunc)(void *, const void *, const void *, bool, bool *), CFDictionaryRef _Nullable formatOptions, CFNumberRef _Nullable pluralizationNumber, CFStringRef formatString, va_list args);
+CF_EXPORT Boolean _CFStringAppendValidatedFormatAndArguments(CFMutableStringRef outputString, CFDictionaryRef formatOptions, CFNumberRef _Nullable pluralizationNumber, CFStringRef validFormatSpecifiers, CFStringRef formatString, va_list args, CFErrorRef *errorPtr);
+CF_EXPORT CFStringRef _Nullable _CFStringCreateWithFormatAndArgumentsAux2(CFAllocatorRef _Nullable alloc, CFStringRef _Nonnull (*_Nullable copyDescFunc)(void *, const void *loc), CFStringRef _Nonnull (*_Nullable contextDescFunc)(void *, const void *, const void *, bool, bool *), CFDictionaryRef _Nullable formatOptions, CFNumberRef _Nullable pluralizationNumber, CFStringRef format, va_list arguments);
+CF_EXPORT CFStringRef _Nullable _CFStringCreateStringWithValidatedFormatAux(CFAllocatorRef _Nullable alloc, CFDictionaryRef formatOptions, CFNumberRef _Nullable pluralizationNumber, CFStringRef validFormatSpecifiers, CFStringRef format, va_list arguments, CFErrorRef *errorPtr);
 
 CF_EXPORT CFDictionaryRef _Nullable _CFStringGetFormatSpecifierConfiguration(CFStringRef aFormatString);
+CF_EXPORT Boolean _CFStringValidateFormat(CFStringRef format, CFStringRef validFormatSpecifiers, CFErrorRef *error);
 
 CF_EXPORT CFStringRef const _kCFStringFormatMetadataReplacementIndexKey;
 CF_EXPORT CFStringRef const _kCFStringFormatMetadataSpecifierRangeLocationInFormatStringKey;
@@ -416,7 +417,7 @@ CF_EXPORT CFStringRef const _kCFStringFormatMetadataReplacementRangeLocationKey;
 CF_EXPORT CFStringRef const _kCFStringFormatMetadataReplacementRangeLengthKey;
 CF_EXPORT CFStringRef const _kCFStringFormatMetadataArgumentObjectKey;
 CF_EXPORT CFStringRef const _kCFStringFormatMetadataArgumentNumberKey;
-CF_EXPORT CFStringRef _Nullable _CFStringCreateWithFormatAndArgumentsReturningMetadata(CFAllocatorRef _Nullable alloc, CFStringRef _Nonnull (*_Nullable copyDescFunc)(void *, const void *loc), CFStringRef _Nonnull (*_Nullable contextDescFunc)(void *, const void *, const void *, bool, bool *), CFDictionaryRef _Nullable formatOptions, CFDictionaryRef _Nullable formatConfiguration, CFStringRef format, CFArrayRef _Nullable *_Nullable outMetadata, va_list arguments);
+CF_EXPORT CFStringRef _Nullable _CFStringCreateWithFormatAndArgumentsReturningMetadata(CFAllocatorRef _Nullable alloc, CFStringRef _Nonnull (*_Nullable copyDescFunc)(void *, const void *loc), CFStringRef _Nonnull (*_Nullable contextDescFunc)(void *, const void *, const void *, bool, bool *), CFDictionaryRef _Nullable formatOptions, CFDictionaryRef _Nullable formatConfiguration, CFNumberRef _Nullable pluralizationNumber, CFStringRef format, CFArrayRef _Nullable *_Nullable outMetadata, va_list arguments);
 
 /* For NSString (and NSAttributedString) usage, mutate with isMutable check
 */
@@ -484,6 +485,7 @@ typedef struct {
     uint64_t	_offsetTableOffset;
 } CFBinaryPlistTrailer;
 
+CF_EXPORT void __CFStrConvertBytesToUnicode(const uint8_t *bytes, UniChar *buffer, CFIndex numChars);
 
 CF_EXPORT bool __CFBinaryPlistGetTopLevelInfo(const uint8_t *databytes, uint64_t datalen, uint8_t *marker, uint64_t *offset, CFBinaryPlistTrailer *trailer);
 CF_EXPORT bool __CFBinaryPlistGetOffsetForValueFromArray2(const uint8_t *databytes, uint64_t datalen, uint64_t startOffset, const CFBinaryPlistTrailer *trailer, CFIndex idx, uint64_t *offset, CFMutableDictionaryRef _Nullable unused);
@@ -493,6 +495,11 @@ CF_EXPORT CFIndex __CFBinaryPlistWriteToStream(CFPropertyListRef plist, CFTypeRe
 CF_EXPORT CFIndex __CFBinaryPlistWriteToStreamWithEstimate(CFPropertyListRef plist, CFTypeRef stream, uint64_t estimate); // will be removed soon
 CF_EXPORT CFIndex __CFBinaryPlistWriteToStreamWithOptions(CFPropertyListRef plist, CFTypeRef stream, uint64_t estimate, CFOptionFlags options); // will be removed soon
 CF_EXPORT CFIndex __CFBinaryPlistWrite(CFPropertyListRef plist, CFTypeRef stream, uint64_t estimate, CFOptionFlags options, CFErrorRef _Nullable *_Nullable error);
+
+CF_EXPORT bool __CFBinaryPlistParseASCIIString(const uint8_t *databytes, const uint64_t objectsRangeEnd, const uint8_t *ptr, bool (^consumer)(const uint8_t *stringcontent, CFIndex cnt));
+CF_EXPORT bool __CFBinaryPlistParseUnicode16String(const uint8_t *databytes, const uint64_t objectsRangeEnd, const uint8_t *ptr, bool (^consumer)(const UniChar *stringcontent, CFIndex cnt));
+
+#define TEMP_OBJC_TAG_NSLocalizedString 22 /* OBJC_TAG_Foundation_1 */
 
 #pragma mark - Property list parsing in Foundation
 
@@ -619,37 +626,38 @@ CF_INLINE CFHashCode _CFHashDouble(const double d) {
 }
 
 
-CF_CROSS_PLATFORM_EXPORT void _CFNumberInitBool(CFNumberRef result, Boolean value);
-CF_CROSS_PLATFORM_EXPORT void _CFNumberInitInt8(CFNumberRef result, int8_t value);
-CF_CROSS_PLATFORM_EXPORT void _CFNumberInitUInt8(CFNumberRef result, uint8_t value);
-CF_CROSS_PLATFORM_EXPORT void _CFNumberInitInt16(CFNumberRef result, int16_t value);
-CF_CROSS_PLATFORM_EXPORT void _CFNumberInitUInt16(CFNumberRef result, uint16_t value);
-CF_CROSS_PLATFORM_EXPORT void _CFNumberInitInt32(CFNumberRef result, int32_t value);
-CF_CROSS_PLATFORM_EXPORT void _CFNumberInitUInt32(CFNumberRef result, uint32_t value);
-CF_CROSS_PLATFORM_EXPORT void _CFNumberInitInt(CFNumberRef result, long value);
-CF_CROSS_PLATFORM_EXPORT void _CFNumberInitUInt(CFNumberRef result, unsigned long value);
-CF_CROSS_PLATFORM_EXPORT void _CFNumberInitInt64(CFNumberRef result, int64_t value);
-CF_CROSS_PLATFORM_EXPORT void _CFNumberInitUInt64(CFNumberRef result, uint64_t value);
-CF_CROSS_PLATFORM_EXPORT void _CFNumberInitFloat(CFNumberRef result, float value);
-CF_CROSS_PLATFORM_EXPORT void _CFNumberInitDouble(CFNumberRef result, double value);
+CF_EXPORT_NONOBJC_ONLY void _CFNumberInitBool(CFNumberRef result, Boolean value);
+CF_EXPORT_NONOBJC_ONLY void _CFNumberInitInt8(CFNumberRef result, int8_t value);
+CF_EXPORT_NONOBJC_ONLY void _CFNumberInitUInt8(CFNumberRef result, uint8_t value);
+CF_EXPORT_NONOBJC_ONLY void _CFNumberInitInt16(CFNumberRef result, int16_t value);
+CF_EXPORT_NONOBJC_ONLY void _CFNumberInitUInt16(CFNumberRef result, uint16_t value);
+CF_EXPORT_NONOBJC_ONLY void _CFNumberInitInt32(CFNumberRef result, int32_t value);
+CF_EXPORT_NONOBJC_ONLY void _CFNumberInitUInt32(CFNumberRef result, uint32_t value);
+CF_EXPORT_NONOBJC_ONLY void _CFNumberInitInt(CFNumberRef result, long value);
+CF_EXPORT_NONOBJC_ONLY void _CFNumberInitUInt(CFNumberRef result, unsigned long value);
+CF_EXPORT_NONOBJC_ONLY void _CFNumberInitInt64(CFNumberRef result, int64_t value);
+CF_EXPORT_NONOBJC_ONLY void _CFNumberInitUInt64(CFNumberRef result, uint64_t value);
+CF_EXPORT_NONOBJC_ONLY void _CFNumberInitFloat(CFNumberRef result, float value);
+CF_EXPORT_NONOBJC_ONLY void _CFNumberInitDouble(CFNumberRef result, double value);
 
 CF_EXPORT CFNumberType _CFNumberGetType2(CFNumberRef number);
 
-/* These four functions are used by NSError in formatting error descriptions. They take NS or CFError as arguments and return a retained CFString or NULL.
+/* These functions are used by NSError in formatting error descriptions. They take NS or CFError as arguments and return a retained CFString or NULL.
 */ 
 CF_EXPORT CFStringRef _CFErrorCreateLocalizedDescription(CFErrorRef err);
 CF_EXPORT CFStringRef _CFErrorCreateLocalizedFailureReason(CFErrorRef err);
 CF_EXPORT CFStringRef _CFErrorCreateLocalizedRecoverySuggestion(CFErrorRef err);
 CF_EXPORT CFStringRef _CFErrorCreateDebugDescription(CFErrorRef err);
 CF_EXPORT CFStringRef _CFErrorCreateRedactedDescription(CFErrorRef err);
+CF_EXPORT CFStringRef _CFErrorCreateUnlocalizedDebugDescription(CFErrorRef err);
 
 CF_EXPORT void *__CFURLReservedPtr(CFURLRef  url);
 CF_EXPORT void __CFURLSetReservedPtr(CFURLRef  url, void *_Nullable ptr);
 CF_EXPORT CFStringEncoding _CFURLGetEncoding(CFURLRef url);
 
-CF_CROSS_PLATFORM_EXPORT void _CFURLInitWithFileSystemPathRelativeToBase(CFURLRef url, CFStringRef fileSystemPath, CFURLPathStyle pathStyle, Boolean isDirectory, _Nullable CFURLRef baseURL);
-CF_CROSS_PLATFORM_EXPORT Boolean _CFURLInitWithURLString(CFURLRef url, CFStringRef string, Boolean checkForLegalCharacters, _Nullable CFURLRef baseURL);
-CF_CROSS_PLATFORM_EXPORT Boolean _CFURLInitAbsoluteURLWithBytes(CFURLRef url, const UInt8 *relativeURLBytes, CFIndex length, CFStringEncoding encoding, _Nullable CFURLRef baseURL);
+CF_EXPORT_NONOBJC_ONLY void _CFURLInitWithFileSystemPathRelativeToBase(CFURLRef url, CFStringRef fileSystemPath, CFURLPathStyle pathStyle, Boolean isDirectory, _Nullable CFURLRef baseURL);
+CF_EXPORT_NONOBJC_ONLY Boolean _CFURLInitWithURLString(CFURLRef url, CFStringRef string, Boolean checkForLegalCharacters, _Nullable CFURLRef baseURL);
+CF_EXPORT_NONOBJC_ONLY Boolean _CFURLInitAbsoluteURLWithBytes(CFURLRef url, const UInt8 *relativeURLBytes, CFIndex length, CFStringEncoding encoding, _Nullable CFURLRef baseURL);
 
 #if !TARGET_OS_WASI
 CF_EXPORT Boolean _CFRunLoopFinished(CFRunLoopRef rl, CFStringRef mode);
@@ -687,7 +695,7 @@ enum {
 // This is for NSNumberFormatter use only!
 CF_EXPORT void *_CFNumberFormatterGetFormatter(CFNumberFormatterRef formatter);
 
-CF_CROSS_PLATFORM_EXPORT void _CFDataInit(CFMutableDataRef memory, CFOptionFlags variety, CFIndex capacity, const uint8_t *_Nullable bytes, CFIndex length, Boolean noCopy);
+CF_EXPORT_NONOBJC_ONLY void _CFDataInit(CFMutableDataRef memory, CFOptionFlags variety, CFIndex capacity, const uint8_t *_Nullable bytes, CFIndex length, Boolean noCopy);
 CF_EXPORT CFRange _CFDataFindBytes(CFDataRef data, CFDataRef dataToFind, CFRange searchRange, CFDataSearchFlags compareOptions);
 
 
@@ -722,8 +730,6 @@ CF_EXPORT _CFStringFileSystemRepresentationError _CFStringGetFileSystemRepresent
 
 
 CF_EXPORT CFTimeInterval CFGetSystemUptime(void);
-CF_EXPORT CFStringRef CFCopySystemVersionString(void);
-CF_EXPORT CFDictionaryRef _CFCopySystemVersionDictionary(void);
 
 typedef struct {
     CFIndex majorVersion;
@@ -735,17 +741,17 @@ CF_EXPORT CFOperatingSystemVersion _CFOperatingSystemVersionGetCurrent(void);
 
 CF_EXPORT Boolean _CFOperatingSystemVersionIsAtLeastVersion(CFOperatingSystemVersion version);
 
-CF_CROSS_PLATFORM_EXPORT Boolean _CFLocaleInit(CFLocaleRef locale, CFStringRef identifier);
+CF_EXPORT_NONOBJC_ONLY Boolean _CFLocaleInit(CFLocaleRef locale, CFStringRef identifier);
 
 /// Returns a result similar to `CFLocaleCopyPreferredLanguages` but by specifically reading the preferences for `kCFPreferencesCurrentUser` as opposed to walking up the preferences chain. This is needed by specific callers (e.g. `+[NSLocale setPreferredLanguages:]`) to check whether the defaults being set have changed from what’s already set.
 CF_EXPORT CFArrayRef _CFLocaleCopyPreferredLanguagesForCurrentUser(void);
 
-CF_CROSS_PLATFORM_EXPORT Boolean _CFTimeZoneInit(CFTimeZoneRef timeZone, CFStringRef name, _Nullable CFDataRef data);
+CF_EXPORT_NONOBJC_ONLY Boolean _CFTimeZoneInit(CFTimeZoneRef timeZone, CFStringRef name, _Nullable CFDataRef data);
 
-CF_CROSS_PLATFORM_EXPORT Boolean _CFCharacterSetInitWithCharactersInRange(CFMutableCharacterSetRef cset, CFRange theRange);
-CF_CROSS_PLATFORM_EXPORT Boolean _CFCharacterSetInitWithCharactersInString(CFMutableCharacterSetRef cset, CFStringRef theString);
-CF_CROSS_PLATFORM_EXPORT Boolean _CFCharacterSetInitMutable(CFMutableCharacterSetRef cset);
-CF_CROSS_PLATFORM_EXPORT Boolean _CFCharacterSetInitWithBitmapRepresentation(CFMutableCharacterSetRef cset, CFDataRef theData);
+CF_EXPORT_NONOBJC_ONLY Boolean _CFCharacterSetInitWithCharactersInRange(CFMutableCharacterSetRef cset, CFRange theRange);
+CF_EXPORT_NONOBJC_ONLY Boolean _CFCharacterSetInitWithCharactersInString(CFMutableCharacterSetRef cset, CFStringRef theString);
+CF_EXPORT_NONOBJC_ONLY Boolean _CFCharacterSetInitMutable(CFMutableCharacterSetRef cset);
+CF_EXPORT_NONOBJC_ONLY Boolean _CFCharacterSetInitWithBitmapRepresentation(CFMutableCharacterSetRef cset, CFDataRef theData);
 
 CF_EXPORT void * _Nullable __CFTSANTagMutableArray;
 CF_EXPORT void * _Nullable __CFTSANTagMutableDictionary;
@@ -798,6 +804,12 @@ CF_EXPORT void *_CFCreateArrayStorage(size_t numPointers, Boolean zeroed, size_t
 #define STATIC_CLASS_NAME_LENGTH_LOOKUP_NSMutableData 13
 #define STATIC_CLASS_NAME_LOOKUP_NSMutableData NSMutableDataCN
 
+#define STATIC_CLASS_NAME_LENGTH_LOOKUP_NSCharacterSet 14
+#define STATIC_CLASS_NAME_LOOKUP_NSCharacterSet NSCharacterSetCN
+
+#define STATIC_CLASS_NAME_LENGTH_LOOKUP___NSCFCharacterSet 17
+#define STATIC_CLASS_NAME_LOOKUP___NSCFCharacterSet _NSCFCharacterSetCN
+
 #define STATIC_CLASS_NAME_CONCAT_INNER(x,y) x ## y
 #define STATIC_CLASS_NAME_CONCAT(x,y) STATIC_CLASS_NAME_CONCAT_INNER(x,y)
 
@@ -809,10 +821,13 @@ CF_EXPORT void *_CFCreateArrayStorage(size_t numPointers, Boolean zeroed, size_t
 #define DECLARE_STATIC_CLASS_REF(CLASSNAME) extern void STATIC_CLASS_NAME_CONCAT(STATIC_CLASS_PREFIX, STATIC_CLASS_NAME(CLASSNAME))
 #define STATIC_CLASS_REF(CLASSNAME) &(STATIC_CLASS_NAME_CONCAT(STATIC_CLASS_PREFIX, STATIC_CLASS_NAME(CLASSNAME)))
 
+#define CONSTANT_CLASS_REF(CLASSNAME) STATIC_CLASS_REF(CLASSNAME)
+
 #else // if !DEPLOYMENT_RUNTIME_SWIFT
 
 // We don't need static class refs if CF is used standalone, as there's no Swift or ObjC runtime to interoperate with.
 #define STATIC_CLASS_REF(...) NULL
+#define CONSTANT_CLASS_REF(...) NULL
 #define DECLARE_STATIC_CLASS_REF(...)
 
 #endif
@@ -820,15 +835,24 @@ CF_EXPORT void *_CFCreateArrayStorage(size_t numPointers, Boolean zeroed, size_t
 
 _CF_EXPORT_SCOPE_END
 
-#if __OBJC__
+#if _CF_OBJC
+#define _scoped_id_array_create_storage(count, zeroed, unused) _CFCreateArrayStorage(count, zeroed, unused)
+#define _scoped_id_array_throw_incorrect_count(count) do { \
+        CFStringRef reason = CFStringCreateWithFormat(NULL, NULL, CFSTR("*** attempt to create a temporary id buffer which is too large or with a negative count (%lu) -- possibly data is corrupt"), (count)); \
+        NSException *e = [NSException exceptionWithName:NSGenericException reason:(NSString *)reason userInfo:nil]; \
+        CFRelease(reason); \
+        @throw e; \
+    } while (0)
+#else
+#define _scoped_id_array_create_storage(count, zeroed, unused) ((zeroed) ? calloc((count), sizeof(id)) : malloc((count) * sizeof(id)))
+#define _scoped_id_array_throw_incorrect_count(count) \
+    HALT_MSG("*** attempt to create a temporary id buffer which is too large or with a negative count -- possibly data is corrupt")
+#endif
 
 #define _scoped_id_array(N, C, Z, S) \
     size_t N ## _count__ = (C); \
     if (N ## _count__ > LONG_MAX / sizeof(id)) { \
-        CFStringRef reason = CFStringCreateWithFormat(NULL, NULL, CFSTR("*** attempt to create a temporary id buffer which is too large or with a negative count (%lu) -- possibly data is corrupt"), N ## _count__); \
-        NSException *e = [NSException exceptionWithName:NSGenericException reason:(NSString *)reason userInfo:nil]; \
-        CFRelease(reason); \
-        @throw e; \
+        _scoped_id_array_throw_incorrect_count(N ## _count__); \
     } \
     Boolean N ## _is_stack__ = (N ## _count__ <= 256) && (S); \
     if (N ## _count__ == 0) { \
@@ -838,8 +862,8 @@ _CF_EXPORT_SCOPE_END
     if (N ## _is_stack__ && (Z)) { \
         memset(N ## _scopedbuffer__, 0, N ## _count__ * sizeof(id)); \
     } \
-    size_t N ## _unused__; \
-    id * __attribute__((cleanup(_scoped_id_array_cleanup))) N ## _mallocbuffer__ = N ## _is_stack__ ? NULL : (id *)_CFCreateArrayStorage(N ## _count__, (Z), & N ## _unused__); \
+    __attribute__((unused)) size_t N ## _unused__; \
+    id * __attribute__((cleanup(_scoped_id_array_cleanup))) N ## _mallocbuffer__ = N ## _is_stack__ ? NULL : (id *)_scoped_id_array_create_storage(N ## _count__, (Z), & N ## _unused__); \
     id * N = N ## _is_stack__ ? N ## _scopedbuffer__ : N ## _mallocbuffer__; \
     do {} while (0)
 
@@ -856,7 +880,6 @@ CF_INLINE void _scoped_id_array_cleanup(id _Nonnull * _Nullable * _Nonnull mallo
     // Maybe be NULL, but free(NULL) is well defined as a no-op.
     free(*mallocedbuffer);
 }
-#endif
 
 // Define NS_DIRECT / NS_DIRECT_MEMBERS Internally for CoreFoundation.
 

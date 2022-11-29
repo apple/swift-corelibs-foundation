@@ -47,7 +47,7 @@ CF_EXPORT const CFStringRef kCFDateFormatterCalendarIdentifierKey;
 
 #define BUFFER_SIZE 768
 
-static CFStringRef __CFDateFormatterCreateForcedTemplate(CFLocaleRef locale, CFStringRef inString, Boolean stripAMPM);
+static CFStringRef __CFDateFormatterCreateForcedTemplate(CFLocaleRef locale, CFStringRef inString, CFOptionFlags options, Boolean stripAMPM);
 
 // If you pass in a string in tmplate, you get back NULL (failure) or a CFStringRef.
 // If you pass in an array in tmplate, you get back NULL (global failure) or a CFArrayRef with CFStringRefs or kCFNulls (per-template failure) at each corresponding index.
@@ -58,7 +58,7 @@ CFArrayRef CFDateFormatterCreateDateFormatsFromTemplates(CFAllocatorRef allocato
 
 static Boolean useTemplatePatternGenerator(CFLocaleRef locale, void(^work)(UDateTimePatternGenerator *ptg)) {
     static UDateTimePatternGenerator *ptg;
-    static _CFMutex ptgLock = _CF_MUTEX_STATIC_INITIALIZER;
+    static os_unfair_lock ptgLock = OS_UNFAIR_LOCK_INIT;
     static const char *ptgLocaleName;
     CFStringRef ln = locale ? CFLocaleGetIdentifier(locale) : CFSTR("");
     char buffer[BUFFER_SIZE];
@@ -73,7 +73,7 @@ static Boolean useTemplatePatternGenerator(CFLocaleRef locale, void(^work)(UDate
         free((void *)ptgLocaleName);
         ptgLocaleName = NULL;
     };
-    _CFMutexLock(&ptgLock);
+    os_unfair_lock_lock(&ptgLock);
     if (ptgLocaleName && strcmp(ptgLocaleName, localeName) != 0) {
         flushCache();
     }
@@ -88,7 +88,7 @@ static Boolean useTemplatePatternGenerator(CFLocaleRef locale, void(^work)(UDate
     if (result && work) {
         work(ptg);
     }
-    _CFMutexUnlock(&ptgLock);
+    os_unfair_lock_unlock(&ptgLock);
     return result;
 }
 
@@ -140,7 +140,7 @@ CFStringRef CFDateFormatterCreateDateFormatFromTemplate(CFAllocatorRef allocator
             CFStringRef resultString = NULL;
             
             Boolean stripAMPM = CFStringFind(tmplateString, CFSTR("J"), 0).location != kCFNotFound;
-            tmplateString = __CFDateFormatterCreateForcedTemplate(locale ? locale : CFLocaleGetSystem(), tmplateString, stripAMPM);
+            tmplateString = __CFDateFormatterCreateForcedTemplate(locale ? locale : CFLocaleGetSystem(), tmplateString, options, stripAMPM);
             
             CFIndex jCount = 0; // the only interesting cases are 0, 1, and 2 (adjacent)
             UniChar adjacentJs[2] = {-1, -1};
@@ -345,34 +345,32 @@ static CFStringRef __CFDateFormatterCreateForcedString(CFDateFormatterRef format
 
 static void __CFDateFormatterSetProperty(CFDateFormatterRef formatter, CFStringRef key, CFTypeRef value, Boolean directToICU);
 static void __CFDateFormatterStoreSymbolPrefs(const void *key, const void *value, void *context);
-extern CFDictionaryRef __CFLocaleGetPrefs(CFLocaleRef locale);
 static void __substituteFormatStringFromPrefsDFRelative(CFDateFormatterRef formatter);
 static void __substituteFormatStringFromPrefsDF(CFDateFormatterRef formatter, bool doTime);
 static void __CFDateFormatterSetSymbolsArray(UDateFormat *icudf, int32_t icucode, int index_base, CFTypeRef value);
-    
+
 static void __ReadCustomUDateFormatProperty(CFDateFormatterRef formatter) {
-    CFDictionaryRef prefs = __CFLocaleGetPrefs(formatter->_locale);
-    CFPropertyListRef metapref = prefs ? CFDictionaryGetValue(prefs, CFSTR("AppleICUDateTimeSymbols")) : NULL;
+    CFPropertyListRef metapref = __CFLocaleGetPref(formatter->_locale, AppleICUDateTimeSymbols);
     if (NULL != metapref && CFGetTypeID(metapref) == CFDictionaryGetTypeID()) {
         CFDictionaryApplyFunction((CFDictionaryRef)metapref, __CFDateFormatterStoreSymbolPrefs, formatter);
     }
-    metapref = prefs ? CFDictionaryGetValue(prefs, CFSTR("AppleFirstWeekday")) : NULL;
+    metapref = __CFLocaleGetPref(formatter->_locale, AppleFirstWeekday);
     if (NULL != metapref && CFGetTypeID(metapref) == CFDictionaryGetTypeID()) {
         formatter->_property._CustomFirstWeekday = (CFDictionaryRef)CFRetain(metapref);
     }
-    metapref = prefs ? CFDictionaryGetValue(prefs, CFSTR("AppleMinDaysInFirstWeek")) : NULL;
+    metapref = __CFLocaleGetPref(formatter->_locale, AppleMinDaysInFirstWeek);
     if (NULL != metapref && CFGetTypeID(metapref) == CFDictionaryGetTypeID()) {
         formatter->_property._CustomMinDaysInFirstWeek = (CFDictionaryRef)CFRetain(metapref);
     }
-    metapref = prefs ? CFDictionaryGetValue(prefs, CFSTR("AppleICUForce24HourTime")) : NULL;
+    metapref = __CFLocaleGetPref(formatter->_locale, AppleICUForce24HourTime);
     if (NULL != metapref && CFGetTypeID(metapref) == CFBooleanGetTypeID()) {
         formatter->_property._Custom24Hour = (CFBooleanRef)CFRetain(metapref);
     }
-    metapref = prefs ? CFDictionaryGetValue(prefs, CFSTR("AppleICUForce12HourTime")) : NULL;
+    metapref = __CFLocaleGetPref(formatter->_locale, AppleICUForce12HourTime);
     if (NULL != metapref && CFGetTypeID(metapref) == CFBooleanGetTypeID()) {
         formatter->_property._Custom12Hour = (CFBooleanRef)CFRetain(metapref);
     }
-    metapref = prefs ? CFDictionaryGetValue(prefs, CFSTR("AppleICUDateFormatStrings")) : NULL;
+    metapref = __CFLocaleGetPref(formatter->_locale, AppleICUDateFormatStrings);
     if (NULL != metapref && CFGetTypeID(metapref) == CFDictionaryGetTypeID()) {
         CFStringRef key;
         switch (formatter->_dateStyle) {
@@ -387,7 +385,7 @@ static void __ReadCustomUDateFormatProperty(CFDateFormatterRef formatter) {
             formatter->_property._CustomDateFormat = (CFStringRef)CFRetain(dateFormat);
         }
     }
-    metapref = prefs ? CFDictionaryGetValue(prefs, CFSTR("AppleICUTimeFormatStrings")) : NULL;
+    metapref = __CFLocaleGetPref(formatter->_locale, AppleICUTimeFormatStrings);
     if (NULL != metapref && CFGetTypeID(metapref) == CFDictionaryGetTypeID()) {
         CFStringRef key;
         switch (formatter->_timeStyle) {
@@ -588,6 +586,7 @@ static void __ResetUDateFormat(CFDateFormatterRef df, Boolean goingToHaveCustomF
     char loc_buffer[BUFFER_SIZE];
     loc_buffer[0] = 0;
     CFStringRef tmpLocName = df->_locale ? CFLocaleGetIdentifier(df->_locale) : CFSTR("");
+    _CLANG_ANALYZER_ASSERT(df->_locale);
     CFStringGetCString(tmpLocName, loc_buffer, BUFFER_SIZE, kCFStringEncodingASCII);
 
     UChar tz_buffer[BUFFER_SIZE];
@@ -1176,17 +1175,24 @@ static void __CFDateFormatterStoreSymbolPrefs(const void *key, const void *value
     }
 }
 
-static CFStringRef __CFDateFormatterCreateForcedTemplate(CFLocaleRef locale, CFStringRef inString, Boolean stripAMPM) {
+static CFStringRef __CFDateFormatterCreateForcedTemplate(CFLocaleRef locale, CFStringRef inString, CFOptionFlags options, Boolean stripAMPM) {
     if (!inString) return NULL;
-    Boolean doForce24 = false, doForce12 = false;
-    CFDictionaryRef prefs = __CFLocaleGetPrefs(locale);
-    CFPropertyListRef pref = prefs ? CFDictionaryGetValue(prefs, CFSTR("AppleICUForce24HourTime")) : NULL;
-    if (NULL != pref && CFGetTypeID(pref) == CFBooleanGetTypeID()) {
-        doForce24 = CFBooleanGetValue((CFBooleanRef)pref);
+    Boolean doForce24 = (options & kCFDateFormatterTemplateForce24HourTime) != 0, doForce12 = (options & kCFDateFormatterTemplateForce12HourTime) != 0;
+    CFPropertyListRef pref = NULL;
+    // Respect explicit force 24/12 hour options from CFDateFormatterTemplateOptions,
+    // if those are absent, try current locale preference which is based on global
+    // defaults.
+    if (!doForce24) {
+        CFPropertyListRef pref = __CFLocaleGetPref(locale, AppleICUForce24HourTime);
+        if (NULL != pref && CFGetTypeID(pref) == CFBooleanGetTypeID()) {
+            doForce24 = CFBooleanGetValue((CFBooleanRef)pref);
+        }
     }
-    pref = prefs ? CFDictionaryGetValue(prefs, CFSTR("AppleICUForce12HourTime")) : NULL;
-    if (NULL != pref && CFGetTypeID(pref) == CFBooleanGetTypeID()) {
-        doForce12 = CFBooleanGetValue((CFBooleanRef)pref);
+    if (!doForce12) {
+        pref = __CFLocaleGetPref(locale, AppleICUForce12HourTime);
+        if (NULL != pref && CFGetTypeID(pref) == CFBooleanGetTypeID()) {
+            doForce12 = CFBooleanGetValue((CFBooleanRef)pref);
+        }
     }
     if (doForce24) doForce12 = false; // if both are set, Force24 wins, period
     if (!doForce24 && !doForce12) return (CFStringRef)CFRetain(inString);
@@ -1282,27 +1288,27 @@ static CFStringRef __CFDateFormatterCreateForcedString(CFDateFormatterRef format
 }
 
 CFLocaleRef CFDateFormatterGetLocale(CFDateFormatterRef formatter) {
-    __CFGenericValidateType(formatter, CFDateFormatterGetTypeID());
+    CF_ASSERT_TYPE(_kCFRuntimeIDCFDateFormatter, formatter);
     return formatter->_locale;
 }
 
 CFDateFormatterStyle CFDateFormatterGetDateStyle(CFDateFormatterRef formatter) {
-    __CFGenericValidateType(formatter, CFDateFormatterGetTypeID());
+    CF_ASSERT_TYPE(_kCFRuntimeIDCFDateFormatter, formatter);
     return formatter->_dateStyle;
 }
 
 CFDateFormatterStyle CFDateFormatterGetTimeStyle(CFDateFormatterRef formatter) {
-    __CFGenericValidateType(formatter, CFDateFormatterGetTypeID());
+    CF_ASSERT_TYPE(_kCFRuntimeIDCFDateFormatter, formatter);
     return formatter->_timeStyle;
 }
 
 CFStringRef CFDateFormatterGetFormat(CFDateFormatterRef formatter) {
-    __CFGenericValidateType(formatter, CFDateFormatterGetTypeID());
+    CF_ASSERT_TYPE(_kCFRuntimeIDCFDateFormatter, formatter);
     return formatter->_format;
 }
 
 void CFDateFormatterSetFormat(CFDateFormatterRef formatter, CFStringRef formatString) {
-    __CFGenericValidateType(formatter, CFDateFormatterGetTypeID());
+    CF_ASSERT_TYPE(_kCFRuntimeIDCFDateFormatter, formatter);
     __CFGenericValidateType(formatString, CFStringGetTypeID());
     formatString = __CFDateFormatterCreateForcedString(formatter, formatString);
     CFIndex cnt = CFStringGetLength(formatString);
@@ -1337,7 +1343,7 @@ void CFDateFormatterSetFormat(CFDateFormatterRef formatter, CFStringRef formatSt
 CFStringRef CFDateFormatterCreateStringWithDate(CFAllocatorRef allocator, CFDateFormatterRef formatter, CFDateRef date) {
     if (allocator == NULL) allocator = __CFGetDefaultAllocator();
     __CFGenericValidateType(allocator, CFAllocatorGetTypeID());
-    __CFGenericValidateType(formatter, CFDateFormatterGetTypeID());
+    CF_ASSERT_TYPE(_kCFRuntimeIDCFDateFormatter, formatter);
     __CFGenericValidateType(date, CFDateGetTypeID());
     return CFDateFormatterCreateStringWithAbsoluteTime(allocator, formatter, CFDateGetAbsoluteTime(date));
 }
@@ -1345,7 +1351,7 @@ CFStringRef CFDateFormatterCreateStringWithDate(CFAllocatorRef allocator, CFDate
 CFStringRef CFDateFormatterCreateStringWithAbsoluteTime(CFAllocatorRef allocator, CFDateFormatterRef formatter, CFAbsoluteTime at) {
     if (allocator == NULL) allocator = __CFGetDefaultAllocator();
     __CFGenericValidateType(allocator, CFAllocatorGetTypeID());
-    __CFGenericValidateType(formatter, CFDateFormatterGetTypeID());
+    CF_ASSERT_TYPE(_kCFRuntimeIDCFDateFormatter, formatter);
     UChar *ustr = NULL, ubuffer[BUFFER_SIZE + 1];
     UErrorCode status = U_ZERO_ERROR;
     CFIndex used, cnt = BUFFER_SIZE;
@@ -1380,7 +1386,7 @@ static const char * const _ICUPatternMap = "GyMdkHmsSEDFwWahKzYeugAZvcLQqVUOXxr:
 CFAttributedStringRef _CFDateFormatterCreateAttributedStringAndFieldsWithAbsoluteTime(CFAllocatorRef allocator, CFDateFormatterRef formatter, CFAbsoluteTime at) {
     if (allocator == NULL) allocator = __CFGetDefaultAllocator();
     __CFGenericValidateType(allocator, CFAllocatorGetTypeID());
-    __CFGenericValidateType(formatter, CFDateFormatterGetTypeID());
+    CF_ASSERT_TYPE(_kCFRuntimeIDCFDateFormatter, formatter);
     UChar *ustr = NULL, ubuffer[BUFFER_SIZE + 1];
     UErrorCode status = U_ZERO_ERROR;
     CFIndex used, cnt = BUFFER_SIZE;
@@ -1710,7 +1716,7 @@ static Boolean __CFDateFormatterHandleAmbiguousYear(CFDateFormatterRef formatter
 CFDateRef CFDateFormatterCreateDateFromString(CFAllocatorRef allocator, CFDateFormatterRef formatter, CFStringRef string, CFRange *rangep) {
     if (allocator == NULL) allocator = __CFGetDefaultAllocator();
     __CFGenericValidateType(allocator, CFAllocatorGetTypeID());
-    __CFGenericValidateType(formatter, CFDateFormatterGetTypeID());
+    CF_ASSERT_TYPE(_kCFRuntimeIDCFDateFormatter, formatter);
     __CFGenericValidateType(string, CFStringGetTypeID());
     CFAbsoluteTime at;
     if (CFDateFormatterGetAbsoluteTimeFromString(formatter, string, rangep, &at)) {
@@ -1720,7 +1726,7 @@ CFDateRef CFDateFormatterCreateDateFromString(CFAllocatorRef allocator, CFDateFo
 }
 
 Boolean CFDateFormatterGetAbsoluteTimeFromString(CFDateFormatterRef formatter, CFStringRef string, CFRange *rangep, CFAbsoluteTime *atp) {
-    __CFGenericValidateType(formatter, CFDateFormatterGetTypeID());
+    CF_ASSERT_TYPE(_kCFRuntimeIDCFDateFormatter, formatter);
     __CFGenericValidateType(string, CFStringGetTypeID());
     CFRange range = {0, 0};
     if (rangep) {
@@ -2049,11 +2055,12 @@ static void __CFDateFormatterSetProperty(CFDateFormatterRef formatter, CFStringR
 }
 
 void CFDateFormatterSetProperty(CFDateFormatterRef formatter, CFStringRef key, CFTypeRef value) {
+    CF_ASSERT_TYPE(_kCFRuntimeIDCFDateFormatter, formatter);
     __CFDateFormatterSetProperty(formatter, key, value, false);
 }
 
 CFTypeRef CFDateFormatterCopyProperty(CFDateFormatterRef formatter, CFStringRef key) {
-    __CFGenericValidateType(formatter, CFDateFormatterGetTypeID());
+    CF_ASSERT_TYPE(_kCFRuntimeIDCFDateFormatter, formatter);
     __CFGenericValidateType(key, CFStringGetTypeID());
     UErrorCode status = U_ZERO_ERROR;
     UChar ubuffer[BUFFER_SIZE];

@@ -86,6 +86,23 @@ typedef struct __CFPlugInData {
     CFMutableArrayRef _factories;
 } _CFPlugInData;
 
+/* loctable support */
+typedef struct {
+    CFURLRef stringsTableURL;
+    CFStringRef stringsLang;
+    CFDataRef stringsData;
+    CFURLRef stringsDictTableURL;
+    CFStringRef stringsDictLang;
+    CFDataRef stringsDictData;
+    CFURLRef locTableURL;
+    CFDataRef locTableData;
+    Boolean stringsMapped;
+    Boolean stringsDictMapped;
+    Boolean locTableMapped;
+    Boolean preferStringsDictContent;
+    Boolean locTableIgnoredForPreferredLanguage;
+} _CFBundleStringsSourceResult;
+
 struct __CFBundle {
     CFRuntimeBase _base;
     
@@ -103,7 +120,6 @@ struct __CFBundle {
     _Atomic(Boolean) _isLoaded;
     _CFBundleVersion _version;
     
-    Boolean _sharesStringsFiles;
     Boolean _isUnique;
     
     /* CFM goop */
@@ -121,13 +137,13 @@ struct __CFBundle {
     
     _CFPlugInData _plugInData;
     
-    _CFMutex _bundleLoadingLock;
+    os_unfair_lock _bundleLoadingLock;
     
     CFStringRef _executablePath; // Calculated and cached here
     CFStringRef _developmentRegion; // Calculated and cached here
     dispatch_once_t _developmentRegionCalculated;
     
-    CFLock_t _lock;
+    os_unfair_lock _lock;
     
     CFArrayRef _localizations; // List of localizations, including the development language fallback if required
     Boolean _lookedForLocalizations;
@@ -135,16 +151,19 @@ struct __CFBundle {
     CFMutableDictionaryRef _resourceDirectoryContents;
     
     CFMutableDictionaryRef _stringTable;
-    
-    CFLock_t _queryLock;
+    CFMutableSetRef _completeStringTables;
+    CFMutableDictionaryRef _stringTableMisses;
+    CFMutableDictionaryRef _stringSourceTable;
+
+    os_unfair_lock _queryLock;
     CFMutableDictionaryRef _queryTable;
     CFStringRef _bundleBasePath;
     
-    CFLock_t _additionalResourceLock;
+    os_unfair_lock _additionalResourceLock;
     CFMutableDictionaryRef _additionalResourceBundles;
     
     CFURLRef _infoPlistUrl;
-    
+
 #if defined(BINARY_SUPPORT_DLL)
     HMODULE _hModule;
 #endif /* BINARY_SUPPORT_DLL */
@@ -159,6 +178,8 @@ extern _CFPlugInData *__CFBundleGetPlugInData(CFBundleRef bundle);
 
 CF_PRIVATE CFErrorRef _CFBundleCreateErrorDebug(CFAllocatorRef allocator, CFBundleRef bundle, CFIndex code, CFStringRef debugString);
 CF_PRIVATE CFURLRef _CFURLCreateResolvedDirectoryWithString(CFAllocatorRef allocator, CFStringRef URLString, CFURLRef baseURL);
+CF_PRIVATE const char *_CFBundleNormalizedPath(const char *buff);
+CF_PRIVATE CFURLRef _CFBundleCreateNormalizedURL(CFAllocatorRef allocator, CFURLRef url);
 
 CF_PRIVATE void _CFBundleInfoPlistProcessInfoDictionary(CFMutableDictionaryRef dict);
 CF_PRIVATE Boolean _CFBundleSupportedProductName(CFStringRef fileName, CFRange searchRange);
@@ -169,6 +190,7 @@ CF_EXPORT CFStringRef _CFGetPlatformName(void);
 CF_EXPORT CFStringRef _CFGetAlternatePlatformName(void);
 
 CF_PRIVATE void _CFBundleFlushQueryTableCache(CFBundleRef bundle);
+CF_PRIVATE void _CFBundleFlushStringSourceCache(CFBundleRef bundle);
 
 CF_PRIVATE SInt32 _CFBundleCurrentArchitecture(void);
 CF_PRIVATE Boolean _CFBundleGetObjCImageInfo(CFBundleRef bundle, uint32_t *objcVersion, uint32_t *objcFlags);
@@ -190,7 +212,6 @@ CF_PRIVATE Boolean CFBundleAllowMixedLocalizations(void);
 // Misc
 
 CF_PRIVATE Boolean _CFIsResourceAtURL(CFURLRef url, Boolean *isDir);
-CF_PRIVATE Boolean _CFIsResourceAtPath(CFStringRef path, Boolean *isDir);
 
 CF_PRIVATE _CFBundleVersion _CFBundleGetBundleVersionForURL(CFURLRef url);
 CF_PRIVATE CFBundleRef _CFBundleCreateMain(CFAllocatorRef allocator, CFURLRef mainBundleURL);
@@ -258,6 +279,30 @@ extern void _CFPlugInHandleDynamicRegistration(CFBundleRef bundle);
 extern void _CFBundleDeallocatePlugIn(CFBundleRef bundle);
 
 extern void _CFPlugInWillUnload(CFPlugInRef plugIn);
+
+static inline void _CFBundleReleaseStringsSources(_CFBundleStringsSourceResult result) {
+    if (result.stringsTableURL) CFRelease(result.stringsTableURL);
+    if (result.stringsLang) CFRelease(result.stringsLang);
+    if (result.stringsData) CFRelease(result.stringsData);
+    if (result.stringsDictTableURL) CFRelease(result.stringsDictTableURL);
+    if (result.stringsDictLang) CFRelease(result.stringsDictLang);
+    if (result.stringsDictData) CFRelease(result.stringsDictData);
+    if (result.locTableURL) CFRelease(result.locTableURL);
+    if (result.locTableData) CFRelease(result.locTableData);
+}
+
+static inline void _CFBundleRetainStringsSources(_CFBundleStringsSourceResult result) {
+    if (result.stringsTableURL) CFRetain(result.stringsTableURL);
+    if (result.stringsLang) CFRetain(result.stringsLang);
+    if (result.stringsData) CFRetain(result.stringsData);
+    if (result.stringsDictTableURL) CFRetain(result.stringsDictTableURL);
+    if (result.stringsDictLang) CFRetain(result.stringsDictLang);
+    if (result.stringsDictData) CFRetain(result.stringsDictData);
+    if (result.locTableURL) CFRetain(result.locTableURL);
+    if (result.locTableData) CFRetain(result.locTableData);
+}
+
+CF_PRIVATE _CFBundleStringsSourceResult _CFBundleGetStringsSources(CFBundleRef bundle, CFStringRef tableName, CFStringRef localizationName);
 
 /* Strings for parsing bundle structure */
 #define _CFBundleSupportFilesDirectoryName1 CFSTR("Support Files")
@@ -407,14 +452,12 @@ STATIC_CONST_STRING_DECL(_CFBundleiPodDeviceName, "ipod");
 STATIC_CONST_STRING_DECL(_CFBundleiPadDeviceName, "ipad");
 STATIC_CONST_STRING_DECL(_CFBundleAppleWatchDeviceName, "applewatch");
 STATIC_CONST_STRING_DECL(_CFBundleAppleTVDeviceName, "appletv");
+STATIC_CONST_STRING_DECL(_CFBundleOtherDeviceName, "other");
 
 CF_PRIVATE CFStringRef _CFBundleGetProductNameSuffix(void);
 CF_PRIVATE CFStringRef _CFBundleGetPlatformNameSuffix(void);
 
 CF_PRIVATE const CFStringRef _kCFBundleUseAppleLocalizationsKey;
-
-#define _CFBundleStringTableType CFSTR("strings")
-#define _CFBundleStringDictTableType CFSTR("stringsdict")
 
 #define _CFBundleUserLanguagesPreferenceName CFSTR("AppleLanguages")
 #define _CFBundleOldUserLanguagesPreferenceName CFSTR("NSLanguages")
@@ -427,6 +470,7 @@ CF_PRIVATE const CFStringRef _kCFBundleUseAppleLocalizationsKey;
 #pragma mark Resolving paths from FDs
 
 // The buffer must be PATH_MAX long or more.
+__attribute__((unused))
 static bool _CFGetPathFromFileDescriptor(int fd, char *path);
 
 #if TARGET_OS_MAC || (TARGET_OS_BSD && !defined(__OpenBSD__))

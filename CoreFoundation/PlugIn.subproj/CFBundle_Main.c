@@ -22,9 +22,8 @@
 
 static Boolean _initedMainBundle = false;
 static CFBundleRef _mainBundle = NULL;
-static char __CFBundleMainID__[1026] = {0};
-char *__CFBundleMainID = __CFBundleMainID__;
-static _CFMutex _mainBundleLock = _CF_MUTEX_STATIC_INITIALIZER;
+char *__CFBundleMainID = NULL;
+static os_unfair_lock _mainBundleLock = OS_UNFAIR_LOCK_INIT;
 
 #pragma mark -
 
@@ -68,8 +67,10 @@ static void _CFBundleInitializeMainBundleInfoDictionaryAlreadyLocked(CFStringRef
     if (!_mainBundle->_executablePath && executablePath) _mainBundle->_executablePath = (CFStringRef)CFRetain(executablePath);
     CFStringRef bundleID = (CFStringRef)CFDictionaryGetValue(_mainBundle->_infoDict, kCFBundleIdentifierKey);
     if (bundleID) {
+        char __CFBundleMainID__[1026] = {0};
         if (!CFStringGetCString(bundleID, __CFBundleMainID__, sizeof(__CFBundleMainID__) - 2, kCFStringEncodingUTF8)) {
             __CFBundleMainID__[0] = '\0';
+            __CFBundleMainID = strdup(__CFBundleMainID__);
         }
     }
 }
@@ -128,12 +129,12 @@ static CFBundleRef _CFBundleGetMainBundleAlreadyLocked(void) {
                 // Perform delayed final processing steps.
                 // This must be done after _isLoaded has been set, for security reasons (3624341).
                 // It is safe to unlock and re-lock here because we don't really do anything under the lock after we are done. It is just re-locked to satisfy the 'already locked' contract.
-                _CFMutexUnlock(&_mainBundleLock);
+                os_unfair_lock_unlock(&_mainBundleLock);
                 CFDictionaryRef infoDict = CFBundleGetInfoDictionary(_mainBundle);
                 // CFBundleInitPlugIn will return false if the factory ID already exists. For the main bundle, if that happens, we just continue on since we cannot just return NULL.
                 _CFBundleInitPlugIn(_mainBundle, infoDict, NULL);
                 _CFPlugInHandleDynamicRegistration(_mainBundle);
-                _CFMutexLock(&_mainBundleLock);
+                os_unfair_lock_lock(&_mainBundleLock);
             }
         }
         if (bundleURL) CFRelease(bundleURL);
@@ -171,8 +172,8 @@ CF_EXPORT CFURLRef _CFBundleCopyMainBundleExecutableURL(Boolean *looksLikeBundle
 
 CF_EXPORT CFBundleRef CFBundleGetMainBundle(void) {
     CFBundleRef mainBundle;
-    _CFMutexLock(&_mainBundleLock);
+    os_unfair_lock_lock(&_mainBundleLock);
     mainBundle = _CFBundleGetMainBundleAlreadyLocked();
-    _CFMutexUnlock(&_mainBundleLock);
+    os_unfair_lock_unlock(&_mainBundleLock);
     return mainBundle;
 }

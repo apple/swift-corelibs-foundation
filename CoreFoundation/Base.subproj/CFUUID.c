@@ -158,7 +158,7 @@ CFUUIDRef CFUUIDCreate(CFAllocatorRef alloc) {
         static int8_t useV1UUIDs = -1;
         uuid_t uuid;
         if (useV1UUIDs == -1) {
-            const char *value = __CFgetenv("CFUUIDVersionNumber");
+            const char *value = getenv("CFUUIDVersionNumber");
             if (value) {
                 useV1UUIDs = (1 == strtoul_l(value, NULL, 0, NULL)) ? 1 : 0;
             }

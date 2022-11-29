@@ -110,7 +110,7 @@ CF_PRIVATE CFStringRef _CFGetHostUUIDString(void) {
         getuuidErr = gethostuuid((unsigned char *)&uuidBytes, &timeout);
         if (getuuidErr == -1) {
             // An error has occurred trying to get the host UUID string. There's nothing we can do here, so we should just return NULL.
-            CFLog(kCFLogLevelWarning, CFSTR("_CFGetHostUUIDString: unable to determine UUID for host. Error: %d"), errno);
+            CFLog(kCFLogLevelWarning, CFSTR("_CFGetHostUUIDString: unable to determine UUID for host. Error: %{darwin.errno}d"), errno);
             return NULL;
         }
         
@@ -195,7 +195,7 @@ static CFURLRef _preferencesCreateDirectoryForUserHostSafetyLevel(CFStringRef us
     return location;
 }
 
-static CFURLRef  _preferencesDirectoryForUserHost(CFStringRef  userName, CFStringRef  hostName) {
+static CFURLRef  _preferencesCreateDirectoryForUserHost(CFStringRef  userName, CFStringRef  hostName) {
     return _preferencesCreateDirectoryForUserHostSafetyLevel(userName, hostName, __CFSafeLaunchLevel);
 }
 
@@ -464,7 +464,6 @@ static CFURLRef _CFPreferencesURLForStandardDomainWithSafetyLevel(CFStringRef do
 #else
 //#error Do not know where to store NSUserDefaults on this platform
 #endif
-    if (prefDir) CFRelease(prefDir);
     return theURL;
 }
 
@@ -552,7 +551,7 @@ CF_PRIVATE CFArrayRef _CFPreferencesCreateDomainList(CFStringRef  userName, CFSt
     SInt32 idx, cnt;
     CFStringRef  suffix;
     UInt32 suffixLen;
-    CFURLRef prefDir = _preferencesDirectoryForUserHost(userName, hostName);
+    CFURLRef prefDir = _preferencesCreateDirectoryForUserHost(userName, hostName);
     
     if (!prefDir) {
         return NULL;
@@ -735,8 +734,8 @@ static void freeVolatileDomain(CFAllocatorRef allocator, CFTypeRef  context, voi
     CFRelease((CFTypeRef)domain);
 }
 
-static CFTypeRef fetchVolatileValue(CFTypeRef  context, void *domain, CFStringRef  key) {
-    CFTypeRef result = CFDictionaryGetValue((CFMutableDictionaryRef  )domain, key);
+static CFTypeRef fetchVolatileValue(CFTypeRef  context, void *domain, CFStringRef key) {
+    CFTypeRef result = CFDictionaryGetValue((CFMutableDictionaryRef)domain, key);
     return result;
 }
 

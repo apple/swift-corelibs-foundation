@@ -12,7 +12,7 @@
 #define __COREFOUNDATION_FORSWIFTFOUNDATIONONLY__ 1
 
 #if !defined(CF_PRIVATE)
-#define CF_PRIVATE extern __attribute__((__visibility__("hidden")))
+#define CF_PRIVATE __attribute__((__visibility__("hidden"))) extern
 #endif
 
 #include <CoreFoundation/CFBase.h>
@@ -29,14 +29,13 @@
 #include <CoreFoundation/CFURLPriv.h>
 #include <CoreFoundation/CFURLComponents.h>
 #include <CoreFoundation/CFRunArray.h>
-#include <CoreFoundation/CFDateComponents.h>
 
 #if TARGET_OS_WIN32
 #define NOMINMAX
 #define VC_EXTRALEAN
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
-#elif !TARGET_OS_WASI
+#else
 #include <fts.h>
 #endif
 #if __has_include(<unistd.h>)
@@ -68,6 +67,7 @@
 #include <errno.h>
 #include <features.h>
 #include <termios.h>
+#include <sys/stat.h>
 
 #if __GLIBC_PREREQ(2, 28) == 0
 // required for statx() system call, glibc >=2.28 wraps the kernel function
@@ -78,11 +78,6 @@
 #include <linux/fs.h>
 #define AT_STATX_SYNC_AS_STAT   0x0000  /* - Do whatever stat() does */
 #endif //__GLIBC_PREREQ(2. 28)
-
-#ifndef __NR_statx
-#include <sys/stat.h>
-#endif // not __NR_statx
-
 #endif // TARGET_OS_LINUX
 
 #include <stdlib.h>
@@ -90,10 +85,8 @@
 
 _CF_EXPORT_SCOPE_BEGIN
 
-CF_PRIVATE Boolean __CFAllocatorRespectsHintZeroWhenAllocating(CFAllocatorRef _Nullable allocator);
-
-CF_CROSS_PLATFORM_EXPORT Boolean _CFCalendarGetNextWeekend(CFCalendarRef calendar, _CFCalendarWeekendRange *range);
-CF_CROSS_PLATFORM_EXPORT void _CFCalendarEnumerateDates(CFCalendarRef calendar, CFDateRef start, CFDateComponentsRef matchingComponents, CFOptionFlags opts, void (^block)(CFDateRef _Nullable, Boolean, Boolean*));
+CF_EXPORT_NONOBJC_ONLY Boolean _CFCalendarGetNextWeekend(CFCalendarRef calendar, _CFCalendarWeekendRange *range);
+CF_EXPORT_NONOBJC_ONLY void _CFCalendarEnumerateDates(CFCalendarRef calendar, CFDateRef start, CFDateComponentsRef matchingComponents, CFOptionFlags opts, void (^block)(CFDateRef _Nullable, Boolean, Boolean*));
 CF_EXPORT void CFCalendarSetGregorianStartDate(CFCalendarRef calendar, CFDateRef _Nullable date);
 CF_EXPORT _Nullable CFDateRef CFCalendarCopyGregorianStartDate(CFCalendarRef calendar);
 
@@ -142,8 +135,8 @@ struct _NSDictionaryBridge {
     CFIndex (*countForObject)(CFTypeRef dictionary, CFTypeRef value);
     void (*getObjects)(CFTypeRef dictionary, CFTypeRef _Nullable *_Nullable valuebuf, CFTypeRef _Nullable *_Nullable keybuf);
     void (*__apply)(CFTypeRef dictionary, void (*applier)(CFTypeRef key, CFTypeRef value, void *context), void *context);
-    void (*enumerateKeysAndObjectsWithOptions)(CFTypeRef dictionary, CFIndex options, void (^block)(const void *key, const void *value, Boolean *stop));
     _Nonnull CFTypeRef (*_Nonnull copy)(CFTypeRef obj);
+    void (*enumerateKeysAndObjectsWithOptions)(CFTypeRef dictionary, CFIndex options, void (^block)(const void *key, const void *value, Boolean *stop));
 };
 
 struct _NSMutableDictionaryBridge {
@@ -198,11 +191,9 @@ struct _NSMutableStringBridge {
     void (*_cfAppendCString)(CFTypeRef str, const char *chars, CFIndex appendLength);
 };
 
-#if !TARGET_OS_WASI
 struct _NSRunLoop {
     _Nonnull CFTypeRef (*_Nonnull _new)(CFRunLoopRef rl);
 };
-#endif
 
 struct _NSCharacterSetBridge {
     _Nullable CFCharacterSetRef (*_Nonnull _expandedCFCharacterSet)(CFTypeRef cset);
@@ -268,6 +259,10 @@ struct _NSURLBridge {
     Boolean (*_Nonnull resourceIsReachable)(CFTypeRef url, CFErrorRef *error);
 };
 
+struct _NSLocaleBridge {
+    _Nullable CFTypeRef (*_Nonnull preferenceForKey)(CFTypeRef locale, CFStringRef key);
+};
+
 struct _CFSwiftBridge {
     struct _NSObjectBridge NSObject;
     struct _NSArrayBridge NSArray;
@@ -278,15 +273,14 @@ struct _CFSwiftBridge {
     struct _NSMutableSetBridge NSMutableSet;
     struct _NSStringBridge NSString;
     struct _NSMutableStringBridge NSMutableString;
-#if !TARGET_OS_WASI
     struct _NSRunLoop NSRunLoop;
-#endif
     struct _NSCharacterSetBridge NSCharacterSet;
     struct _NSMutableCharacterSetBridge NSMutableCharacterSet;
     struct _NSNumberBridge NSNumber;
     struct _NSDataBridge NSData;
     struct _NSCalendarBridge NSCalendar;
     struct _NSURLBridge NSURL;
+    struct _NSLocaleBridge NSLocale;
 };
 
 struct _NSCFXMLBridgeStrong {
@@ -341,6 +335,7 @@ struct _NSCFXMLBridgeUntyped {
     void *kCFCopyStringDictionaryKeyCallBacks;
     void *kCFTypeDictionaryValueCallBacks;
     void *kCFErrorLocalizedDescriptionKey;
+
 };
 
 CF_EXPORT struct _NSCFXMLBridgeStrong __NSCFXMLBridgeStrong;
@@ -377,12 +372,9 @@ CF_PRIVATE CFStringRef _CFProcessNameString(void);
 CF_PRIVATE CFIndex __CFProcessorCount(void);
 CF_PRIVATE uint64_t __CFMemorySize(void);
 CF_PRIVATE CFIndex __CFActiveProcessorCount(void);
-CF_CROSS_PLATFORM_EXPORT CFStringRef CFCopyFullUserName(void);
+CF_EXPORT_NONOBJC_ONLY CFStringRef CFCopyFullUserName(void);
 
-#if !TARGET_OS_WASI
 extern CFWriteStreamRef _CFWriteStreamCreateFromFileDescriptor(CFAllocatorRef alloc, int fd);
-#endif
-
 #if !__COREFOUNDATION_FORFOUNDATIONONLY__
 typedef const struct __CFKeyedArchiverUID * CFKeyedArchiverUIDRef;
 extern CFTypeID _CFKeyedArchiverUIDGetTypeID(void);
@@ -391,37 +383,19 @@ extern uint32_t _CFKeyedArchiverUIDGetValue(CFKeyedArchiverUIDRef uid);
 #endif
 
 extern CFIndex __CFBinaryPlistWriteToStream(CFPropertyListRef plist, CFTypeRef stream);
-CF_CROSS_PLATFORM_EXPORT CFDataRef _CFPropertyListCreateXMLDataWithExtras(CFAllocatorRef allocator, CFPropertyListRef propertyList);
-
-#if !TARGET_OS_WASI
+CF_EXPORT_NONOBJC_ONLY CFDataRef _CFPropertyListCreateXMLDataWithExtras(CFAllocatorRef allocator, CFPropertyListRef propertyList);
 extern CFWriteStreamRef _CFWriteStreamCreateFromFileDescriptor(CFAllocatorRef alloc, int fd);
-#endif
 
 CF_EXPORT char *_Nullable *_Nonnull _CFEnviron(void);
 
 CF_EXPORT void CFLog1(CFLogLevel lev, CFStringRef message);
 
-#if TARGET_OS_WIN32
-typedef void *_CFThreadRef;
-typedef struct _CFThreadAttributes {
-  unsigned long dwSizeOfAttributes;
-  unsigned long dwThreadStackReservation;
-} _CFThreadAttributes;
-typedef unsigned long _CFThreadSpecificKey;
-#elif _POSIX_THREADS
-typedef pthread_t _CFThreadRef;
-typedef pthread_attr_t _CFThreadAttributes;
-typedef pthread_key_t _CFThreadSpecificKey;
-#endif
-
-CF_CROSS_PLATFORM_EXPORT Boolean _CFIsMainThread(void);
+CF_EXPORT_NONOBJC_ONLY Boolean _CFIsMainThread(void);
 CF_EXPORT _CFThreadRef _CFMainPThread;
 
 CF_EXPORT CFHashCode __CFHashDouble(double d);
 
-#if __BLOCKS__
-CF_CROSS_PLATFORM_EXPORT void CFSortIndexes(CFIndex *indexBuffer, CFIndex count, CFOptionFlags opts, CFComparisonResult (^cmp)(CFIndex, CFIndex));
-#endif
+CF_EXPORT void CFSortIndexes(CFIndex *indexBuffer, CFIndex count, CFOptionFlags opts, CFComparisonResult (^cmp)(CFIndex, CFIndex));
 
 CF_EXPORT CFTypeRef _Nullable _CFThreadSpecificGet(_CFThreadSpecificKey key);
 CF_EXPORT void _CFThreadSpecificSet(_CFThreadSpecificKey key, CFTypeRef _Nullable value);
@@ -429,30 +403,28 @@ CF_EXPORT _CFThreadSpecificKey _CFThreadSpecificKeyCreate(void);
 
 CF_EXPORT _CFThreadRef _CFThreadCreate(const _CFThreadAttributes attrs, void *_Nullable (* _Nonnull startfn)(void *_Nullable), void *_CF_RESTRICT _Nullable context);
 
-CF_CROSS_PLATFORM_EXPORT int _CFThreadSetName(_CFThreadRef thread, const char *_Nonnull name);
-CF_CROSS_PLATFORM_EXPORT int _CFThreadGetName(char *_Nonnull buf, int length);
+CF_EXPORT_NONOBJC_ONLY int _CFThreadSetName(_CFThreadRef thread, const char *_Nonnull name);
+CF_EXPORT_NONOBJC_ONLY int _CFThreadGetName(char *_Nonnull buf, int length);
 
 CF_EXPORT Boolean _CFCharacterSetIsLongCharacterMember(CFCharacterSetRef theSet, UTF32Char theChar);
 CF_EXPORT CFCharacterSetRef _CFCharacterSetCreateCopy(CFAllocatorRef alloc, CFCharacterSetRef theSet);
 CF_EXPORT CFMutableCharacterSetRef _CFCharacterSetCreateMutableCopy(CFAllocatorRef alloc, CFCharacterSetRef theSet);
-CF_CROSS_PLATFORM_EXPORT void _CFCharacterSetInitCopyingSet(CFAllocatorRef alloc, CFMutableCharacterSetRef cset, CFCharacterSetRef theSet, bool isMutable, bool validateSubclasses);
+CF_EXPORT_NONOBJC_ONLY void _CFCharacterSetInitCopyingSet(CFAllocatorRef alloc, CFMutableCharacterSetRef cset, CFCharacterSetRef theSet, bool isMutable, bool validateSubclasses);
 
-#if !TARGET_OS_WASI
 CF_EXPORT _Nullable CFErrorRef CFReadStreamCopyError(CFReadStreamRef _Null_unspecified stream);
 
 CF_EXPORT _Nullable CFErrorRef CFWriteStreamCopyError(CFWriteStreamRef _Null_unspecified stream);
 
-CF_CROSS_PLATFORM_EXPORT CFStringRef _Nullable _CFBundleCopyExecutablePath(CFBundleRef bundle);
-CF_CROSS_PLATFORM_EXPORT Boolean _CFBundleSupportsFHSBundles(void);
-CF_CROSS_PLATFORM_EXPORT Boolean _CFBundleSupportsFreestandingBundles(void);
-CF_CROSS_PLATFORM_EXPORT CFStringRef _Nullable _CFBundleCopyLoadedImagePathForAddress(const void *p);
-#endif
+CF_EXPORT_NONOBJC_ONLY CFStringRef _Nullable _CFBundleCopyExecutablePath(CFBundleRef bundle);
+CF_EXPORT_NONOBJC_ONLY Boolean _CFBundleSupportsFHSBundles(void);
+CF_EXPORT_NONOBJC_ONLY Boolean _CFBundleSupportsFreestandingBundles(void);
+CF_EXPORT_NONOBJC_ONLY CFStringRef _Nullable _CFBundleCopyLoadedImagePathForAddress(const void *p);
 
-CF_CROSS_PLATFORM_EXPORT CFStringRef __CFTimeZoneCopyDataVersionString(void);
+CF_EXPORT_NONOBJC_ONLY CFStringRef __CFTimeZoneCopyDataVersionString(void);
 
-CF_CROSS_PLATFORM_EXPORT void *_Nullable _CFURLCopyResourceInfo(CFURLRef url);
-CF_CROSS_PLATFORM_EXPORT void *_CFURLCopyResourceInfoInitializingAtomicallyIfNeeded(CFURLRef url, CFTypeRef initialValue);
-CF_CROSS_PLATFORM_EXPORT void _CFURLSetResourceInfo(CFURLRef url, CFTypeRef resourceInfo);
+CF_EXPORT_NONOBJC_ONLY void *_Nullable _CFURLCopyResourceInfo(CFURLRef url);
+CF_EXPORT_NONOBJC_ONLY void *_CFURLCopyResourceInfoInitializingAtomicallyIfNeeded(CFURLRef url, CFTypeRef initialValue);
+CF_EXPORT_NONOBJC_ONLY void _CFURLSetResourceInfo(CFURLRef url, CFTypeRef resourceInfo);
 
 // https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
 // Version 0.8
@@ -477,7 +449,7 @@ CF_EXPORT CFStringRef _CFXDGCreateCacheDirectoryPath(void);
 /// a single base directory relative to which user-specific runtime files and other file objects should be placed. This directory is defined by the environment variable $XDG_RUNTIME_DIR.
 CF_EXPORT CFStringRef _CFXDGCreateRuntimeDirectoryPath(void);
 
-CF_CROSS_PLATFORM_EXPORT void __CFURLComponentsDeallocate(CFTypeRef cf);
+CF_EXPORT_NONOBJC_ONLY void __CFURLComponentsDeallocate(CFTypeRef cf);
 
 typedef struct {
     void *_Nonnull memory;
@@ -546,17 +518,17 @@ static inline _Bool _withStackOrHeapBufferWithResultInArguments(size_t amount, v
 
 #pragma mark - Character Set
 
-CF_CROSS_PLATFORM_EXPORT CFIndex __CFCharDigitValue(UniChar ch);
+CF_EXPORT_NONOBJC_ONLY CFIndex __CFCharDigitValue(UniChar ch);
 
 #pragma mark - File Functions
 
 #if TARGET_OS_WIN32
-CF_CROSS_PLATFORM_EXPORT int _CFOpenFileWithMode(const unsigned short *path, int opts, mode_t mode);
-#elif !TARGET_OS_WASI
-CF_CROSS_PLATFORM_EXPORT int _CFOpenFileWithMode(const char *path, int opts, mode_t mode);
+CF_EXPORT_NONOBJC_ONLY int _CFOpenFileWithMode(const unsigned short *path, int opts, mode_t mode);
+#else
+CF_EXPORT_NONOBJC_ONLY int _CFOpenFileWithMode(const char *path, int opts, mode_t mode);
 #endif
-CF_CROSS_PLATFORM_EXPORT void *_CFReallocf(void *ptr, size_t size);
-CF_CROSS_PLATFORM_EXPORT int _CFOpenFile(const char *path, int opts);
+CF_EXPORT_NONOBJC_ONLY void *_CFReallocf(void *ptr, size_t size);
+CF_EXPORT_NONOBJC_ONLY int _CFOpenFile(const char *path, int opts);
 
 #if defined(__unix__) || (defined(__APPLE__) && defined(__MACH__))
 static inline int _direntNameLength(struct dirent *entry) {
@@ -704,12 +676,8 @@ CF_EXPORT int _CFPosixSpawnFileActionsDestroy(_CFPosixSpawnFileActionsRef file_a
 CF_EXPORT void _CFPosixSpawnFileActionsDealloc(_CFPosixSpawnFileActionsRef file_actions);
 CF_EXPORT int _CFPosixSpawnFileActionsAddDup2(_CFPosixSpawnFileActionsRef file_actions, int filedes, int newfiledes);
 CF_EXPORT int _CFPosixSpawnFileActionsAddClose(_CFPosixSpawnFileActionsRef file_actions, int filedes);
-#ifdef __cplusplus
-CF_EXPORT int _CFPosixSpawn(pid_t *_CF_RESTRICT pid, const char *_CF_RESTRICT path, _CFPosixSpawnFileActionsRef file_actions, _CFPosixSpawnAttrRef _Nullable _CF_RESTRICT attrp, char *const argv[], char *const envp[]);
-#else
 CF_EXPORT int _CFPosixSpawn(pid_t *_CF_RESTRICT pid, const char *_CF_RESTRICT path, _CFPosixSpawnFileActionsRef file_actions, _CFPosixSpawnAttrRef _Nullable _CF_RESTRICT attrp, char *_Nullable const argv[_Nullable _CF_RESTRICT], char *_Nullable const envp[_Nullable _CF_RESTRICT]);
-#endif // __cplusplus
-#endif // !TARGET_OS_WIN32
+#endif
 
 _CF_EXPORT_SCOPE_END
 

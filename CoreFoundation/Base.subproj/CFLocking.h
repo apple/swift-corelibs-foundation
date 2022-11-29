@@ -20,6 +20,10 @@
 #include <TargetConditionals.h>
 #endif
 
+#if __has_include(<pthread.h>)
+#include <pthread.h>
+#endif
+
 #if TARGET_OS_MAC
 
 #include <pthread.h>
@@ -124,5 +128,114 @@ static inline CFLock_t __CFLockInit(void) { return CFLockInit; }
 
 #endif
 
+#if __has_include(<os/lock.h>)
+    #include <os/lock.h>
+    #if __has_include(<os/lock_private.h>)
+        #include <os/lock_private.h>
+        #define _CF_HAS_OS_UNFAIR_RECURSIVE_LOCK 1
+    #else
+        #define os_unfair_lock_lock_with_options(lock, options) os_unfair_lock_lock(lock)
+        #define OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION (0)
+    #endif
+#else
+    #define OS_UNFAIR_LOCK_INIT CFLockInit
+    #define os_unfair_lock CFLock_t
+    #define os_unfair_lock_lock __CFLock
+    #define os_unfair_lock_unlock __CFUnlock
+    #define os_unfair_lock_lock_with_options(lock, options) __CFLock(lock)
+    #define OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION
+#endif // __has_include(<os/lock.h>)
+
+#if defined(_CF_HAS_OS_UNFAIR_RECURSIVE_LOCK)
+    #undef _CF_HAS_OS_UNFAIR_RECURSIVE_LOCK // Nothing to do here.
+    #define _CFPerformDynamicInitOfOSRecursiveLock(lock) do {} while (0)
+#else
+    #define os_unfair_recursive_lock _CFRecursiveMutex
+    #define OS_UNFAIR_RECURSIVE_LOCK_INIT { 0 }
+    #define _CFPerformDynamicInitOfOSRecursiveLock _CFRecursiveMutexCreate
+    #define os_unfair_recursive_lock_lock _CFRecursiveMutexLock
+    #define os_unfair_recursive_lock_lock_with_options(lock, more) _CFRecursiveMutexLock(lock)
+    #define os_unfair_recursive_lock_unlock _CFRecursiveMutexUnlock
 #endif
+
+
+#if _POSIX_THREADS
+typedef pthread_mutex_t _CFMutex;
+#define _CF_MUTEX_STATIC_INITIALIZER PTHREAD_MUTEX_INITIALIZER
+CF_INLINE int _CFMutexCreate(_CFMutex *lock) {
+  return pthread_mutex_init(lock, NULL);
+}
+CF_INLINE int _CFMutexDestroy(_CFMutex *lock) {
+  return pthread_mutex_destroy(lock);
+}
+CF_INLINE int _CFMutexLock(_CFMutex *lock) {
+  return pthread_mutex_lock(lock);
+}
+CF_INLINE int _CFMutexUnlock(_CFMutex *lock) {
+  return pthread_mutex_unlock(lock);
+}
+
+typedef pthread_mutex_t _CFRecursiveMutex;
+CF_INLINE int _CFRecursiveMutexCreate(_CFRecursiveMutex *mutex) {
+  pthread_mutexattr_t attr;
+  pthread_mutexattr_init(&attr);
+  pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+
+  int result = pthread_mutex_init(mutex, &attr);
+
+  pthread_mutexattr_destroy(&attr);
+
+  return result;
+}
+CF_INLINE int _CFRecursiveMutexDestroy(_CFRecursiveMutex *mutex) {
+  return pthread_mutex_destroy(mutex);
+}
+CF_INLINE int _CFRecursiveMutexLock(_CFRecursiveMutex *mutex) {
+  return pthread_mutex_lock(mutex);
+}
+CF_INLINE int _CFRecursiveMutexUnlock(_CFRecursiveMutex *mutex) {
+  return pthread_mutex_unlock(mutex);
+}
+#elif defined(_WIN32)
+typedef SRWLOCK _CFMutex;
+#define _CF_MUTEX_STATIC_INITIALIZER SRWLOCK_INIT
+CF_INLINE int _CFMutexCreate(_CFMutex *lock) {
+  InitializeSRWLock(lock);
+  return 0;
+}
+CF_INLINE int _CFMutexDestroy(_CFMutex *lock) {
+  (void)lock;
+  return 0;
+}
+CF_INLINE int _CFMutexLock(_CFMutex *lock) {
+  AcquireSRWLockExclusive(lock);
+  return 0;
+}
+CF_INLINE int _CFMutexUnlock(_CFMutex *lock) {
+  ReleaseSRWLockExclusive(lock);
+  return 0;
+}
+
+typedef CRITICAL_SECTION _CFRecursiveMutex;
+CF_INLINE int _CFRecursiveMutexCreate(_CFRecursiveMutex *mutex) {
+  InitializeCriticalSection(mutex);
+  return 0;
+}
+CF_INLINE int _CFRecursiveMutexDestroy(_CFRecursiveMutex *mutex) {
+  DeleteCriticalSection(mutex);
+  return 0;
+}
+CF_INLINE int _CFRecursiveMutexLock(_CFRecursiveMutex *mutex) {
+  EnterCriticalSection(mutex);
+  return 0;
+}
+CF_INLINE int _CFRecursiveMutexUnlock(_CFRecursiveMutex *mutex) {
+  LeaveCriticalSection(mutex);
+  return 0;
+}
+#else
+#error "do not know how to define mutex and recursive mutex for this OS"
+#endif
+
+#endif // __COREFOUNDATION_CFLOCKING_H__
 

@@ -1,12 +1,12 @@
 /*	CFTimeZone.c
-	Copyright (c) 1998-2019, Apple Inc. and the Swift project authors
+ Copyright (c) 1998-2019, Apple Inc. and the Swift project authors
  
-	Portions Copyright (c) 2014-2019, Apple Inc. and the Swift project authors
-	Licensed under Apache License v2.0 with Runtime Library Exception
-	See http://swift.org/LICENSE.txt for license information
-	See http://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
-	Responsibility: Itai Ferber
-*/
+ Portions Copyright (c) 2014-2019, Apple Inc. and the Swift project authors
+ Licensed under Apache License v2.0 with Runtime Library Exception
+ See http://swift.org/LICENSE.txt for license information
+ See http://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
+ Responsibility: Itai Ferber
+ */
 
 
 #include <CoreFoundation/CFTimeZone.h>
@@ -136,10 +136,10 @@ static CFMutableArrayRef __CFCopyWindowsTimeZoneList() {
     HKEY hkResult;
     WCHAR szName[MAX_PATH + 1];
     DWORD dwIndex, retCode;
-
+    
     if (RegOpenKeyW(HKEY_LOCAL_MACHINE, CF_TIME_ZONES_KEY, &hkResult) != ERROR_SUCCESS)
         return NULL;
-
+    
     result = CFArrayCreateMutable(kCFAllocatorSystemDefault, 0, &kCFTypeArrayCallBacks);
     for (dwIndex = 0; (retCode = RegEnumKeyW(hkResult, dwIndex, szName, COUNT_OF(szName) - 1)) != ERROR_NO_MORE_ITEMS; dwIndex++) {
         if (retCode != ERROR_SUCCESS) {
@@ -152,7 +152,7 @@ static CFMutableArrayRef __CFCopyWindowsTimeZoneList() {
             CFRelease(string);
         }
     }
-
+    
     RegCloseKey(hkResult);
     return result;
 }
@@ -165,27 +165,27 @@ static void __CFTimeZoneGetOffset(CFStringRef timezone, int32_t *offset) {
         SYSTEMTIME StandardDate;
         SYSTEMTIME DaylightDate;
     } REG_TZI_FORMAT;
-
+    
     WCHAR szRegKey[COUNT_OF(CF_TIME_ZONES_KEY) + 1 + COUNT_OF(((TIME_ZONE_INFORMATION *)0)->StandardName) + 1];
     REG_TZI_FORMAT tziInfo;
     Boolean bResult;
     DWORD cbData;
     HKEY hKey;
-
+    
     *offset = 0;
-
+    
     memset(szRegKey, 0, sizeof(szRegKey));
     wcscpy(szRegKey, CF_TIME_ZONES_KEY);
     szRegKey[COUNT_OF(CF_TIME_ZONES_KEY) - 1] = L'\\';
     CFStringGetBytes(timezone, CFRangeMake(0, CFStringGetLength(timezone)), kCFStringEncodingUnicode, FALSE, FALSE, (uint8_t *)&szRegKey[wcslen(CF_TIME_ZONES_KEY) + 1], sizeof(((TIME_ZONE_INFORMATION *)0)->StandardName) + sizeof(WCHAR), NULL);
-
+    
     if (RegOpenKeyW(HKEY_LOCAL_MACHINE, szRegKey, &hKey) != ERROR_SUCCESS)
         return;
-
+    
     cbData = sizeof(tziInfo);
     if (RegQueryValueExW(hKey, L"TZI", NULL, NULL, (LPBYTE)&tziInfo, &cbData) == ERROR_SUCCESS)
         *offset = tziInfo.Bias * 60; // Bias is in minutes, CF uses seconds for its offset
-
+    
     RegCloseKey(hKey);
 }
 #elif TARGET_OS_ANDROID
@@ -243,7 +243,7 @@ static void __CFAndroidTimeZoneParse(FILE *fp, __CFAndroidTimeZoneListEnumerateC
     if (!fp) {
         return;
     }
-
+    
     char header[ANDROID_TZ_HEADER_SIZE];
     if (fread(header, 1, sizeof(header), fp) != sizeof(header)) {
         return;
@@ -251,22 +251,22 @@ static void __CFAndroidTimeZoneParse(FILE *fp, __CFAndroidTimeZoneListEnumerateC
     if (strncmp(header, "tzdata", ANDROID_TZ_HEADER_TAG_SIZE) != 0) {
         return;
     }
-
+    
     int32_t indexOffset;
     memcpy(&indexOffset, &header[ANDROID_TZ_HEADER_INDEX_OFFSET], sizeof(int32_t));
     indexOffset = betoh32(indexOffset);
-
+    
     int32_t dataOffset;
     memcpy(&dataOffset, &header[ANDROID_TZ_HEADER_DATA_OFFSET], sizeof(int32_t));
     dataOffset = betoh32(dataOffset);
-
+    
     if (indexOffset < 0 || dataOffset < indexOffset) {
         return;
     }
     if (fseek(fp, indexOffset, SEEK_SET) != 0) {
         return;
     }
-
+    
     char entry[52];
     size_t indexSize = dataOffset - indexOffset;
     size_t zoneCount = indexSize / sizeof(entry);
@@ -277,20 +277,20 @@ static void __CFAndroidTimeZoneParse(FILE *fp, __CFAndroidTimeZoneListEnumerateC
         if (fread(entry, 1, sizeof(entry), fp) != sizeof(entry)) {
             break;
         }
-
+        
         int32_t start;
         memcpy(&start, &entry[ANDROID_TZ_ENTRY_START_OFFSET], sizeof(int32_t));
         start = betoh32(start);
         start += dataOffset;
-
+        
         int32_t length;
         memcpy(&length, &entry[ANDROID_TZ_ENTRY_LENGTH_OFFSET], sizeof(int32_t));
         length = betoh32(length);
-
+        
         if (start < 0 || length < 0) {
             break;
         }
-
+        
         long pos = ftell(fp);
         Boolean done = callback(entry, start, length, fp, context1, context2);
         if (done || fseek(fp, pos, SEEK_SET) != 0) {
@@ -305,7 +305,7 @@ static void __CFAndroidTimeZoneListEnumerate(__CFAndroidTimeZoneListEnumerateCal
         "/data/misc/zoneinfo/current/tzdata",
         "/system/usr/share/zoneinfo/tzdata"
     };
-
+    
     for (int idx = 0; idx < COUNT_OF(tzDataFiles); idx++) {
         FILE *fp = fopen(tzDataFiles[idx], "rb");
         __CFAndroidTimeZoneParse(fp, callback, context1, context2);
@@ -326,7 +326,7 @@ static Boolean __CFCopyAndroidTimeZoneListCallback(const char name[ANDROID_TZ_EN
 static Boolean __CFTimeZoneDataCreateCallback(const char name[ANDROID_TZ_ENTRY_NAME_LENGTH], int32_t start, int32_t length, FILE *fp, void *context1, void *context2) {
     char *tzNameCstr = (char *)context1;
     CFDataRef *dataPtr = (CFDataRef *)context2;
-
+    
     if (strncmp(tzNameCstr, name, ANDROID_TZ_ENTRY_NAME_LENGTH) == 0) {
         if (fseek(fp, start, SEEK_SET) != 0) {
             return TRUE;
@@ -343,7 +343,7 @@ static Boolean __CFTimeZoneDataCreateCallback(const char name[ANDROID_TZ_ENTRY_N
         free(bytes);
         return TRUE;
     }
-
+    
     return FALSE;
 }
 
@@ -361,51 +361,51 @@ static CFMutableArrayRef __CFCopyRecursiveDirectoryList() {
     if (!__tzDir) return result;
 #endif
     int fd = open(__tzDir, O_RDONLY);
-
+    
     for (; 0 <= fd;) {
         uint8_t buffer[4096];
         ssize_t len = read(fd, buffer, sizeof(buffer));
         if (len <= 0) break;
-	if (len < sizeof(buffer)) {
-	    // assumes that partial read only occurs at the end of the file
-	    buffer[len] = '\n';
-	    len++;
-	}
+        if (len < sizeof(buffer)) {
+            // assumes that partial read only occurs at the end of the file
+            buffer[len] = '\n';
+            len++;
+        }
         const uint8_t *bytes = buffer;
         for (;;) {
-	    const uint8_t *nextl = memchr(bytes, '\n', len);
-	    if (!nextl) break;
-	    nextl++;
-	    if ('#' == *bytes) {
-		len -= (nextl - bytes);
-		bytes = nextl;
-		continue;
-	    }
-	    const uint8_t *tab1 = memchr(bytes, '\t', (nextl - bytes));
-	    if (!tab1) {
-		len -= (nextl - bytes);
-		bytes = nextl;
-		continue;
-	    }
-	    tab1++;
-	    len -= (tab1 - bytes);
-	    bytes = tab1; 
-	    const uint8_t *tab2 = memchr(bytes, '\t', (nextl - bytes));
-	    if (!tab2) {
-		len -= (nextl - bytes);
-		bytes = nextl;
-		continue;
-	    }
-	    tab2++;
-	    len -= (tab2 - bytes);
-	    bytes = tab2; 
-	    const uint8_t *tab3 = memchr(bytes, '\t', (nextl - bytes));
-	    int nmlen = tab3 ? (tab3 - bytes) : (nextl - 1 - bytes);
-	    CFStringRef string = CFStringCreateWithBytes(kCFAllocatorSystemDefault, bytes, nmlen, kCFStringEncodingUTF8, false);
-	    CFArrayAppendValue(result, string);
-	    CFRelease(string);
-	    len -= (nextl - bytes);
-	    bytes = nextl;
+            const uint8_t *nextl = memchr(bytes, '\n', len);
+            if (!nextl) break;
+            nextl++;
+            if ('#' == *bytes) {
+                len -= (nextl - bytes);
+                bytes = nextl;
+                continue;
+            }
+            const uint8_t *tab1 = memchr(bytes, '\t', (nextl - bytes));
+            if (!tab1) {
+                len -= (nextl - bytes);
+                bytes = nextl;
+                continue;
+            }
+            tab1++;
+            len -= (tab1 - bytes);
+            bytes = tab1;
+            const uint8_t *tab2 = memchr(bytes, '\t', (nextl - bytes));
+            if (!tab2) {
+                len -= (nextl - bytes);
+                bytes = nextl;
+                continue;
+            }
+            tab2++;
+            len -= (tab2 - bytes);
+            bytes = tab2;
+            const uint8_t *tab3 = memchr(bytes, '\t', (nextl - bytes));
+            int nmlen = tab3 ? (tab3 - bytes) : (nextl - 1 - bytes);
+            CFStringRef string = CFStringCreateWithBytes(kCFAllocatorSystemDefault, bytes, nmlen, kCFStringEncodingUTF8, false);
+            CFArrayAppendValue(result, string);
+            CFRelease(string);
+            len -= (nextl - bytes);
+            bytes = nextl;
         }
         lseek(fd, -len, SEEK_CUR);
     }
@@ -478,16 +478,16 @@ static CFIndex __CFBSearchTZPeriods(CFTimeZoneRef tz, CFAbsoluteTime at) {
     __CFTZPeriodInit(&elem, (int32_t)floor(at + 1.0), NULL, 0, false);
     CFIndex idx = CFBSearch(&elem, sizeof(CFTZPeriod), tz->_periods, tz->_periodCnt, __CFCompareTZPeriods, NULL);
     if (tz->_periodCnt <= idx) {
-	idx = tz->_periodCnt;
+        idx = tz->_periodCnt;
     } else if (0 == idx) {
-	idx = 1;
+        idx = 1;
     }
     return idx - 1;
 }
 
 
 CF_INLINE int32_t __CFDetzcode(const unsigned char *bufp) {
-     // `result` is uint32_t to avoid undefined behaviour of shifting left negative values
+    // `result` is uint32_t to avoid undefined behaviour of shifting left negative values
     uint32_t result = (bufp[0] & 0x80) ? ~0L : 0L;
     result = (result << 8) | (bufp[0] & 0xff);
     result = (result << 8) | (bufp[1] & 0xff);
@@ -508,15 +508,15 @@ static Boolean __CFParseTimeZoneData(CFAllocatorRef allocator, CFDataRef data, C
     const uint8_t *p, *timep, *typep, *ttisp, *charp;
     CFStringRef *abbrs;
     Boolean result = true;
-
+    
     p = CFDataGetBytePtr(data);
     len = CFDataGetLength(data);
     if (len < (int32_t)sizeof(struct tzhead)) {
-	return false;
+        return false;
     }
     
     if (!(p[0] == 'T' && p[1] == 'Z' && p[2] == 'i' && p[3] == 'f')) return false;  /* Don't parse without TZif at head of file */
-   
+    
     p += 20 + 4 + 4 + 4;	/* skip reserved, ttisgmtcnt, ttisstdcnt, leapcnt */
     timecnt = __CFDetzcode(p);
     p += 4;
@@ -525,15 +525,15 @@ static Boolean __CFParseTimeZoneData(CFAllocatorRef allocator, CFDataRef data, C
     charcnt = __CFDetzcode(p);
     p += 4;
     if (typecnt <= 0 || timecnt < 0 || charcnt < 0) {
-	return false;
+        return false;
     }
     if (1024 < timecnt || 32 < typecnt || 128 < charcnt) {
-	// reject excessive timezones to avoid arithmetic overflows for
-	// security reasons and to reject potentially corrupt files
-	return false;
+        // reject excessive timezones to avoid arithmetic overflows for
+        // security reasons and to reject potentially corrupt files
+        return false;
     }
     if (len - (int32_t)sizeof(struct tzhead) < (4 + 1) * timecnt + (4 + 1 + 1) * typecnt + charcnt) {
-	return false;
+        return false;
     }
     timep = p;
     typep = timep + 4 * timecnt;
@@ -546,76 +546,76 @@ static Boolean __CFParseTimeZoneData(CFAllocatorRef allocator, CFDataRef data, C
     abbrs = CFAllocatorAllocate(allocator, (charcnt + 1) * sizeof(CFStringRef), 0);
     if (__CFOASafe) __CFSetLastAllocationEventName(abbrs, "CFTimeZone (temp)");
     for (idx = 0; idx < charcnt + 1; idx++) {
-	abbrs[idx] = NULL;
+        abbrs[idx] = NULL;
     }
     for (idx = 0; idx < cnt; idx++) {
-	CFAbsoluteTime at;
-	int32_t itime, offset;
-	uint8_t type, dst, abbridx;
-
-	at = (CFAbsoluteTime)(__CFDetzcode(timep) + 0.0) - kCFAbsoluteTimeIntervalSince1970;
-	if (0 == timecnt) itime = INT_MIN;
-	else if (at < (CFAbsoluteTime)INT_MIN) itime = INT_MIN;
-	else if ((CFAbsoluteTime)INT_MAX < at) itime = INT_MAX;
-	else itime = (int32_t)at;
-	timep += 4;	/* harmless if 0 == timecnt */
-	type = (0 < timecnt) ? (uint8_t)*typep++ : 0;
-	if (typecnt <= type) {
-	    result = false;
-	    break;
-	}
-	offset = __CFDetzcode(ttisp + 6 * type);
-	dst = (uint8_t)*(ttisp + 6 * type + 4);
-	if (0 != dst && 1 != dst) {
-	    result = false;
-	    break;
-	}
-	abbridx = (uint8_t)*(ttisp + 6 * type + 5);
-	if (charcnt < abbridx) {
-	    result = false;
-	    break;
-	}
-	if (NULL == abbrs[abbridx]) {
-	    abbrs[abbridx] = CFStringCreateWithCString(allocator, (char *)&charp[abbridx], kCFStringEncodingASCII);
-	}
-	__CFTZPeriodInit(*tzpp + idx, itime, abbrs[abbridx], offset, (dst ? true : false));
+        CFAbsoluteTime at;
+        int32_t itime, offset;
+        uint8_t type, dst, abbridx;
+        
+        at = (CFAbsoluteTime)(__CFDetzcode(timep) + 0.0) - kCFAbsoluteTimeIntervalSince1970;
+        if (0 == timecnt) itime = INT_MIN;
+        else if (at < (CFAbsoluteTime)INT_MIN) itime = INT_MIN;
+        else if ((CFAbsoluteTime)INT_MAX < at) itime = INT_MAX;
+        else itime = (int32_t)at;
+        timep += 4;	/* harmless if 0 == timecnt */
+        type = (0 < timecnt) ? (uint8_t)*typep++ : 0;
+        if (typecnt <= type) {
+            result = false;
+            break;
+        }
+        offset = __CFDetzcode(ttisp + 6 * type);
+        dst = (uint8_t)*(ttisp + 6 * type + 4);
+        if (0 != dst && 1 != dst) {
+            result = false;
+            break;
+        }
+        abbridx = (uint8_t)*(ttisp + 6 * type + 5);
+        if (charcnt < abbridx) {
+            result = false;
+            break;
+        }
+        if (NULL == abbrs[abbridx]) {
+            abbrs[abbridx] = CFStringCreateWithCString(allocator, (char *)&charp[abbridx], kCFStringEncodingASCII);
+        }
+        __CFTZPeriodInit(*tzpp + idx, itime, abbrs[abbridx], offset, (dst ? true : false));
     }
     for (idx = 0; idx < charcnt + 1; idx++) {
-	if (NULL != abbrs[idx]) {
-	    CFRelease(abbrs[idx]);
-	}
+        if (NULL != abbrs[idx]) {
+            CFRelease(abbrs[idx]);
+        }
     }
     CFAllocatorDeallocate(allocator, abbrs);
     if (result) {
-	// dump all but the last INT_MIN and the first INT_MAX
-	for (idx = 0; idx < cnt; idx++) {
-	    if (((*tzpp + idx)->startSec == INT_MIN) && (idx + 1 < cnt) && (((*tzpp + idx + 1)->startSec == INT_MIN))) {
-		if (NULL != (*tzpp + idx)->abbrev) CFRelease((*tzpp + idx)->abbrev);
-		cnt--;
-		memmove((*tzpp + idx), (*tzpp + idx + 1), sizeof(CFTZPeriod) * (cnt - idx));
-		idx--;
-	    }
-	}
-	// Don't combine these loops!  Watch the idx decrementing...
-	for (idx = 0; idx < cnt; idx++) {
-	    if (((*tzpp + idx)->startSec == INT_MAX) && (0 < idx) && (((*tzpp + idx - 1)->startSec == INT_MAX))) {
-		if (NULL != (*tzpp + idx)->abbrev) CFRelease((*tzpp + idx)->abbrev);
-		cnt--;
-		memmove((*tzpp + idx), (*tzpp + idx + 1), sizeof(CFTZPeriod) * (cnt - idx));
-		idx--;
-	    }
-	}
-	CFQSortArray(*tzpp, cnt, sizeof(CFTZPeriod), __CFCompareTZPeriods, NULL);
-	// if the first period is in DST and there is more than one period, drop it
-	if (1 < cnt && __CFTZPeriodIsDST(*tzpp + 0)) {
-	    if (NULL != (*tzpp + 0)->abbrev) CFRelease((*tzpp + 0)->abbrev);
-	    cnt--;
-	    memmove((*tzpp + 0), (*tzpp + 0 + 1), sizeof(CFTZPeriod) * (cnt - 0));
-	}
-	*cntp = cnt;
+        // dump all but the last INT_MIN and the first INT_MAX
+        for (idx = 0; idx < cnt; idx++) {
+            if (((*tzpp + idx)->startSec == INT_MIN) && (idx + 1 < cnt) && (((*tzpp + idx + 1)->startSec == INT_MIN))) {
+                if (NULL != (*tzpp + idx)->abbrev) CFRelease((*tzpp + idx)->abbrev);
+                cnt--;
+                memmove((*tzpp + idx), (*tzpp + idx + 1), sizeof(CFTZPeriod) * (cnt - idx));
+                idx--;
+            }
+        }
+        // Don't combine these loops!  Watch the idx decrementing...
+        for (idx = 0; idx < cnt; idx++) {
+            if (((*tzpp + idx)->startSec == INT_MAX) && (0 < idx) && (((*tzpp + idx - 1)->startSec == INT_MAX))) {
+                if (NULL != (*tzpp + idx)->abbrev) CFRelease((*tzpp + idx)->abbrev);
+                cnt--;
+                memmove((*tzpp + idx), (*tzpp + idx + 1), sizeof(CFTZPeriod) * (cnt - idx));
+                idx--;
+            }
+        }
+        CFQSortArray(*tzpp, cnt, sizeof(CFTZPeriod), __CFCompareTZPeriods, NULL);
+        // if the first period is in DST and there is more than one period, drop it
+        if (1 < cnt && __CFTZPeriodIsDST(*tzpp + 0)) {
+            if (NULL != (*tzpp + 0)->abbrev) CFRelease((*tzpp + 0)->abbrev);
+            cnt--;
+            memmove((*tzpp + 0), (*tzpp + 0 + 1), sizeof(CFTZPeriod) * (cnt - 0));
+        }
+        *cntp = cnt;
     } else {
-	CFAllocatorDeallocate(allocator, *tzpp);
-	*tzpp = NULL;
+        CFAllocatorDeallocate(allocator, *tzpp);
+        *tzpp = NULL;
     }
     return result;
 }
@@ -651,7 +651,7 @@ static void __CFTimeZoneDeallocate(CFTypeRef cf) {
     if (tz->_name) CFRelease(tz->_name);
     if (tz->_data) CFRelease(tz->_data);
     for (idx = 0; idx < tz->_periodCnt; idx++) {
-	if (NULL != tz->_periods[idx].abbrev) CFRelease(tz->_periods[idx].abbrev);
+        if (NULL != tz->_periods[idx].abbrev) CFRelease(tz->_periods[idx].abbrev);
     }
     if (NULL != tz->_periods) CFAllocatorDeallocate(allocator, tz->_periods);
 }
@@ -685,36 +685,36 @@ static Boolean CFTimeZoneLoadPlistResource(LPCSTR lpName, LPVOID *ppResource, LP
     HRSRC hResource;
     HGLOBAL hMemory;
     HMODULE hModule;
-
+    
     if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
                             (LPCWSTR)&CFTimeZoneLoadPlistResource, &hModule)) {
         return FALSE;
     }
-
+    
     hResource = FindResourceA(hModule, lpName, "PLIST");
     if (hResource == NULL) {
         return FALSE;
     }
-
+    
     hMemory = LoadResource(hModule, hResource);
     if (hMemory == NULL) {
         return FALSE;
     }
-
+    
     *pdwSize = SizeofResource(hModule, hResource);
     *ppResource = LockResource(hMemory);
-
+    
     return *pdwSize && *ppResource;
 }
 
 CFDictionaryRef CFTimeZoneCopyWinToOlsonDictionary(void) {
     CFDictionaryRef dict;
-
+    
     __CFTimeZoneLockWinToOlson();
     if (NULL == __CFTimeZoneWinToOlsonDict) {
         const uint8_t *plist;
         DWORD dwSize;
-
+        
         if (CFTimeZoneLoadPlistResource(MAKEINTRESOURCEA(IDR_WINDOWS_OLSON_MAPPING), (LPVOID *)&plist, &dwSize)) {
             CFDataRef data = CFDataCreate(kCFAllocatorSystemDefault, plist, dwSize);
             __CFTimeZoneWinToOlsonDict = (CFDictionaryRef)CFPropertyListCreateFromXMLData(kCFAllocatorSystemDefault, data, kCFPropertyListImmutable, NULL);
@@ -726,27 +726,27 @@ CFDictionaryRef CFTimeZoneCopyWinToOlsonDictionary(void) {
     }
     dict = __CFTimeZoneWinToOlsonDict ? (CFDictionaryRef)CFRetain(__CFTimeZoneWinToOlsonDict) : NULL;
     __CFTimeZoneUnlockWinToOlson();
-
+    
     return dict;
 }
 
 static CFDictionaryRef CFTimeZoneCopyOlsonToWindowsDictionary(void) {
     static CFDictionaryRef dict;
     static CFLock_t lock;
-
+    
     __CFLock(&lock);
     if (dict == NULL) {
-      const uint8_t *plist;
-      DWORD dwSize;
-
-      if (CFTimeZoneLoadPlistResource(MAKEINTRESOURCEA(IDR_OLSON_WINDOWS_MAPPING), (LPVOID *)&plist, &dwSize)) {
-          CFDataRef data = CFDataCreateWithBytesNoCopy(kCFAllocatorSystemDefault, plist, dwSize, kCFAllocatorNull);
-          dict = CFPropertyListCreateFromXMLData(kCFAllocatorSystemDefault, data, kCFPropertyListImmutable, NULL);
-          CFRelease(data);
-      }
+        const uint8_t *plist;
+        DWORD dwSize;
+        
+        if (CFTimeZoneLoadPlistResource(MAKEINTRESOURCEA(IDR_OLSON_WINDOWS_MAPPING), (LPVOID *)&plist, &dwSize)) {
+            CFDataRef data = CFDataCreateWithBytesNoCopy(kCFAllocatorSystemDefault, plist, dwSize, kCFAllocatorNull);
+            dict = CFPropertyListCreateFromXMLData(kCFAllocatorSystemDefault, data, kCFPropertyListImmutable, NULL);
+            CFRelease(data);
+        }
     }
     __CFUnlock(&lock);
-
+    
     return dict ? CFRetain(dict) : NULL;
 }
 
@@ -770,7 +770,7 @@ CFTimeZoneRef CFTimeZoneCreateWithWindowsName(CFAllocatorRef allocator, CFString
     CFStringRef olsonName = CFDictionaryGetValue(winToOlson, winName);
     CFTimeZoneRef retval = NULL;
     if (olsonName) {
-         retval = CFTimeZoneCreateWithName(allocator, olsonName, false);
+        retval = CFTimeZoneCreateWithName(allocator, olsonName, false);
     }
     CFRelease(winToOlson);
     return retval;
@@ -778,10 +778,10 @@ CFTimeZoneRef CFTimeZoneCreateWithWindowsName(CFAllocatorRef allocator, CFString
 #elif TARGET_OS_MAC
 static void __InitTZStrings(void) {
     static dispatch_once_t initOnce = 0;
-
+    
     dispatch_once(&initOnce, ^{
         unsigned int major = 0, minor = 0, patch = 0;
-
+        
         CFDictionaryRef dict = _CFCopySystemVersionDictionary();
         if (dict) {
             CFStringRef version = CFDictionaryGetValue(dict, _kCFSystemVersionProductVersionKey);
@@ -797,7 +797,7 @@ static void __InitTZStrings(void) {
             }
             CFRelease(dict);
         }
-
+        
         // Timezone files moved in High Sierra(10.13)
         if (major == 10 && minor < 13) {
             // older versions
@@ -864,7 +864,7 @@ static CFTimeZoneRef __CFTimeZoneCreateSystem(void) {
         CFRelease(name);
         if (result) return result;
     }
-
+    
 #if !TARGET_OS_ANDROID && !TARGET_OS_WASI
     if (!__tzZoneInfo) __InitTZStrings();
     ret = readlink(TZDEFAULT, linkbuf, sizeof(linkbuf));
@@ -882,11 +882,11 @@ static CFTimeZoneRef __CFTimeZoneCreateSystem(void) {
     } else
 #endif
     {
-        #if !TARGET_OS_WASI
+#if !TARGET_OS_WASI
         // TODO: This can still fail on Linux if the time zone is not recognized by ICU later
         // Try localtime
         tzset();
-        #endif
+#endif
         time_t t = time(NULL);
         struct tm lt = {0};
         localtime_r(&t, &lt);
@@ -906,14 +906,14 @@ CFTimeZoneRef CFTimeZoneCopySystem(void) {
     CFTimeZoneRef tz;
     __CFTimeZoneLockGlobal();
     if (NULL == __CFTimeZoneSystem) {
-	__CFTimeZoneUnlockGlobal();
-	tz = __CFTimeZoneCreateSystem();
-	__CFTimeZoneLockGlobal();
-	if (NULL == __CFTimeZoneSystem) {
-	    __CFTimeZoneSystem = tz;
-	} else {
-	    if (tz) CFRelease(tz);
-	}
+        __CFTimeZoneUnlockGlobal();
+        tz = __CFTimeZoneCreateSystem();
+        __CFTimeZoneLockGlobal();
+        if (NULL == __CFTimeZoneSystem) {
+            __CFTimeZoneSystem = tz;
+        } else {
+            if (tz) CFRelease(tz);
+        }
     }
     tz = __CFTimeZoneSystem ? (CFTimeZoneRef)CFRetain(__CFTimeZoneSystem) : NULL;
     __CFTimeZoneUnlockGlobal();
@@ -925,8 +925,8 @@ static CFIndex __noteCount = 0;
 void CFTimeZoneResetSystem(void) {
     __CFTimeZoneLockGlobal();
     if (__CFTimeZoneDefault == __CFTimeZoneSystem) {
-	if (__CFTimeZoneDefault) CFRelease(__CFTimeZoneDefault);
-	__CFTimeZoneDefault = NULL;
+        if (__CFTimeZoneDefault) CFRelease(__CFTimeZoneDefault);
+        __CFTimeZoneDefault = NULL;
     }
     CFTimeZoneRef tz = __CFTimeZoneSystem;
     __CFTimeZoneSystem = NULL;
@@ -942,14 +942,14 @@ CFTimeZoneRef CFTimeZoneCopyDefault(void) {
     CFTimeZoneRef tz;
     __CFTimeZoneLockGlobal();
     if (NULL == __CFTimeZoneDefault) {
-	__CFTimeZoneUnlockGlobal();
-	tz = CFTimeZoneCopySystem();
-	__CFTimeZoneLockGlobal();
-	if (NULL == __CFTimeZoneDefault) {
-	    __CFTimeZoneDefault = tz;
-	} else {
-	    if (tz) CFRelease(tz);
-	}
+        __CFTimeZoneUnlockGlobal();
+        tz = CFTimeZoneCopySystem();
+        __CFTimeZoneLockGlobal();
+        if (NULL == __CFTimeZoneDefault) {
+            __CFTimeZoneDefault = tz;
+        } else {
+            if (tz) CFRelease(tz);
+        }
     }
     tz = __CFTimeZoneDefault ? (CFTimeZoneRef)CFRetain(__CFTimeZoneDefault) : NULL;
     __CFTimeZoneUnlockGlobal();
@@ -960,9 +960,9 @@ void CFTimeZoneSetDefault(CFTimeZoneRef tz) {
     if (tz) __CFGenericValidateType(tz, CFTimeZoneGetTypeID());
     __CFTimeZoneLockGlobal();
     if (tz != __CFTimeZoneDefault) {
-	if (tz) CFRetain(tz);
-	if (__CFTimeZoneDefault) CFRelease(__CFTimeZoneDefault);
-	__CFTimeZoneDefault = tz;
+        if (tz) CFRetain(tz);
+        if (__CFTimeZoneDefault) CFRelease(__CFTimeZoneDefault);
+        __CFTimeZoneDefault = tz;
     }
     __CFTimeZoneUnlockGlobal();
 }
@@ -974,10 +974,10 @@ CFArrayRef CFTimeZoneCopyKnownNames(void) {
     CFArrayRef tzs;
     __CFTimeZoneLockGlobal();
     if (NULL == __CFKnownTimeZoneList) {
-	CFMutableArrayRef list;
-/* TimeZone information locate in the registry for Win32
- * (Aleksey Dukhnyakov)
- */
+        CFMutableArrayRef list;
+        /* TimeZone information locate in the registry for Win32
+         * (Aleksey Dukhnyakov)
+         */
 #if TARGET_OS_WIN32
         list = __CFCopyWindowsTimeZoneList();
 #elif TARGET_OS_ANDROID
@@ -985,17 +985,17 @@ CFArrayRef CFTimeZoneCopyKnownNames(void) {
 #else
         list = __CFCopyRecursiveDirectoryList();
 #endif
-	// Remove undesirable ancient cruft
-	CFDictionaryRef dict = __CFTimeZoneCopyCompatibilityDictionary();
-	CFIndex idx;
-	for (idx = CFArrayGetCount(list); idx--; ) {
-	    CFStringRef item = (CFStringRef)CFArrayGetValueAtIndex(list, idx);
-	    if (CFDictionaryContainsKey(dict, item) || !__nameStringOK(item)) {
-		CFArrayRemoveValueAtIndex(list, idx);
-	    }
-	}
-	__CFKnownTimeZoneList = CFArrayCreateCopy(kCFAllocatorSystemDefault, list);
-	CFRelease(list);
+        // Remove undesirable ancient cruft
+        CFDictionaryRef dict = __CFTimeZoneCopyCompatibilityDictionary();
+        CFIndex idx;
+        for (idx = CFArrayGetCount(list); idx--; ) {
+            CFStringRef item = (CFStringRef)CFArrayGetValueAtIndex(list, idx);
+            if (CFDictionaryContainsKey(dict, item) || !__nameStringOK(item)) {
+                CFArrayRemoveValueAtIndex(list, idx);
+            }
+        }
+        __CFKnownTimeZoneList = CFArrayCreateCopy(kCFAllocatorSystemDefault, list);
+        CFRelease(list);
     }
     tzs = __CFKnownTimeZoneList ? (CFArrayRef)CFRetain(__CFKnownTimeZoneList) : NULL;
     __CFTimeZoneUnlockGlobal();
@@ -1066,12 +1066,12 @@ CFDictionaryRef CFTimeZoneCopyAbbreviationDictionary(void) {
     CFDictionaryRef dict;
     __CFTimeZoneLockAbbreviations();
     if (NULL == __CFTimeZoneAbbreviationDict) {
-	CFDataRef data = CFDataCreate(kCFAllocatorSystemDefault, (uint8_t *)__CFTimeZoneAbbreviationDefaults, strlen(__CFTimeZoneAbbreviationDefaults));
-	__CFTimeZoneAbbreviationDict = (CFDictionaryRef)CFPropertyListCreateFromXMLData(kCFAllocatorSystemDefault, data, kCFPropertyListImmutable, NULL);
-	CFRelease(data);
+        CFDataRef data = CFDataCreate(kCFAllocatorSystemDefault, (uint8_t *)__CFTimeZoneAbbreviationDefaults, strlen(__CFTimeZoneAbbreviationDefaults));
+        __CFTimeZoneAbbreviationDict = (CFDictionaryRef)CFPropertyListCreateFromXMLData(kCFAllocatorSystemDefault, data, kCFPropertyListImmutable, NULL);
+        CFRelease(data);
     }
     if (NULL == __CFTimeZoneAbbreviationDict) {
-	__CFTimeZoneAbbreviationDict = CFDictionaryCreate(kCFAllocatorSystemDefault, NULL, NULL, 0, NULL, NULL);
+        __CFTimeZoneAbbreviationDict = CFDictionaryCreate(kCFAllocatorSystemDefault, NULL, NULL, 0, NULL, NULL);
     }
     dict = __CFTimeZoneAbbreviationDict ? (CFDictionaryRef)CFRetain(__CFTimeZoneAbbreviationDict) : NULL;
     __CFTimeZoneUnlockAbbreviations();
@@ -1086,12 +1086,12 @@ void CFTimeZoneSetAbbreviationDictionary(CFDictionaryRef dict) {
     __CFGenericValidateType(dict, CFDictionaryGetTypeID());
     __CFTimeZoneLockGlobal();
     if (dict != __CFTimeZoneAbbreviationDict) {
-	if (dict) CFRetain(dict);
-	if (__CFTimeZoneAbbreviationDict) {
-	    CFDictionaryApplyFunction(__CFTimeZoneAbbreviationDict, _removeFromCache, NULL);
-	    CFRelease(__CFTimeZoneAbbreviationDict);
-	}
-	__CFTimeZoneAbbreviationDict = dict;
+        if (dict) CFRetain(dict);
+        if (__CFTimeZoneAbbreviationDict) {
+            CFDictionaryApplyFunction(__CFTimeZoneAbbreviationDict, _removeFromCache, NULL);
+            CFRelease(__CFTimeZoneAbbreviationDict);
+        }
+        __CFTimeZoneAbbreviationDict = dict;
     }
     __CFTimeZoneUnlockGlobal();
 }
@@ -1118,7 +1118,7 @@ static int32_t __tryParseGMTName(CFStringRef name) {
     // GMT, GMT{+|-}H, GMT{+|-}HH, GMT{+|-}HHMM, GMT{+|-}{H|HH}{:|.}MM
     // UTC, UTC{+|-}H, UTC{+|-}HH, UTC{+|-}HHMM, UTC{+|-}{H|HH}{:|.}MM
     //   where "00" <= HH <= "18", "00" <= MM <= "59", and if HH==18, then MM must == 00
-
+    
     Boolean isGMT = ('G' == ustr[0] && 'M' == ustr[1] && 'T' == ustr[2]);
     Boolean isUTC = ('U' == ustr[0] && 'T' == ustr[1] && 'C' == ustr[2]);
     if (!isGMT && !isUTC) return -1;
@@ -1218,18 +1218,18 @@ Boolean _CFTimeZoneInitInternal(CFTimeZoneRef timezone, CFStringRef name, CFData
     CFTZPeriod *tzp = NULL;
     CFIndex cnt = 0;
     Boolean success = false;
-
+    
     __CFTimeZoneLockGlobal();
     success = __CFParseTimeZoneData(kCFAllocatorSystemDefault, data, &tzp, &cnt);
     __CFTimeZoneUnlockGlobal();
-
+    
     if (success) {
         ((struct __CFTimeZone *)timezone)->_name = (CFStringRef)CFStringCreateCopy(kCFAllocatorSystemDefault, name);
         ((struct __CFTimeZone *)timezone)->_data = CFDataCreateCopy(kCFAllocatorSystemDefault, data);
         ((struct __CFTimeZone *)timezone)->_periods = tzp;
         ((struct __CFTimeZone *)timezone)->_periodCnt = cnt;
     }
-
+    
     return success;
 }
 
@@ -1255,9 +1255,9 @@ CFDataRef _CFTimeZoneDataCreate(CFURLRef baseURL, CFStringRef tzName) {
         free(buffer);
         return NULL;
     }
-
+    
     __CFAndroidTimeZoneListEnumerate(__CFTimeZoneDataCreateCallback, tzNameCstr, &data);
-
+    
     free(buffer);
     return data;
 #else
@@ -1279,11 +1279,11 @@ Boolean _CFTimeZoneInit(CFTimeZoneRef timeZone, CFStringRef name, CFDataRef data
     if (!name || !__nameStringOK(name)) {
         return false;
     }
-
+    
     if (data) {
         return _CFTimeZoneInitInternal(timeZone, name, data);
     }
-
+    
     CFIndex len = CFStringGetLength(name);
     if (6 == len || 8 == len) {
         UniChar buffer[8];
@@ -1308,11 +1308,11 @@ Boolean _CFTimeZoneInit(CFTimeZoneRef timeZone, CFStringRef name, CFDataRef data
             }
         }
     }
-
+    
     CFStringRef tzName = NULL;
     CFURLRef baseURL = NULL;
     Boolean result = false;
-
+    
 #if TARGET_OS_WIN32
     // Start by checking if we're just given a timezone Windows knows about
     int32_t offset;
@@ -1322,41 +1322,41 @@ Boolean _CFTimeZoneInit(CFTimeZoneRef timeZone, CFStringRef name, CFDataRef data
         __CFTimeZoneInitFixed(timeZone, offset, name, 0);
         return TRUE;
     }
-
+    
     CFDictionaryRef abbrevs = CFTimeZoneCopyAbbreviationDictionary();
-
+    
     tzName = CFDictionaryGetValue(abbrevs, name);
     if (tzName == NULL) {
         CFDictionaryRef olson = CFTimeZoneCopyOlsonToWindowsDictionary();
         tzName = CFDictionaryGetValue(olson, name);
         CFRelease(olson);
     }
-
+    
     CFRelease(abbrevs);
-
+    
     if (tzName) {
         __CFTimeZoneGetOffset(tzName, &offset);
         // TODO: handle DST
         __CFTimeZoneInitFixed(timeZone, offset, name, 0);
         return TRUE;
     }
-
+    
     return FALSE;
 #else
 #if !TARGET_OS_ANDROID && !TARGET_OS_WASI
-
+    
     if (!__tzZoneInfo) __InitTZStrings();
     if (!__tzZoneInfo) return NULL;
     baseURL = CFURLCreateWithFileSystemPath(kCFAllocatorSystemDefault, __tzZoneInfo, kCFURLPOSIXPathStyle, true);
 #endif
-
+    
     CFDictionaryRef abbrevs = CFTimeZoneCopyAbbreviationDictionary();
     tzName = CFDictionaryGetValue(abbrevs, name);
     if (NULL != tzName) {
         data = _CFTimeZoneDataCreate(baseURL, tzName);
     }
     CFRelease(abbrevs);
-
+    
     if (NULL == data) {
         CFDictionaryRef dict = __CFTimeZoneCopyCompatibilityDictionary();
         CFStringRef mapping = CFDictionaryGetValue(dict, name);
@@ -1395,33 +1395,33 @@ Boolean _CFTimeZoneInit(CFTimeZoneRef timeZone, CFStringRef name, CFDataRef data
 }
 
 CFTimeZoneRef CFTimeZoneCreate(CFAllocatorRef allocator, CFStringRef name, CFDataRef data) {
-// assert:    (NULL != name && NULL != data);
+    // assert:    (NULL != name && NULL != data);
     CFTimeZoneRef memory;
     uint32_t size;
     CFTZPeriod *tzp = NULL;
     CFIndex idx, cnt = 0;
-
+    
     if (allocator == NULL) allocator = __CFGetDefaultAllocator();
     __CFGenericValidateType(allocator, CFAllocatorGetTypeID());
     __CFGenericValidateType(name, CFStringGetTypeID());
     __CFGenericValidateType(data, CFDataGetTypeID());
     __CFTimeZoneLockGlobal();
     if (NULL != __CFTimeZoneCache && CFDictionaryGetValueIfPresent(__CFTimeZoneCache, name, (const void **)&memory)) {
-	__CFTimeZoneUnlockGlobal();
-	return (CFTimeZoneRef)CFRetain(memory);
+        __CFTimeZoneUnlockGlobal();
+        return (CFTimeZoneRef)CFRetain(memory);
     }
     if (!__CFParseTimeZoneData(allocator, data, &tzp, &cnt)) {
-	__CFTimeZoneUnlockGlobal();
-	return NULL;
+        __CFTimeZoneUnlockGlobal();
+        return NULL;
     }
     size = sizeof(struct __CFTimeZone) - sizeof(CFRuntimeBase);
     memory = (CFTimeZoneRef)_CFRuntimeCreateInstance(allocator, CFTimeZoneGetTypeID(), size, NULL);
     if (NULL == memory) {
-	__CFTimeZoneUnlockGlobal();
-	for (idx = 0; idx < cnt; idx++) {
-	    if (NULL != tzp[idx].abbrev) CFRelease(tzp[idx].abbrev);
-	}
-	if (NULL != tzp) CFAllocatorDeallocate(allocator, tzp);
+        __CFTimeZoneUnlockGlobal();
+        for (idx = 0; idx < cnt; idx++) {
+            if (NULL != tzp[idx].abbrev) CFRelease(tzp[idx].abbrev);
+        }
+        if (NULL != tzp) CFAllocatorDeallocate(allocator, tzp);
         return NULL;
     }
     ((struct __CFTimeZone *)memory)->_name = (CFStringRef)CFStringCreateCopy(allocator, name);
@@ -1429,7 +1429,7 @@ CFTimeZoneRef CFTimeZoneCreate(CFAllocatorRef allocator, CFStringRef name, CFDat
     ((struct __CFTimeZone *)memory)->_periods = tzp;
     ((struct __CFTimeZone *)memory)->_periodCnt = cnt;
     if (NULL == __CFTimeZoneCache) {
-	__CFTimeZoneCache = CFDictionaryCreateMutable(kCFAllocatorSystemDefault, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+        __CFTimeZoneCache = CFDictionaryCreateMutable(kCFAllocatorSystemDefault, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
     }
     CFDictionaryAddValue(__CFTimeZoneCache, ((struct __CFTimeZone *)memory)->_name, memory);
     __CFTimeZoneUnlockGlobal();
@@ -1477,9 +1477,9 @@ CFTimeZoneRef CFTimeZoneCreateWithTimeIntervalFromGMT(CFAllocatorRef allocator, 
     seconds -= ((ti < 0) ? -hour : hour) * 3600;
     minute = (ti < 0) ? (-seconds / 60) : (seconds / 60);
     if (fabs(ti) < 1.0) {
-	name = (CFStringRef)CFRetain(CFSTR("GMT"));
+        name = (CFStringRef)CFRetain(CFSTR("GMT"));
     } else {
-	name = CFStringCreateWithFormat(allocator, NULL, CFSTR("GMT%c%02d%02d"), (ti < 0.0 ? '-' : '+'), hour, minute);
+        name = CFStringCreateWithFormat(allocator, NULL, CFSTR("GMT%c%02d%02d"), (ti < 0.0 ? '-' : '+'), hour, minute);
     }
     result = __CFTimeZoneCreateFixed(allocator, (int32_t)ti, name, 0);
     CFRelease(name);
@@ -1490,47 +1490,47 @@ CFTimeZoneRef CFTimeZoneCreateWithName(CFAllocatorRef allocator, CFStringRef nam
     CFTimeZoneRef result = NULL;
     CFStringRef tzName = NULL;
     CFDataRef data = NULL;
-
+    
     if (allocator == NULL) allocator = __CFGetDefaultAllocator();
     __CFGenericValidateType(allocator, CFAllocatorGetTypeID());
     __CFGenericValidateType(name, CFStringGetTypeID());
     if (CFEqual(CFSTR(""), name)) {
-	// empty string is not a time zone name, just abort now,
-	// following stuff will fail anyway
-	return NULL;
+        // empty string is not a time zone name, just abort now,
+        // following stuff will fail anyway
+        return NULL;
     }
     __CFTimeZoneLockGlobal();
     if (NULL != __CFTimeZoneCache && CFDictionaryGetValueIfPresent(__CFTimeZoneCache, name, (const void **)&result)) {
-	__CFTimeZoneUnlockGlobal();
-	return (CFTimeZoneRef)CFRetain(result);
+        __CFTimeZoneUnlockGlobal();
+        return (CFTimeZoneRef)CFRetain(result);
     }
     __CFTimeZoneUnlockGlobal();
     CFIndex len = CFStringGetLength(name);
     if (6 == len || 8 == len) {
-	UniChar buffer[8];
-	CFStringGetCharacters(name, CFRangeMake(0, len), buffer);
-	if ('G' == buffer[0] && 'M' == buffer[1] && 'T' == buffer[2] && ('+' == buffer[3] || '-' == buffer[3])) {
-	    if (('0' <= buffer[4] && buffer[4] <= '9') && ('0' <= buffer[5] && buffer[5] <= '9')) {
-		int32_t hours = (buffer[4] - '0') * 10 + (buffer[5] - '0');
-		if (-14 <= hours && hours <= 14) {
-		    CFTimeInterval ti = hours * 3600.0;
-		    if (6 == len) {
-			return CFTimeZoneCreateWithTimeIntervalFromGMT(allocator, ('-' == buffer[3] ? -1.0 : 1.0) * ti);
-		    } else {
-			if (('0' <= buffer[6] && buffer[6] <= '9') && ('0' <= buffer[7] && buffer[7] <= '9')) {
-			    int32_t minutes = (buffer[6] - '0') * 10 + (buffer[7] - '0');
-			    if ((-14 == hours && 0 == minutes) || (14 == hours && 0 == minutes) || (0 <= minutes && minutes <= 59)) {
-				ti = ti + minutes * 60.0;
-				return CFTimeZoneCreateWithTimeIntervalFromGMT(allocator, ('-' == buffer[3] ? -1.0 : 1.0) * ti);
-			    }
-			}
-		    }
-		}
-	    }
-	}
+        UniChar buffer[8];
+        CFStringGetCharacters(name, CFRangeMake(0, len), buffer);
+        if ('G' == buffer[0] && 'M' == buffer[1] && 'T' == buffer[2] && ('+' == buffer[3] || '-' == buffer[3])) {
+            if (('0' <= buffer[4] && buffer[4] <= '9') && ('0' <= buffer[5] && buffer[5] <= '9')) {
+                int32_t hours = (buffer[4] - '0') * 10 + (buffer[5] - '0');
+                if (-14 <= hours && hours <= 14) {
+                    CFTimeInterval ti = hours * 3600.0;
+                    if (6 == len) {
+                        return CFTimeZoneCreateWithTimeIntervalFromGMT(allocator, ('-' == buffer[3] ? -1.0 : 1.0) * ti);
+                    } else {
+                        if (('0' <= buffer[6] && buffer[6] <= '9') && ('0' <= buffer[7] && buffer[7] <= '9')) {
+                            int32_t minutes = (buffer[6] - '0') * 10 + (buffer[7] - '0');
+                            if ((-14 == hours && 0 == minutes) || (14 == hours && 0 == minutes) || (0 <= minutes && minutes <= 59)) {
+                                ti = ti + minutes * 60.0;
+                                return CFTimeZoneCreateWithTimeIntervalFromGMT(allocator, ('-' == buffer[3] ? -1.0 : 1.0) * ti);
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
     CFURLRef baseURL = NULL;
-
+    
 #if TARGET_OS_WIN32
     // Start by checking if we're just given a timezone Windows knows about
     int32_t offset;
@@ -1539,24 +1539,24 @@ CFTimeZoneRef CFTimeZoneCreateWithName(CFAllocatorRef allocator, CFStringRef nam
         // TODO: handle DST
         result = __CFTimeZoneCreateFixed(allocator, offset, name, 0);
     }
-
+    
     CFDictionaryRef abbrevs = CFTimeZoneCopyAbbreviationDictionary();
-
+    
     tzName = CFDictionaryGetValue(abbrevs, name);
     if (tzName == NULL) {
         CFDictionaryRef olson = CFTimeZoneCopyOlsonToWindowsDictionary();
         tzName = CFDictionaryGetValue(olson, name);
         CFRelease(olson);
     }
-
+    
     CFRelease(abbrevs);
-
+    
     if (tzName) {
         __CFTimeZoneGetOffset(tzName, &offset);
         // TODO: handle DST
         result = __CFTimeZoneCreateFixed(allocator, offset, name, 0);
     }
-
+    
     return result;
 #else
 #if !TARGET_OS_ANDROID
@@ -1565,36 +1565,36 @@ CFTimeZoneRef CFTimeZoneCreateWithName(CFAllocatorRef allocator, CFStringRef nam
     baseURL = CFURLCreateWithFileSystemPath(kCFAllocatorSystemDefault, __tzZoneInfo, kCFURLPOSIXPathStyle, true);
 #endif
     if (tryAbbrev) {
-	CFDictionaryRef abbrevs = CFTimeZoneCopyAbbreviationDictionary();
-	tzName = CFDictionaryGetValue(abbrevs, name);
-	if (NULL != tzName) {
-	    data = _CFTimeZoneDataCreate(baseURL, tzName);
-	}
-	CFRelease(abbrevs);
+        CFDictionaryRef abbrevs = CFTimeZoneCopyAbbreviationDictionary();
+        tzName = CFDictionaryGetValue(abbrevs, name);
+        if (NULL != tzName) {
+            data = _CFTimeZoneDataCreate(baseURL, tzName);
+        }
+        CFRelease(abbrevs);
     }
     if (NULL == data) {
-	CFDictionaryRef dict = __CFTimeZoneCopyCompatibilityDictionary();
-	CFStringRef mapping = CFDictionaryGetValue(dict, name);
-	if (mapping) {
-	    name = mapping;
-	}
+        CFDictionaryRef dict = __CFTimeZoneCopyCompatibilityDictionary();
+        CFStringRef mapping = CFDictionaryGetValue(dict, name);
+        if (mapping) {
+            name = mapping;
+        }
 #if !TARGET_OS_ANDROID
-	else if (CFStringHasPrefix(name, __tzZoneInfo)) {
-	    CFMutableStringRef unprefixed = CFStringCreateMutableCopy(kCFAllocatorSystemDefault, CFStringGetLength(name), name);
-	    CFStringDelete(unprefixed, CFRangeMake(0, CFStringGetLength(__tzZoneInfo)));
-	    mapping = CFDictionaryGetValue(dict, unprefixed);
-	    if (mapping) {
-		name = mapping;
-	    }
-	    CFRelease(unprefixed);
-	}
+        else if (CFStringHasPrefix(name, __tzZoneInfo)) {
+            CFMutableStringRef unprefixed = CFStringCreateMutableCopy(kCFAllocatorSystemDefault, CFStringGetLength(name), name);
+            CFStringDelete(unprefixed, CFRangeMake(0, CFStringGetLength(__tzZoneInfo)));
+            mapping = CFDictionaryGetValue(dict, unprefixed);
+            if (mapping) {
+                name = mapping;
+            }
+            CFRelease(unprefixed);
+        }
 #endif
-	CFRelease(dict);
-	if (CFEqual(CFSTR(""), name)) {
-	    if (baseURL) CFRelease(baseURL);
-	    if (data) CFRelease(data);
-	    return NULL;
-	}
+        CFRelease(dict);
+        if (CFEqual(CFSTR(""), name)) {
+            if (baseURL) CFRelease(baseURL);
+            if (data) CFRelease(data);
+            return NULL;
+        }
     }
     if (NULL == data) {
         tzName = name;
@@ -1604,15 +1604,15 @@ CFTimeZoneRef CFTimeZoneCreateWithName(CFAllocatorRef allocator, CFStringRef nam
         CFRelease(baseURL);
     }
     if (NULL != data) {
-	result = CFTimeZoneCreate(allocator, tzName, data);
-	if (name != tzName) {
-	    CFStringRef nameCopy = (CFStringRef)CFStringCreateCopy(allocator, name);
-	    __CFTimeZoneLockGlobal();
-	    CFDictionaryAddValue(__CFTimeZoneCache, nameCopy, result);
-	    __CFTimeZoneUnlockGlobal();
-	    CFRelease(nameCopy);
-	}
-	CFRelease(data);
+        result = CFTimeZoneCreate(allocator, tzName, data);
+        if (name != tzName) {
+            CFStringRef nameCopy = (CFStringRef)CFStringCreateCopy(allocator, name);
+            __CFTimeZoneLockGlobal();
+            CFDictionaryAddValue(__CFTimeZoneCache, nameCopy, result);
+            __CFTimeZoneUnlockGlobal();
+            CFRelease(nameCopy);
+        }
+        CFRelease(data);
     }
     return result;
 #endif
@@ -1638,7 +1638,7 @@ BOOL __CFTimeZoneGetWin32SystemTime(SYSTEMTIME * sys_time, CFAbsoluteTime time)
 {
     LONGLONG l;
     FILETIME * ftime=(FILETIME*)&l;
-
+    
     /*  seconds between 1601 and 1970 : 11644473600,
      *  seconds between 1970 and 2001 : 978307200,
      *  FILETIME - number of 100-nanosecond intervals since January 1, 1601
@@ -1668,17 +1668,17 @@ CFStringRef CFTimeZoneCopyAbbreviation(CFTimeZoneRef tz, CFAbsoluteTime at) {
     UErrorCode status = U_ZERO_ERROR;
     UCalendar *ucal = __CFCalendarCreateUCalendar(NULL, CFSTR("C"), tz);
     if (ucal == NULL) {
-      return NULL;
+        return NULL;
     }
     ucal_setMillis(ucal, (at + kCFAbsoluteTimeIntervalSince1970) * 1000.0, &status);
-
+    
     UCalendarDisplayNameType nameType = ucal_inDaylightTime(ucal, &status) ? UCAL_SHORT_DST : UCAL_SHORT_STANDARD;
     UChar buffer[64];
     int32_t length;
     length = ucal_getTimeZoneDisplayName(ucal, nameType, "C", buffer, sizeof(buffer), &status);
-
+    
     ucal_close(ucal);
-
+    
     return length <= sizeof(buffer) ? CFStringCreateWithCharacters(kCFAllocatorSystemDefault, buffer, length) : NULL;
 #else
     idx = __CFBSearchTZPeriods(tz, at);
@@ -1693,10 +1693,10 @@ Boolean CFTimeZoneIsDaylightSavingTime(CFTimeZoneRef tz, CFAbsoluteTime at) {
     UErrorCode status = U_ZERO_ERROR;
     UCalendar *ucal = __CFCalendarCreateUCalendar(NULL, CFSTR("C"), tz);
     if (ucal == NULL) {
-      return FALSE;
+        return FALSE;
     }
     ucal_setMillis(ucal, (at + kCFAbsoluteTimeIntervalSince1970) * 1000.0, &status);
-
+    
     UBool isDaylightTime = ucal_inDaylightTime(ucal, &status);
     return isDaylightTime ? TRUE : FALSE;
 #else
@@ -1711,12 +1711,12 @@ CFTimeInterval CFTimeZoneGetDaylightSavingTimeOffset(CFTimeZoneRef tz, CFAbsolut
     __CFGenericValidateType(tz, CFTimeZoneGetTypeID());
     CFIndex idx = __CFBSearchTZPeriods(tz, at);
     if (__CFTZPeriodIsDST(&(tz->_periods[idx]))) {
-	CFTimeInterval offset = __CFTZPeriodGMTOffset(&(tz->_periods[idx]));
-	if (idx + 1 < tz->_periodCnt) {
-	    return offset - __CFTZPeriodGMTOffset(&(tz->_periods[idx + 1]));
-	} else if (0 < idx) {
+        CFTimeInterval offset = __CFTZPeriodGMTOffset(&(tz->_periods[idx]));
+        if (idx + 1 < tz->_periodCnt) {
+            return offset - __CFTZPeriodGMTOffset(&(tz->_periods[idx + 1]));
+        } else if (0 < idx) {
             return offset - __CFTZPeriodGMTOffset(&(tz->_periods[idx - 1]));
-	}
+        }
     }
     return 0.0;
 }
@@ -1728,15 +1728,15 @@ CFAbsoluteTime CFTimeZoneGetNextDaylightSavingTimeTransition(CFTimeZoneRef tz, C
     UErrorCode status = U_ZERO_ERROR;
     UCalendar *ucal = __CFCalendarCreateUCalendar(NULL, CFSTR("C"), tz);
     if (ucal == NULL) {
-      return 0.0;
+        return 0.0;
     }
     ucal_setMillis(ucal, (at + kCFAbsoluteTimeIntervalSince1970) * 1000.0, &status);
-
+    
     UDate date;
     ucal_getTimeZoneTransitionDate(ucal, UCAL_TZ_TRANSITION_NEXT, &date, &status);
-
+    
     ucal_close(ucal);
-
+    
     return (date / 1000.0) - kCFAbsoluteTimeIntervalSince1970;
 #else
     CFIndex idx = __CFBSearchTZPeriods(tz, at);
@@ -1753,32 +1753,32 @@ CFStringRef CFTimeZoneCopyLocalizedName(CFTimeZoneRef tz, CFTimeZoneNameStyle st
     CF_OBJC_FUNCDISPATCHV(CFTimeZoneGetTypeID(), CFStringRef, (NSTimeZone *)tz, localizedName:(NSTimeZoneNameStyle)style locale:(NSLocale *)locale);
     __CFGenericValidateType(tz, CFTimeZoneGetTypeID());
     __CFGenericValidateType(locale, CFLocaleGetTypeID());
-
+    
     if (style == kCFTimeZoneNameStyleGeneric || style == kCFTimeZoneNameStyleShortGeneric) {
-	CFDateFormatterRef df = CFDateFormatterCreate(kCFAllocatorSystemDefault, locale, kCFDateFormatterNoStyle, kCFDateFormatterNoStyle);
-	CFDateFormatterSetProperty(df, kCFDateFormatterTimeZone, tz);
-	CFDateFormatterSetFormat(df, (style == kCFTimeZoneNameStyleGeneric) ? CFSTR("vvvv") : CFSTR("v"));
-	CFStringRef str = CFDateFormatterCreateStringWithAbsoluteTime(CFGetAllocator(tz), df, 0.0);
-	CFRelease(df);
-	return str;
+        CFDateFormatterRef df = CFDateFormatterCreate(kCFAllocatorSystemDefault, locale, kCFDateFormatterNoStyle, kCFDateFormatterNoStyle);
+        CFDateFormatterSetProperty(df, kCFDateFormatterTimeZone, tz);
+        CFDateFormatterSetFormat(df, (style == kCFTimeZoneNameStyleGeneric) ? CFSTR("vvvv") : CFSTR("v"));
+        CFStringRef str = CFDateFormatterCreateStringWithAbsoluteTime(CFGetAllocator(tz), df, 0.0);
+        CFRelease(df);
+        return str;
     }
-
+    
     CFStringRef localeID = CFLocaleGetIdentifier(locale);
     UCalendar *cal = __CFCalendarCreateUCalendar(NULL, localeID, tz);
     if (NULL == cal) {
         return NULL;
     }
-
+    
     char buffer[BUFFER_SIZE];
     const char *cstr = CFStringGetCStringPtr(localeID, kCFStringEncodingASCII);
     if (NULL == cstr) {
         if (CFStringGetCString(localeID, buffer, BUFFER_SIZE, kCFStringEncodingASCII)) cstr = buffer;
     }
     if (NULL == cstr) {
-	ucal_close(cal);
+        ucal_close(cal);
         return NULL;
     }
-
+    
     UChar ubuffer[BUFFER_SIZE];
     UErrorCode status = U_ZERO_ERROR;
     int32_t cnt = ucal_getTimeZoneDisplayName(cal, (UCalendarDisplayNameType)style, cstr, ubuffer, BUFFER_SIZE, &status);
@@ -1793,16 +1793,16 @@ static CFDictionaryRef __CFTimeZoneCopyCompatibilityDictionary(void) {
     CFDictionaryRef dict;
     __CFTimeZoneLockCompatibilityMapping();
     if (NULL == __CFTimeZoneCompatibilityMappingDict) {
-	__CFTimeZoneCompatibilityMappingDict = CFDictionaryCreateMutable(kCFAllocatorSystemDefault, 112, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-
-	// Empty string means delete/ignore these 
+        __CFTimeZoneCompatibilityMappingDict = CFDictionaryCreateMutable(kCFAllocatorSystemDefault, 112, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+        
+        // Empty string means delete/ignore these
     }
     dict = __CFTimeZoneCompatibilityMappingDict ? (CFDictionaryRef)CFRetain(__CFTimeZoneCompatibilityMappingDict) : NULL;
     __CFTimeZoneUnlockCompatibilityMapping();
     return dict;
 }
 
-CF_CROSS_PLATFORM_EXPORT CFStringRef __CFTimeZoneCopyDataVersionString(void) {
+CF_EXPORT_NONOBJC_ONLY CFStringRef __CFTimeZoneCopyDataVersionString(void) {
     UErrorCode err = U_ZERO_ERROR;
     const char *cstr = ucal_getTZDataVersion(&err);
     return (U_SUCCESS(err)) ? CFStringCreateWithCString(kCFAllocatorSystemDefault, cstr, kCFStringEncodingUTF8) : CFRetain(CFSTR(""));

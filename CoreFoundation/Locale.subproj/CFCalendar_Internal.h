@@ -1,10 +1,10 @@
 /*    CFCalendar_Internal.h
-    Copyright (c) 2004-2018, Apple Inc. and the Swift project authors
+ Copyright (c) 2004-2018, Apple Inc. and the Swift project authors
 
-    Portions Copyright (c) 2014-2018, Apple Inc. and the Swift project authors
-    Licensed under Apache License v2.0 with Runtime Library Exception
-    See http://swift.org/LICENSE.txt for license information
-    See http://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
+ Portions Copyright (c) 2014-2018, Apple Inc. and the Swift project authors
+ Licensed under Apache License v2.0 with Runtime Library Exception
+ See http://swift.org/LICENSE.txt for license information
+ See http://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 */
 
 #if !defined(__COREFOUNDATION_CFCALENDAR_INTERNAL__)
@@ -91,14 +91,14 @@ CF_ENUM(CFOptionFlags) {
 CF_PRIVATE void __CFCalendarSetupCal(CFCalendarRef calendar);
 CF_PRIVATE void __CFCalendarZapCal(CFCalendarRef calendar);
 
-CF_CROSS_PLATFORM_EXPORT Boolean _CFCalendarInitWithIdentifier(CFCalendarRef calendar, CFStringRef identifier);
+CF_EXPORT_NONOBJC_ONLY Boolean _CFCalendarInitWithIdentifier(CFCalendarRef calendar, CFStringRef identifier);
 
 CF_PRIVATE CFCalendarRef _CFCalendarCreateCopy(CFAllocatorRef allocator, CFCalendarRef calendar);
 
-CF_CROSS_PLATFORM_EXPORT Boolean _CFCalendarComposeAbsoluteTimeV(CFCalendarRef calendar, /* out */ CFAbsoluteTime *atp, const char *componentDesc, int32_t *vector, int32_t count);
-CF_CROSS_PLATFORM_EXPORT Boolean _CFCalendarDecomposeAbsoluteTimeV(CFCalendarRef calendar, CFAbsoluteTime at, const char *componentDesc, int32_t *_Nonnull * _Nonnull vector, int32_t count);
-CF_CROSS_PLATFORM_EXPORT Boolean _CFCalendarAddComponentsV(CFCalendarRef calendar, /* inout */ CFAbsoluteTime *atp, CFOptionFlags options, const char *componentDesc, int32_t *vector, int32_t count);
-CF_CROSS_PLATFORM_EXPORT Boolean _CFCalendarGetComponentDifferenceV(CFCalendarRef calendar, CFAbsoluteTime startingAT, CFAbsoluteTime resultAT, CFOptionFlags options, const char *componentDesc, int32_t *_Nonnull * _Nonnull vector, int32_t count);
+CF_EXPORT_NONOBJC_ONLY Boolean _CFCalendarComposeAbsoluteTimeV(CFCalendarRef calendar, /* out */ CFAbsoluteTime *atp, const char *componentDesc, int32_t *vector, int32_t count);
+CF_EXPORT_NONOBJC_ONLY Boolean _CFCalendarDecomposeAbsoluteTimeV(CFCalendarRef calendar, CFAbsoluteTime at, const char *componentDesc, int32_t *_Nonnull * _Nonnull vector, int32_t count);
+CF_EXPORT_NONOBJC_ONLY Boolean _CFCalendarAddComponentsV(CFCalendarRef calendar, /* inout */ CFAbsoluteTime *atp, CFOptionFlags options, const char *componentDesc, int32_t *vector, int32_t count);
+CF_EXPORT_NONOBJC_ONLY Boolean _CFCalendarGetComponentDifferenceV(CFCalendarRef calendar, CFAbsoluteTime startingAT, CFAbsoluteTime resultAT, CFOptionFlags options, const char *componentDesc, int32_t *_Nonnull * _Nonnull vector, int32_t count);
 CF_PRIVATE Boolean _CFCalendarIsDateInWeekend(CFCalendarRef calendar, CFDateRef date);
 CF_PRIVATE Boolean _CFCalendarGetNextWeekend(CFCalendarRef calendar, _CFCalendarWeekendRange *range);
 
@@ -110,7 +110,7 @@ CF_PRIVATE _Nullable CFDateRef _CFCalendarCreateStartDateForTimeRangeOfUnitForDa
 CF_PRIVATE _Nullable CFDateIntervalRef _CFCalendarCreateDateInterval(CFAllocatorRef allocator, CFCalendarRef calendar, CFCalendarUnit unit, CFDateRef date);
 CF_PRIVATE _Nullable CFDateRef _CFCalendarCreateDateByAddingValueOfUnitToDate(CFCalendarRef calendar, CFIndex val, CFCalendarUnit unit, CFDateRef date);
     
-CF_CROSS_PLATFORM_EXPORT void _CFCalendarEnumerateDates(CFCalendarRef calendar, CFDateRef start, CFDateComponentsRef matchingComponents, CFOptionFlags opts, void (^block)(CFDateRef _Nullable, Boolean, Boolean*));
+CF_EXPORT_NONOBJC_ONLY void _CFCalendarEnumerateDates(CFCalendarRef calendar, CFDateRef start, CFDateComponentsRef matchingComponents, CFOptionFlags opts, void (^block)(CFDateRef, Boolean, Boolean*));
 
 CF_EXPORT void CFCalendarSetGregorianStartDate(CFCalendarRef calendar, CFDateRef _Nullable date);
 CF_EXPORT _Nullable CFDateRef CFCalendarCopyGregorianStartDate(CFCalendarRef calendar);
@@ -118,4 +118,3 @@ CF_EXPORT _Nullable CFDateRef CFCalendarCopyGregorianStartDate(CFCalendarRef cal
 CF_ASSUME_NONNULL_END
 
 #endif // __COREFOUNDATION_CFCALENDAR_INTERNAL__
-

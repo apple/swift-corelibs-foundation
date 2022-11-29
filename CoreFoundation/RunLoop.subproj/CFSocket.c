@@ -17,9 +17,6 @@
 #include <sys/un.h>
 #include <libc.h>
 #include <dlfcn.h>
-#if TARGET_OS_CYGWIN
-#include <sys/socket.h>
-#endif
 #endif
 #if TARGET_OS_CYGWIN || TARGET_OS_BSD
 #include <sys/socket.h>
@@ -246,15 +243,14 @@ CF_INLINE Boolean __CFSocketFdSet(CFSocketNativeHandle sock, CFMutableDataRef fd
    (2) an individual CFSocket's lock
    (3) __CFActiveSocketsLock
 */
-static CFLock_t __CFAllSocketsLock = CFLockInit; /* controls __CFAllSockets */
+static os_unfair_lock __CFAllSocketsLock = OS_UNFAIR_LOCK_INIT; /* controls __CFAllSockets */
 static CFMutableDictionaryRef __CFAllSockets = NULL;
-static CFLock_t __CFActiveSocketsLock = CFLockInit; /* controls __CFRead/WriteSockets, __CFRead/WriteSocketsFds, __CFSocketManagerThread, and __CFSocketManagerIteration */
+static os_unfair_lock __CFActiveSocketsLock = OS_UNFAIR_LOCK_INIT; /* controls __CFRead/WriteSockets, __CFRead/WriteSocketsFds, __CFSocketManagerThread, and __CFSocketManagerIteration */
 static volatile UInt32 __CFSocketManagerIteration = 0;
 static CFMutableArrayRef __CFWriteSockets = NULL;
 static CFMutableArrayRef __CFReadSockets = NULL;
 static CFMutableDataRef __CFWriteSocketsFds = NULL;
 static CFMutableDataRef __CFReadSocketsFds = NULL;
-static CFDataRef zeroLengthData = NULL;
 static Boolean __CFReadSocketsTimeoutInvalid = true;  /* rebuild the timeout value before calling select */
 
 static CFSocketNativeHandle __CFWakeupSocketPair[2] = {INVALID_SOCKET, INVALID_SOCKET};
@@ -531,9 +527,9 @@ static void __CFSocketInitializeWinSock_Guts(void) {
 }
 
 CF_EXPORT void __CFSocketInitializeWinSock(void) {
-    __CFLock(&__CFActiveSocketsLock);
+    os_unfair_lock_lock(&__CFActiveSocketsLock);
     __CFSocketInitializeWinSock_Guts();
-    __CFUnlock(&__CFActiveSocketsLock);
+    os_unfair_lock_unlock(&__CFActiveSocketsLock);
 }
 
 CF_PRIVATE void __CFSocketCleanup(void) {
@@ -559,7 +555,6 @@ static void __CFSocketInitializeSockets(void) {
     __CFReadSockets = CFArrayCreateMutable(kCFAllocatorSystemDefault, 0, NULL);
     __CFWriteSocketsFds = CFDataCreateMutable(kCFAllocatorSystemDefault, 0);
     __CFReadSocketsFds = CFDataCreateMutable(kCFAllocatorSystemDefault, 0);
-    zeroLengthData = CFDataCreateMutable(kCFAllocatorSystemDefault, 0);
 #if TARGET_OS_WIN32
     __CFSocketInitializeWinSock_Guts();
 #endif
@@ -754,8 +749,7 @@ static void __CFSocketHandleRead(CFSocketRef s, Boolean causedByTimeout)
 
         if (0 >= recvlen) {
             //??? should return error if <0
-            /* zero-length data is the signal for perform to invalidate if socket is connection oriented */
-            data = (CFDataRef)CFRetain(zeroLengthData);
+            data = CFDataCreate(CFGetAllocator(s), NULL, 0);
         } else {
             data = CFDataCreate(CFGetAllocator(s), buffer, recvlen);
         }
@@ -775,7 +769,7 @@ static void __CFSocketHandleRead(CFSocketRef s, Boolean causedByTimeout)
             if (NULL != s->_peerAddress) address = (CFDataRef)CFRetain(s->_peerAddress);
         }
         if (NULL == address) {
-            address = (CFDataRef)CFRetain(zeroLengthData);
+            address = CFDataCreate(CFGetAllocator(s), NULL, 0);
         }
         if (NULL == s->_dataQueue) {
             s->_dataQueue = CFArrayCreateMutable(CFGetAllocator(s), 0, &kCFTypeArrayCallBacks);
@@ -791,10 +785,10 @@ static void __CFSocketHandleRead(CFSocketRef s, Boolean causedByTimeout)
             && (s->_f.client & kCFSocketDataCallBack) != 0 && (s->_f.disabled & kCFSocketDataCallBack) == 0
             && __CFSocketIsScheduled(s)
         ) {
-            __CFLock(&__CFActiveSocketsLock);
+            os_unfair_lock_lock(&__CFActiveSocketsLock);
             /* restore socket to fds */
             __CFSocketSetFDForRead(s);
-            __CFUnlock(&__CFActiveSocketsLock);
+            os_unfair_lock_unlock(&__CFActiveSocketsLock);
         }
     } else if (__CFSocketReadCallBackType(s) == kCFSocketAcceptCallBack) {
         uint8_t name[MAX_SOCKADDR_LEN];
@@ -807,7 +801,7 @@ static void __CFSocketHandleRead(CFSocketRef s, Boolean causedByTimeout)
         if (0 < namelen) {
             address = CFDataCreate(CFGetAllocator(s), name, namelen);
         } else {
-            address = (CFDataRef)CFRetain(zeroLengthData);
+            address = CFDataCreate(CFGetAllocator(s), NULL, 0);
         }
         __CFSocketLock(s);
         if (!__CFSocketIsValid(s)) {
@@ -829,10 +823,10 @@ static void __CFSocketHandleRead(CFSocketRef s, Boolean causedByTimeout)
         if ((s->_f.client & kCFSocketAcceptCallBack) != 0 && (s->_f.disabled & kCFSocketAcceptCallBack) == 0
             && __CFSocketIsScheduled(s)
         ) {
-            __CFLock(&__CFActiveSocketsLock);
+            os_unfair_lock_lock(&__CFActiveSocketsLock);
             /* restore socket to fds */
             __CFSocketSetFDForRead(s);
-            __CFUnlock(&__CFActiveSocketsLock);
+            os_unfair_lock_unlock(&__CFActiveSocketsLock);
         }
     } else {
         __CFSocketLock(s);
@@ -851,10 +845,10 @@ static void __CFSocketHandleRead(CFSocketRef s, Boolean causedByTimeout)
                 // Clear the timeout notification time if there is no prefetched data left
                 timerclear(&s->_readBufferTimeoutNotificationTime);
 
-                __CFLock(&__CFActiveSocketsLock);
+                os_unfair_lock_lock(&__CFActiveSocketsLock);
                 /* restore socket to fds */
                 __CFSocketSetFDForRead(s);
-                __CFUnlock(&__CFActiveSocketsLock);
+                os_unfair_lock_unlock(&__CFActiveSocketsLock);
                 __CFSocketUnlock(s);
                 return;
             }
@@ -872,10 +866,10 @@ static void __CFSocketHandleRead(CFSocketRef s, Boolean causedByTimeout)
                 switch (ctRead) {
                     case -1:
                         if (errno == EAGAIN) { // no error
-                            __CFLock(&__CFActiveSocketsLock);
+                            os_unfair_lock_lock(&__CFActiveSocketsLock);
                             /* restore socket to fds */
                             __CFSocketSetFDForRead(s);
-                            __CFUnlock(&__CFActiveSocketsLock);
+                            os_unfair_lock_unlock(&__CFActiveSocketsLock);
                             __CFSocketUnlock(s);
                             return;
                         } else {
@@ -902,10 +896,10 @@ static void __CFSocketHandleRead(CFSocketRef s, Boolean causedByTimeout)
 
                             __CFSOCKETLOG_WS(s, "READ %ld - need %ld MORE - GOING BACK FOR MORE", ctRead, s->_bytesToBuffer - s->_bytesToBufferPos);
 
-                            __CFLock(&__CFActiveSocketsLock);
+                            os_unfair_lock_lock(&__CFActiveSocketsLock);
                             /* restore socket to fds */
                             __CFSocketSetFDForRead(s);
-                            __CFUnlock(&__CFActiveSocketsLock);
+                            os_unfair_lock_unlock(&__CFActiveSocketsLock);
                             __CFSocketUnlock(s);
                             return;
                         } else {
@@ -965,12 +959,12 @@ static struct timeval* intervalToTimeval(CFTimeInterval timeout, struct timeval*
 static void _calcMinTimeout_locked(const void* val, void* ctxt)
 {
     CFSocketRef s = (CFSocketRef) val;
-    struct timeval** minTime = (struct timeval**) ctxt;
+    struct timeval const ** minTime = (struct timeval const **) ctxt;
     if (timerisset(&s->_readBufferTimeout) && (*minTime == NULL || timercmp(&s->_readBufferTimeout, *minTime, <)))
         *minTime = &s->_readBufferTimeout;
     else if (s->_leftoverBytes) {
         /* If there's anyone with leftover bytes, they'll need to be awoken immediately */
-        static struct timeval sKickerTime = { 0, 0 };
+        static struct timeval const sKickerTime = { 0, 0 };
         *minTime = &sKickerTime;
     }
 }
@@ -984,7 +978,7 @@ void __CFSocketSetSocketReadBufferAttrs(CFSocketRef s, CFTimeInterval timeout, C
     /* lock ordering is socket lock, activesocketslock */
     /* activesocketslock protects our timeout calculation */
     __CFSocketLock(s);
-    __CFLock(&__CFActiveSocketsLock);
+    os_unfair_lock_lock(&__CFActiveSocketsLock);
 
     if (s->_bytesToBuffer != length) {
         CFIndex ctBuffer = s->_bytesToBufferPos - s->_bytesToBufferReadPos;
@@ -1045,7 +1039,7 @@ void __CFSocketSetSocketReadBufferAttrs(CFSocketRef s, CFTimeInterval timeout, C
         __CFReadSocketsTimeoutInvalid = true;
     }
     
-    __CFUnlock(&__CFActiveSocketsLock);
+    os_unfair_lock_unlock(&__CFActiveSocketsLock);
     __CFSocketUnlock(s);
 }
 
@@ -1207,7 +1201,7 @@ manageSelectError()
     if (EBADF == selectError) {
         CFMutableArrayRef invalidSockets = CFArrayCreateMutable(kCFAllocatorSystemDefault, 0, &kCFTypeArrayCallBacks);
 
-        __CFLock(&__CFActiveSocketsLock);
+        os_unfair_lock_lock(&__CFActiveSocketsLock);
         CFIndex cnt = CFArrayGetCount(__CFWriteSockets);
         CFIndex idx;
         for (idx = 0; idx < cnt; idx++) {
@@ -1242,7 +1236,7 @@ manageSelectError()
             clearInvalidFileDescriptors(__CFWriteSocketsFds);
         }
 
-        __CFUnlock(&__CFActiveSocketsLock);
+        os_unfair_lock_unlock(&__CFActiveSocketsLock);
 
         for (idx = 0; idx < cnt; idx++) {
             CFSocketInvalidate(((CFSocketRef)CFArrayGetValueAtIndex(invalidSockets, idx)));
@@ -1275,7 +1269,7 @@ static void *__CFSocketManager(void * arg)
     struct timeval timeBeforeSelect = {0, 0};
     
     for (;;) {
-        __CFLock(&__CFActiveSocketsLock);
+        os_unfair_lock_lock(&__CFActiveSocketsLock);
         __CFSocketManagerIteration++;
 
 #if defined(LOG_CFSOCKET)
@@ -1302,7 +1296,7 @@ static void *__CFSocketManager(void * arg)
         CFDataGetBytes(__CFReadSocketsFds, CFRangeMake(0, CFDataGetLength(__CFReadSocketsFds)), (UInt8 *)readfds); 
 		
         if (__CFReadSocketsTimeoutInvalid) {
-            struct timeval* minTimeout = NULL;
+            struct timeval const * minTimeout = NULL;
             __CFReadSocketsTimeoutInvalid = false;
 
             __CFSOCKETLOG("Figuring out which sockets have timeouts...");
@@ -1324,7 +1318,7 @@ static void *__CFSocketManager(void * arg)
             gettimeofday(&timeBeforeSelect, NULL);
         }
 		
-        __CFUnlock(&__CFActiveSocketsLock);
+        os_unfair_lock_unlock(&__CFActiveSocketsLock);
 
 #if TARGET_OS_WIN32
         // On Windows, select checks connection failed sockets via the exceptfds parameter. connection succeeded is checked via writefds. We need both.
@@ -1383,7 +1377,7 @@ static void *__CFSocketManager(void * arg)
 
             __CFSOCKETLOG("Socket manager received timeout - kicking off expired reads (expired delta %ld, %d)", deltaTime.tv_sec, deltaTime.tv_usec);
 
-            __CFLock(&__CFActiveSocketsLock);
+            os_unfair_lock_lock(&__CFActiveSocketsLock);
 
             tempfds = NULL;
             cnt = CFArrayGetCount(__CFReadSockets);
@@ -1411,7 +1405,7 @@ static void *__CFSocketManager(void * arg)
                 }
             }
             
-            __CFUnlock(&__CFActiveSocketsLock);
+            os_unfair_lock_unlock(&__CFActiveSocketsLock);
             
             /* and below, we dispatch through the normal read dispatch mechanism */
             if (! didFindOne) {
@@ -1439,7 +1433,7 @@ static void *__CFSocketManager(void * arg)
             recv(__CFWakeupSocketPair[1], (char *)buffer, sizeof(buffer), 0);
             __CFSOCKETLOG("socket manager received %c on wakeup socket\n", buffer[0]);
         }
-        __CFLock(&__CFActiveSocketsLock);
+        os_unfair_lock_lock(&__CFActiveSocketsLock);
         tempfds = NULL;
         cnt = CFArrayGetCount(__CFWriteSockets);
         for (idx = 0; idx < cnt; idx++) {
@@ -1493,7 +1487,7 @@ static void *__CFSocketManager(void * arg)
                 FD_CLR(sock, tempfds);
             }
         }
-        __CFUnlock(&__CFActiveSocketsLock);
+        os_unfair_lock_unlock(&__CFActiveSocketsLock);
         
         for (idx = 0; idx < selectedWriteSocketsIndex; idx++) {
             CFSocketRef s = (CFSocketRef)CFArrayGetValueAtIndex(selectedWriteSockets, idx);
@@ -1626,28 +1620,28 @@ static CFSocketRef _CFSocketCreateWithNative(CFAllocatorRef allocator, CFSocketN
     CHECK_FOR_FORK();
     CFSocketRef memory;
     int typeSize = sizeof(memory->_socketType);
-    __CFLock(&__CFActiveSocketsLock);
+    os_unfair_lock_lock(&__CFActiveSocketsLock);
     if (NULL == __CFReadSockets) __CFSocketInitializeSockets();
-    __CFUnlock(&__CFActiveSocketsLock);
-    __CFLock(&__CFAllSocketsLock);
+    os_unfair_lock_unlock(&__CFActiveSocketsLock);
+    os_unfair_lock_lock(&__CFAllSocketsLock);
     if (NULL == __CFAllSockets) {
         __CFAllSockets = CFDictionaryCreateMutable(kCFAllocatorSystemDefault, 0, NULL, &kCFTypeDictionaryValueCallBacks);
     }
     if (INVALID_SOCKET != sock && CFDictionaryGetValueIfPresent(__CFAllSockets, (void *)(uintptr_t)sock, (const void **)&memory)) {
         if (useExistingInstance) {
-			__CFUnlock(&__CFAllSocketsLock);
+			os_unfair_lock_unlock(&__CFAllSocketsLock);
 			CFRetain(memory);
 			return memory;
 		} else {
 			__CFSOCKETLOG("useExistingInstance is FALSE, removing existing instance %p from __CFAllSockets\n", memory);
-			__CFUnlock(&__CFAllSocketsLock);
+                        os_unfair_lock_unlock(&__CFAllSocketsLock);
 			CFSocketInvalidate(memory);
-			__CFLock(&__CFAllSocketsLock);
+                        os_unfair_lock_lock(&__CFAllSocketsLock);
 		}
     }
     memory = (CFSocketRef)_CFRuntimeCreateInstance(allocator, CFSocketGetTypeID(), sizeof(struct __CFSocket) - sizeof(CFRuntimeBase), NULL);
     if (NULL == memory) {
-        __CFUnlock(&__CFAllSocketsLock);
+        os_unfair_lock_unlock(&__CFAllSocketsLock);
         return NULL;
     }
     __CFSocketSetCallBackTypes(memory, callBackTypes);
@@ -1697,7 +1691,7 @@ static CFSocketRef _CFSocketCreateWithNative(CFAllocatorRef allocator, CFSocketN
         __CFSocketManagerThread = handle;
 #endif
     }
-    __CFUnlock(&__CFAllSocketsLock);
+    os_unfair_lock_unlock(&__CFAllSocketsLock);
     if (NULL != context) {
         void *contextInfo = context->retain ? (void *)context->retain(context->info) : context->info;
         __CFSocketLock(memory);
@@ -1722,7 +1716,7 @@ void CFSocketInvalidate(CFSocketRef s) {
     __CFGenericValidateType(s, CFSocketGetTypeID());
     __CFSOCKETLOG_WS(s, "flags 0x%x disabled 0x%x connected 0x%x\n", s->_f.client, s->_f.disabled, s->_f.connected);
     CFRetain(s);
-    __CFLock(&__CFAllSocketsLock);
+    os_unfair_lock_lock(&__CFAllSocketsLock);
     __CFSocketLock(s);
     if (__CFSocketIsValid(s)) {
         SInt32 idx;
@@ -1732,7 +1726,7 @@ void CFSocketInvalidate(CFSocketRef s) {
         __CFSocketUnsetValid(s);
         __CFSocketUnsetWriteSignalled(s);
         __CFSocketUnsetReadSignalled(s);
-        __CFLock(&__CFActiveSocketsLock);
+        os_unfair_lock_lock(&__CFActiveSocketsLock);
         idx = CFArrayGetFirstIndexOfValue(__CFWriteSockets, CFRangeMake(0, CFArrayGetCount(__CFWriteSockets)), s);
         if (0 <= idx) {
             CFArrayRemoveValueAtIndex(__CFWriteSockets, idx);
@@ -1745,7 +1739,7 @@ void CFSocketInvalidate(CFSocketRef s) {
             __CFSocketClearFDForRead(s);
         }
         previousSocketManagerIteration = __CFSocketManagerIteration;
-        __CFUnlock(&__CFActiveSocketsLock);
+        os_unfair_lock_unlock(&__CFActiveSocketsLock);
         CFDictionaryRemoveValue(__CFAllSockets, (void *)(uintptr_t)(s->_socket));
         if ((s->_f.client & kCFSocketCloseOnInvalidate) != 0) closesocket(s->_socket);
         s->_socket = INVALID_SOCKET;
@@ -1794,7 +1788,7 @@ void CFSocketInvalidate(CFSocketRef s) {
     } else {
         __CFSocketUnlock(s);
     }
-    __CFUnlock(&__CFAllSocketsLock);
+    os_unfair_lock_unlock(&__CFAllSocketsLock);
     __CFSOCKETLOG("done for %p", s);
     CFRelease(s);
 }
@@ -1891,7 +1885,7 @@ void CFSocketDisableCallBacks(CFSocketRef s, CFOptionFlags callBackTypes) {
         readCallBackType = __CFSocketReadCallBackType(s);
         s->_f.disabled |= callBackTypes;
         __CFSOCKETLOG_WS(s, "unscheduling with flags 0x%x disabled 0x%x connected 0x%x for types 0x%lx\n", s->_f.client, s->_f.disabled, s->_f.connected, callBackTypes);
-        __CFLock(&__CFActiveSocketsLock);
+        os_unfair_lock_lock(&__CFActiveSocketsLock);
         if ((readCallBackType == kCFSocketAcceptCallBack) || !__CFSocketIsConnectionOriented(s)) s->_f.connected = TRUE;
         if (((callBackTypes & kCFSocketWriteCallBack) != 0) || (((callBackTypes & kCFSocketConnectCallBack) != 0) && !s->_f.connected)) {
             if (__CFSocketClearFDForWrite(s)) {
@@ -1907,7 +1901,7 @@ void CFSocketDisableCallBacks(CFSocketRef s, CFOptionFlags callBackTypes) {
                 if (readCallBackType != kCFSocketReadCallBack) wakeup = true;
             }
         }
-        __CFUnlock(&__CFActiveSocketsLock);
+        os_unfair_lock_unlock(&__CFActiveSocketsLock);
     }
     __CFSocketUnlock(s);
 }
@@ -1947,7 +1941,7 @@ void __CFSocketEnableCallBacks(CFSocketRef s, CFOptionFlags callBackTypes, Boole
 
         // Now turn on the callbacks we've determined that we want on
         if (turnOnRead || turnOnWrite || turnOnConnect) {
-            __CFLock(&__CFActiveSocketsLock);
+            os_unfair_lock_lock(&__CFActiveSocketsLock);
             if (turnOnWrite || turnOnConnect) {
                 if (force) {
                     SInt32 idx = CFArrayGetFirstIndexOfValue(__CFWriteSockets, CFRangeMake(0, CFArrayGetCount(__CFWriteSockets)), s);
@@ -1965,7 +1959,7 @@ void __CFSocketEnableCallBacks(CFSocketRef s, CFOptionFlags callBackTypes, Boole
                 }
                 if (__CFSocketSetFDForRead(s)) wakeup = true;
             }
-            __CFUnlock(&__CFActiveSocketsLock);
+            os_unfair_lock_unlock(&__CFActiveSocketsLock);
         }
     }
     __CFSocketUnlock(s);
@@ -2008,7 +2002,7 @@ static void __CFSocketCancel(void *info, CFRunLoopRef rl, CFStringRef mode) {
     __CFSocketLock(s);
     s->_socketSetCount--;
     if (0 == s->_socketSetCount) {
-        __CFLock(&__CFActiveSocketsLock);
+        os_unfair_lock_lock(&__CFActiveSocketsLock);
         idx = CFArrayGetFirstIndexOfValue(__CFWriteSockets, CFRangeMake(0, CFArrayGetCount(__CFWriteSockets)), s);
         if (0 <= idx) {
             __CFSOCKETLOG_WS(s, "removing from __CFWriteSockets list");
@@ -2020,7 +2014,7 @@ static void __CFSocketCancel(void *info, CFRunLoopRef rl, CFStringRef mode) {
             CFArrayRemoveValueAtIndex(__CFReadSockets, idx);
             __CFSocketClearFDForRead(s);
         }
-        __CFUnlock(&__CFActiveSocketsLock);
+        os_unfair_lock_unlock(&__CFActiveSocketsLock);
     }
     if (NULL != s->_runLoops) {
         CFMutableArrayRef runLoopsOrig = s->_runLoops;

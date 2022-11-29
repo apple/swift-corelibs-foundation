@@ -15,13 +15,10 @@
 
 CF_PRIVATE  const CFStringEncodingConverter __CFConverterASCII;
 CF_PRIVATE  const CFStringEncodingConverter __CFConverterISOLatin1;
+CF_PRIVATE  const CFStringEncodingConverter __CFConverterMacRoman;
 CF_PRIVATE  const CFStringEncodingConverter __CFConverterWinLatin1;
 CF_PRIVATE  const CFStringEncodingConverter __CFConverterNextStepLatin;
 CF_PRIVATE  const CFStringEncodingConverter __CFConverterUTF8;
-
-#if TARGET_OS_MAC
-CF_PRIVATE  const CFStringEncodingConverter __CFConverterMacRoman;
-#endif
 
 CF_PRIVATE  CFStringEncoding *__CFStringEncodingCreateListOfAvailablePlatformConverters(CFAllocatorRef allocator, CFIndex *numberOfConverters);
 CF_PRIVATE  const CFStringEncodingConverter *__CFStringEncodingGetExternalConverter(uint32_t encoding);

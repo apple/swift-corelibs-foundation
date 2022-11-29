@@ -193,9 +193,19 @@ CFStringRef CFBundleCopyLocalizationForLocalizationInfo(SInt32 languageCode, SIn
 // Get a localized string for a specific localization (including processing as strings dict file). This skips the usual cache for localized strings.
 CF_EXPORT CFStringRef CFBundleCopyLocalizedStringForLocalization(CFBundleRef bundle, CFStringRef key, CFStringRef value, CFStringRef tableName, CFStringRef localizationName) API_AVAILABLE(macos(10.10), ios(8.0), watchos(2.0), tvos(9.0));
 
+// Get an entire strings table for the given localization, or NULL for the preferred localization. Like CFBundleCopyLocalizedStringForLocalization, passing non-NULL skips the usual cache for localized strings.
+CF_EXPORT CFDictionaryRef CFBundleCopyLocalizedStringTableForLocalization(CFBundleRef bundle, CFStringRef tableName, CFStringRef localizationName) API_AVAILABLE(macos(13.0), ios(16.0), watchos(9.0), tvos(16.0));
+
 CF_EXPORT
 void _CFBundleSetDefaultLocalization(CFStringRef localizationName);
 
+typedef CF_ENUM(CFIndex, _CFBundleAddingDevelopmentLocalizationBehavior) {
+    _CFBundleAddingDevelopmentLocalizationBehaviorDefault = 0, // Behavior used by `CFBundleCopyBundleLocalizations`
+    _CFBundleAddingDevelopmentLocalizationBehaviorOnlyIfContainsBaseProj,
+};
+
+// For Launch Services exclusively. Behaves like `CFBundleCopyBundleLocalizations`, but optionally takes a flag to indicate if the value of CFBundleDevelopmentRegion in info plist, which is DEVELOPMENT_LANGUAGE in the build setting, should be added to the list of localizations. 
+CF_EXPORT CFArrayRef _CFBundleCopyBundleLocalizationsAddingDevelopmentLocalization(CFBundleRef bundle, _CFBundleAddingDevelopmentLocalizationBehavior addingDevelopmentLocalization) API_UNAVAILABLE(macos, ios, watchos, tvos);
 
 /* Functions for dealing specifically with CFM executables */
 
@@ -230,17 +240,15 @@ void _CFBundleFlushCachesForURL(CFURLRef url) API_DEPRECATED("Function no longer
 CF_EXPORT
 void _CFBundleFlushBundleCaches(CFBundleRef bundle);    // The previous two functions flush cached resource paths; this one also flushes bundle-specific caches such as the info dictionary and strings files
 
-CF_EXPORT
-void _CFBundleFlushLanguageCachesAfterEUIDChange(void); // When a process changes its EDIU during lifetime, language-related caches may be outdated. Call this function to flush those caches. The only known client is loginwindow. Email i18n-help@apple.com before using this.
 
 CF_EXPORT 
 CFArrayRef _CFBundleCopyAllBundles(void); // Pending publication, the only known client of this is PowerBox. Email david_smith@apple.com before using this.
 
 CF_EXPORT
-void _CFBundleSetStringsFilesShared(CFBundleRef bundle, Boolean flag);
+void _CFBundleSetStringsFilesShared(CFBundleRef bundle, Boolean flag) API_DEPRECATED("Function no longer supported", macos(10.0, API_TO_BE_DEPRECATED), ios(2.0, API_TO_BE_DEPRECATED), watchos(2.0, API_TO_BE_DEPRECATED), tvos(9.0, API_TO_BE_DEPRECATED));
 
 CF_EXPORT
-Boolean _CFBundleGetStringsFilesShared(CFBundleRef bundle);
+Boolean _CFBundleGetStringsFilesShared(CFBundleRef bundle) API_DEPRECATED("Function no longer supported - always returns false", macos(10.0, API_TO_BE_DEPRECATED), ios(2.0, API_TO_BE_DEPRECATED), watchos(2.0, API_TO_BE_DEPRECATED), tvos(9.0, API_TO_BE_DEPRECATED));;
 
 CF_EXPORT
 CFURLRef _CFBundleCopyFrameworkURLForExecutablePath(CFStringRef executablePath);

@@ -26,7 +26,6 @@
 #include <dlfcn.h>
 #include <mach-o/dyld.h>
 #include <mach/mach.h>
-#include <crt_externs.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <CoreFoundation/CFStringDefaultEncoding.h>
@@ -192,8 +191,13 @@ CF_PRIVATE void objc_terminate(void) {
 // the lock does not protect most reading of these; we just leak the old table to allow read-only accesses to continue to work
 static os_unfair_lock __CFBigRuntimeFunnel = OS_UNFAIR_LOCK_INIT;
 
-_CFClassTables __CFRuntimeClassTables __attribute__((aligned)) = {
-    .classTable = {
+_CFRuntimeDynamicClassTables __CFRuntimeClassTables = {
+    .dynamicClassTableArray = { NULL} ,
+    .dynamicObjCClassTableArray = { NULL },
+    .dynamicClassCount = 0,
+};
+
+CFRuntimeClass const * const __CFRuntimeBuiltinClassTable[__CFRuntimeBuiltinClassCount] = {
     [_kCFRuntimeIDNotAType] = &__CFNotATypeClass,
     [_kCFRuntimeIDCFType] = &__CFTypeClass,
     [_kCFRuntimeIDCFAllocator] = &__CFAllocatorClass,
@@ -221,11 +225,7 @@ _CFClassTables __CFRuntimeClassTables __attribute__((aligned)) = {
     [_kCFRuntimeIDCFDate] = &__CFDateClass,
     [_kCFRuntimeIDCFTimeZone] = &__CFTimeZoneClass,
     [_kCFRuntimeIDCFKeyedArchiverUID] = &__CFKeyedArchiverUIDClass,
-    
-#if TARGET_OS_OSX && DEPLOYMENT_RUNTIME_OBJC
-    [_kCFRuntimeIDCFXMLParser] = &__CFXMLParserClass,
-    [_kCFRuntimeIDCFXMLNode] = &__CFXMLNodeClass,
-#endif // TARGET_OS_OSX
+
     
     [_kCFRuntimeIDCFBundle] = &__CFBundleClass,
     [_kCFRuntimeIDCFPFactory] = &__CFPFactoryClass,
@@ -236,7 +236,6 @@ _CFClassTables __CFRuntimeClassTables __attribute__((aligned)) = {
 #if TARGET_OS_MAC
     [_kCFRuntimeIDCFMachPort] = &__CFMachPortClass,
 #endif
-
 
 
     [_kCFRuntimeIDCFRunLoopMode] = &__CFRunLoopModeClass,
@@ -250,20 +249,19 @@ _CFClassTables __CFRuntimeClassTables __attribute__((aligned)) = {
     [_kCFRuntimeIDCFAttributedString] = &__CFAttributedStringClass,
     [_kCFRuntimeIDCFRunArray] = &__CFRunArrayClass,
     [_kCFRuntimeIDCFCharacterSet] = &__CFCharacterSetClass,
-    
-    
+
+
     [_kCFRuntimeIDCFURL] = &__CFURLClass,
 
-    
+
     [_kCFRuntimeIDCFURLComponents] = &__CFURLComponentsClass,
     [_kCFRuntimeIDCFDateComponents] = &__CFDateComponentsClass,
     [_kCFRuntimeIDCFRelativeDateTimeFormatter] = &__CFRelativeDateTimeFormatterClass,
     [_kCFRuntimeIDCFListFormatter] = &__CFListFormatterClass,
-    },
-    .objCClassTable = {0}
+    [_kCFRuntimeIDCFDateInterval] = &__CFDateIntervalClass,
 };
+_Atomic(uintptr_t) __CFRuntimeBuiltinObjCClassTable[__CFRuntimeBuiltinClassCount] = {0};
 
-static int32_t __CFRuntimeClassTableCount = _kCFRuntimeStartingClassID;
 
 #if (TARGET_OS_MAC && !TARGET_OS_IPHONE && !__x86_64h__) // Match parity with private header
 bool (*__CFObjCIsCollectable)(void *) = NULL;
@@ -289,7 +287,13 @@ int __CFConstantStringClassReference[24] = {0};
 int __CFConstantStringClassReference[12] = {0};
 #endif
 
+#if TARGET_OS_MAC
+DECLARE_STATIC_CLASS_REF(__NSCFConstantString);
+void *__CFConstantStringClassReferencePtr = CONSTANT_CLASS_REF(__NSCFConstantString);
+#else
 void *__CFConstantStringClassReferencePtr = NULL;
+#endif
+
 #endif
 
 Boolean _CFIsObjC(CFTypeID typeID, void *obj) {
@@ -297,42 +301,72 @@ Boolean _CFIsObjC(CFTypeID typeID, void *obj) {
 }
 
 CFTypeID _CFRuntimeRegisterClass(const CFRuntimeClass * const cls) {
-    // NOTE: If you are adding a type to CF itself, please use a constant value (see CFRuntime_Internal.h)
-// className must be pure ASCII string, non-null
+    // NOTE: If you are adding a type to CF itself, please use a constant value in __CFRuntimeBuiltinClassTable (see CFRuntime_Internal.h)
+    // className must be pure ASCII string, non-null
     if ((cls->version & _kCFRuntimeCustomRefCount) && !cls->refcount) {
        CFLog(kCFLogLevelWarning, CFSTR("*** _CFRuntimeRegisterClass() given inconsistent class '%s'.  Program will crash soon."), cls->className);
        return _kCFRuntimeNotATypeID;
     }
     os_unfair_lock_lock_with_options(&__CFBigRuntimeFunnel, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
-    if (__CFMaxRuntimeTypes <= __CFRuntimeClassTableCount) {
-	CFLog(kCFLogLevelWarning, CFSTR("*** CoreFoundation class table full; registration failing for class '%s'.  Program will crash soon."), cls->className);
+    if (__CFRuntimeMaxDynamicCFTypes <= __CFRuntimeTotalDynamicCFTypeCount) {
+        CFLog(kCFLogLevelWarning, CFSTR("*** CoreFoundation class table full; registration failing for class '%s'.  Program will crash soon."), cls->className);
         os_unfair_lock_unlock(&__CFBigRuntimeFunnel);
-	return _kCFRuntimeNotATypeID;
+        return _kCFRuntimeNotATypeID;
     }
-    if (__CFRuntimeClassTableSize <= __CFRuntimeClassTableCount) {
-	CFLog(kCFLogLevelWarning, CFSTR("*** CoreFoundation class table full; registration failing for class '%s'.  Program will crash soon."), cls->className);
-        os_unfair_lock_unlock(&__CFBigRuntimeFunnel);
-	return _kCFRuntimeNotATypeID;
+    int32_t const newDynTypeID = __CFRuntimeTotalDynamicCFTypeCount;
+    CFTypeID const newTypeID = newDynTypeID + __CFRuntimeBuiltinClassCount;
+    int const tableIdx = DYNAMIC_TYPEID_TABLE_INDEX(newDynTypeID);
+    CFRuntimeClass const ** table = __CFRuntimeClassTables.dynamicClassTableArray[tableIdx];
+    if (table == NULL) {
+        __CFRuntimeClassTables.dynamicClassTableArray[tableIdx] = malloc(__CFRuntimeDynamicCFTypeIDTableSize * sizeof(CFRuntimeClass *));
+        __CFRuntimeClassTables.dynamicObjCClassTableArray[tableIdx] = malloc(__CFRuntimeDynamicCFTypeIDTableSize * sizeof(_Atomic(uintptr_t)));
+        table = __CFRuntimeClassTables.dynamicClassTableArray[tableIdx];
     }
-    __CFRuntimeClassTable[__CFRuntimeClassTableCount++] = (CFRuntimeClass *)cls;
-    CFTypeID typeID = __CFRuntimeClassTableCount - 1;
+    if (table == NULL) {
+        HALT_MSG("Unable to allocate memory for CF runtime type registration");
+    }
+    int const subtableIdx = DYNAMIC_TYPEID_SUBTABLE_INDEX(newDynTypeID);
+    table[subtableIdx] = cls;
+    _CFRuntimeSetObjcClassAtSlot((Class)__CFISAForTypeID(_kCFRuntimeIDCFType), &__CFRuntimeClassTables.dynamicObjCClassTableArray[tableIdx][subtableIdx]); // __NSCFType is the default class.
+    __CFRuntimeTotalDynamicCFTypeCount++;
     os_unfair_lock_unlock(&__CFBigRuntimeFunnel);
-    return typeID;
+    return newTypeID;
 }
 
+CF_EXPORT void _CFRuntimeBridgeClasses(CFTypeID cf_typeID, const char *objc_classname);
+
 void _CFRuntimeBridgeTypeToClass(CFTypeID cf_typeID, const void *cls_ref) {
-    os_unfair_lock_lock(&__CFBigRuntimeFunnel);
-    __CFRuntimeObjCClassTable[cf_typeID] = (uintptr_t)cls_ref;
+    _CFRuntimeBridgeClasses(cf_typeID, (const char *)cls_ref);
+}
+
+#define objc_getFutureClass(cls) (Class)(cls)
+
+void _CFRuntimeBridgeClasses(CFTypeID cf_typeID, const char *objc_classname) {
+    os_unfair_lock_lock_with_options(&__CFBigRuntimeFunnel, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
+    // See comment in __CFISAForTypeID for explanation of this atomic store.
+    if (cf_typeID < __CFRuntimeBuiltinClassCount) {
+        _CFRuntimeSetObjcClassAtSlot(objc_getFutureClass(objc_classname), &__CFRuntimeBuiltinObjCClassTable[cf_typeID]);
+    } else {
+        int const dynTypeID = DYNAMIC_TYPEID(cf_typeID);
+        int const tableIdx = DYNAMIC_TYPEID_TABLE_INDEX(dynTypeID);
+        int const subtableIdx = DYNAMIC_TYPEID_SUBTABLE_INDEX(dynTypeID);
+        _Atomic(uintptr_t) *table = __CFRuntimeClassTables.dynamicObjCClassTableArray[tableIdx];
+        _CFRuntimeSetObjcClassAtSlot(objc_getFutureClass(objc_classname), & table[subtableIdx]);
+    }
     os_unfair_lock_unlock(&__CFBigRuntimeFunnel);
 }
 
 const CFRuntimeClass * _CFRuntimeGetClassWithTypeID(CFTypeID typeID) {
-    return __CFRuntimeClassTable[typeID]; // hopelessly unthreadsafe
+    return __CFRuntimeGetClassWithTypeID(typeID); // hopelessly unthreadsafe
 }
 
 void _CFRuntimeUnregisterClassWithTypeID(CFTypeID typeID) {
+    if (typeID < __CFRuntimeBuiltinClassCount) HALT_MSG("Built-in CFTypes cannot be unregistered");
     os_unfair_lock_lock_with_options(&__CFBigRuntimeFunnel, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
-    __CFRuntimeClassTable[typeID] = NULL;
+    int const dynTypeID = DYNAMIC_TYPEID(typeID);
+    int const tableIdx = DYNAMIC_TYPEID_TABLE_INDEX(dynTypeID);
+    int const subtableIdx = DYNAMIC_TYPEID_SUBTABLE_INDEX(dynTypeID);
+    __CFRuntimeClassTables.dynamicClassTableArray[tableIdx][subtableIdx] = NULL;
     os_unfair_lock_unlock(&__CFBigRuntimeFunnel);
 }
 
@@ -440,15 +474,26 @@ CFTypeRef _CFRuntimeCreateInstance(CFAllocatorRef allocator, CFTypeID typeID, CF
     // Under the Swift runtime, all CFTypeRefs are _NSCFTypes or a toll-free bridged type
     
     extern  void *swift_allocObject(uintptr_t metadata, size_t requiredSize, size_t requiredAlignmentMask);
-    uintptr_t isa = __CFRuntimeObjCClassTable[typeID];
+    uintptr_t isa = __CFISAForTypeID(typeID);
     CFIndex size = sizeof(CFRuntimeBase) + extraBytes;
-    const CFRuntimeClass *cls = __CFRuntimeClassTable[typeID];
-
+    
+    CFRuntimeClass const * cls;
+    bool const builtin = typeID < __CFRuntimeBuiltinClassCount;
+    if (builtin) {
+        cls = __CFRuntimeBuiltinClassTable[typeID];
+    } else {
+        os_unfair_lock_lock_with_options(&__CFBigRuntimeFunnel, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
+        if (__CFRuntimeTotalCFTypeCount <= typeID) HALT;
+        CFAssert1(typeID != _kCFRuntimeNotATypeID, __kCFLogAssertion, "%s(): Uninitialized type id", __PRETTY_FUNCTION__);
+        cls = __CFRuntimeGetClassWithTypeID(typeID);
+        os_unfair_lock_unlock(&__CFBigRuntimeFunnel);
+    }
+    
 #if !defined(__APPLE__) && (defined(__i686__) || (defined(__arm__) && !defined(__aarch64__)) || defined(_M_IX86) || defined(_M_ARM))
     // Linux and Windows 32-bit targets perform 8-byte alignment by default.
-    static const kDefaultAlignment = 8;
+    static const size_t kDefaultAlignment = 8;
 #else
-    static const kDefaultAlignment = 16;
+    static const size_t kDefaultAlignment = 16;
 #endif
 
     // Ensure that we get the alignment correct for various targets.  In the
@@ -471,9 +516,19 @@ CFTypeRef _CFRuntimeCreateInstance(CFAllocatorRef allocator, CFTypeID typeID, CF
 
     return memory;
 #else
-    if (__CFRuntimeClassTableSize <= typeID) HALT;
-    CFAssert1(typeID != _kCFRuntimeNotATypeID, __kCFLogAssertion, "%s(): Uninitialized type id", __PRETTY_FUNCTION__);
-    CFRuntimeClass const *cls = __CFRuntimeClassTable[typeID];
+
+    CFRuntimeClass const * cls;
+    bool const builtin = typeID < __CFRuntimeBuiltinClassCount;
+    if (builtin) {
+        cls = __CFRuntimeBuiltinClassTable[typeID];
+    } else {
+        os_unfair_lock_lock_with_options(&__CFBigRuntimeFunnel, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
+        if (__CFRuntimeTotalCFTypeCount <= typeID) HALT;
+        CFAssert1(typeID != _kCFRuntimeNotATypeID, __kCFLogAssertion, "%s(): Uninitialized type id", __PRETTY_FUNCTION__);
+        cls = __CFRuntimeGetClassWithTypeID(typeID);
+        os_unfair_lock_unlock(&__CFBigRuntimeFunnel);
+    }
+    
     if (NULL == cls) {
 	return NULL;
     }
@@ -565,8 +620,8 @@ CFTypeRef _CFRuntimeCreateInstance(CFAllocatorRef allocator, CFTypeID typeID, CF
 #else
 void _CFRuntimeInitStaticInstance(void *ptr, CFTypeID typeID) {
     CFAssert1(typeID != _kCFRuntimeNotATypeID, __kCFLogAssertion, "%s(): Uninitialized type id", __PRETTY_FUNCTION__);
-    if (__CFRuntimeClassTableSize <= typeID) HALT;
-    CFRuntimeClass const *cfClass = __CFRuntimeClassTable[typeID];
+    CFRuntimeClass const *cfClass = __CFRuntimeGetClassWithTypeID(typeID);
+    if (cfClass == NULL) HALT;
     Boolean customRC = !!(cfClass->version & _kCFRuntimeCustomRefCount);
     if (customRC) {
         CFLog(kCFLogLevelError, CFSTR("*** Cannot initialize a static instance to a class (%s) with custom ref counting"), cfClass->className);
@@ -599,12 +654,12 @@ void _CFRuntimeInitStaticInstance(void *ptr, CFTypeID typeID) {
 #endif
 
 void _CFRuntimeSetInstanceTypeID(CFTypeRef cf, CFTypeID newTypeID) {
-    if (__CFRuntimeClassTableSize <= newTypeID) HALT;
+    CFRuntimeClass const *newcfClass = __CFRuntimeGetClassWithTypeID(newTypeID);
+    if (newcfClass == NULL) HALT;
     __CFInfoType info = ((CFRuntimeBase *)cf)->_cfinfoa;
     CFTypeID currTypeID = __CFTypeIDFromInfo(info);
-    CFRuntimeClass const *newcfClass = __CFRuntimeClassTable[newTypeID];
     Boolean newCustomRC = (newcfClass->version & _kCFRuntimeCustomRefCount);
-    CFRuntimeClass const *currcfClass = __CFRuntimeClassTable[currTypeID];
+    CFRuntimeClass const *currcfClass = __CFRuntimeGetClassWithTypeID(currTypeID);
     Boolean currCustomRC = (currcfClass->version & _kCFRuntimeCustomRefCount);
     if (currCustomRC || (0 != currTypeID && newCustomRC)) {
         CFLog(kCFLogLevelError, CFSTR("*** Cannot change the CFTypeID of a %s to a %s due to custom ref counting"), currcfClass->className, newcfClass->className);
@@ -695,12 +750,12 @@ CF_PRIVATE void __CFGenericValidateType_(CFTypeRef cf, CFTypeID type, const char
     if (cf && CF_IS_SWIFT(type, (CFSwiftRef)cf)) return;
 #endif
     if (cf && CF_IS_OBJC(type, cf)) return;
-    CFAssert2((cf != NULL) && (NULL != __CFRuntimeClassTable[__CFGenericTypeID_inline(cf)]) && (_kCFRuntimeIDNotAType != __CFGenericTypeID_inline(cf)) && (_kCFRuntimeIDCFType != __CFGenericTypeID_inline(cf)), __kCFLogAssertion, "%s(): pointer %p is not a CF object", func, cf); \
-    CFAssert3(__CFGenericTypeID_inline(cf) == type, __kCFLogAssertion, "%s(): pointer %p is not a %s", func, cf, __CFRuntimeClassTable[type]->className);	\
+    CFAssert2((cf != NULL) && (NULL != __CFRuntimeGetClassWithTypeID(__CFGenericTypeID_inline(cf))) && (_kCFRuntimeIDNotAType != __CFGenericTypeID_inline(cf)) && (_kCFRuntimeIDCFType != __CFGenericTypeID_inline(cf)), __kCFLogAssertion, "%s(): pointer %p is not a CF object", func, cf); \
+    CFAssert3(__CFGenericTypeID_inline(cf) == type, __kCFLogAssertion, "%s(): pointer %p is not a %s", func, cf, __CFRuntimeGetClassWithTypeID(type)->className);	\
 }
 
 #define __CFGenericAssertIsCF(cf) \
-    CFAssert2(cf != NULL && (NULL != __CFRuntimeClassTable[__CFGenericTypeID_inline(cf)]) && (_kCFRuntimeIDNotAType != __CFGenericTypeID_inline(cf)) && (_kCFRuntimeIDCFType != __CFGenericTypeID_inline(cf)), __kCFLogAssertion, "%s(): pointer %p is not a CF object", __PRETTY_FUNCTION__, cf);
+    CFAssert2(cf != NULL && (NULL != __CFRuntimeGetClassWithTypeID(__CFGenericTypeID_inline(cf))) && (_kCFRuntimeIDNotAType != __CFGenericTypeID_inline(cf)) && (_kCFRuntimeIDCFType != __CFGenericTypeID_inline(cf)), __kCFLogAssertion, "%s(): pointer %p is not a CF object", __PRETTY_FUNCTION__, cf);
 
 #if DEPLOYMENT_RUNTIME_SWIFT
 
@@ -746,11 +801,9 @@ CF_PRIVATE CFTypeID _CFGetNonObjCTypeID(CFTypeRef cf) {
 }
 
 static const char *const _CFGetTypeIDDescription(CFTypeID type) {
-    if (type < __CFRuntimeClassTableCount &&
-        NULL != __CFRuntimeClassTable[type] &&
-        _kCFRuntimeIDNotAType != type &&
-        _kCFRuntimeIDCFType != type) {
-        return __CFRuntimeClassTable[type]->className;
+    CFRuntimeClass const * const class = _CFRuntimeGetClassWithTypeID(type);
+    if (type != _kCFRuntimeIDCFType && class != NULL) {
+        return class->className;
     } else {
         return NULL;
     }
@@ -771,8 +824,8 @@ CF_INLINE CFTypeID __CFGenericTypeID_inline(const void *cf) {
 
 
 CFStringRef CFCopyTypeIDDescription(CFTypeID type) {
-    CFAssert2((NULL != __CFRuntimeClassTable[type]) && _kCFRuntimeIDNotAType != type && _kCFRuntimeIDCFType != type, __kCFLogAssertion, "%s(): type %lu is not a CF type ID", __PRETTY_FUNCTION__, type);
-    return CFStringCreateWithCString(kCFAllocatorSystemDefault, __CFRuntimeClassTable[type]->className, kCFStringEncodingASCII);
+    CFAssert2((NULL != __CFRuntimeGetClassWithTypeID(type)) && _kCFRuntimeIDNotAType != type && _kCFRuntimeIDCFType != type, __kCFLogAssertion, "%s(): type %lu is not a CF type ID", __PRETTY_FUNCTION__, type);
+    return CFStringCreateWithCString(kCFAllocatorSystemDefault, __CFRuntimeGetClassWithTypeID(type)->className, kCFStringEncodingASCII);
 }
 
 // Bit 31 (highest bit) in second word of cf instance indicates external ref count
@@ -892,7 +945,7 @@ CFIndex CFGetRetainCount(CFTypeRef cf) {
     __CFInfoType info = atomic_load(&(((CFRuntimeBase *)cf)->_cfinfoa));
     if (info & RC_CUSTOM_RC_BIT) { // custom ref counting for object
         CFTypeID typeID = __CFTypeIDFromInfo(info);
-        CFRuntimeClass const *cfClass = __CFRuntimeClassTable[typeID];
+        CFRuntimeClass const *cfClass = __CFRuntimeGetClassWithTypeID(typeID);
         uint32_t (*refcount)(intptr_t, CFTypeRef) = cfClass->refcount;
         if (!refcount || !(cfClass->version & _kCFRuntimeCustomRefCount) || __CFLowRCFromInfo(info) != 0xFF) {
             HALT; // bogus object
@@ -933,8 +986,9 @@ Boolean _CFNonObjCEqual(CFTypeRef cf1, CFTypeRef cf2) {
     __CFGenericAssertIsCF(cf1);
     __CFGenericAssertIsCF(cf2);
     if (__CFGenericTypeID_inline(cf1) != __CFGenericTypeID_inline(cf2)) return false;
-    if (NULL != __CFRuntimeClassTable[__CFGenericTypeID_inline(cf1)]->equal) {
-        return __CFRuntimeClassTable[__CFGenericTypeID_inline(cf1)]->equal(cf1, cf2);
+    CFRuntimeClass const *class = __CFRuntimeGetClassWithTypeID(__CFGenericTypeID_inline(cf1));
+    if (class->equal) {
+        return class->equal(cf1, cf2);
     }
     return false;
 }
@@ -950,15 +1004,16 @@ Boolean CFEqual(CFTypeRef cf1, CFTypeRef cf2) {
     __CFGenericAssertIsCF(cf1);
     __CFGenericAssertIsCF(cf2);
     if (__CFGenericTypeID_inline(cf1) != __CFGenericTypeID_inline(cf2)) return false;
-    if (NULL != __CFRuntimeClassTable[__CFGenericTypeID_inline(cf1)]->equal) {
-	return __CFRuntimeClassTable[__CFGenericTypeID_inline(cf1)]->equal(cf1, cf2);
+    CFRuntimeClass const *class = __CFRuntimeGetClassWithTypeID(__CFGenericTypeID_inline(cf1));
+    if (class->equal) {
+	return class->equal(cf1, cf2);
     }
     return false;
 }
 
 CFHashCode _CFNonObjCHash(CFTypeRef cf) {
     __CFGenericAssertIsCF(cf);
-    CFHashCode (*hash)(CFTypeRef cf) = __CFRuntimeClassTable[__CFGenericTypeID_inline(cf)]->hash;
+    CFHashCode (*hash)(CFTypeRef cf) = __CFRuntimeGetClassWithTypeID(__CFGenericTypeID_inline(cf))->hash;
     if (NULL != hash) {
         return hash(cf);
     }
@@ -970,7 +1025,7 @@ CFHashCode CFHash(CFTypeRef cf) {
     CFTYPE_OBJC_FUNCDISPATCH0(CFHashCode, cf, hash);
     CFTYPE_SWIFT_FUNCDISPATCH0(CFHashCode, cf, NSObject.hash);
     __CFGenericAssertIsCF(cf);
-    CFHashCode (*hash)(CFTypeRef cf) = __CFRuntimeClassTable[__CFGenericTypeID_inline(cf)]->hash; 
+    CFHashCode (*hash)(CFTypeRef cf) = __CFRuntimeGetClassWithTypeID(__CFGenericTypeID_inline(cf))->hash;
     if (NULL != hash) {
 	return hash(cf);
     }
@@ -983,19 +1038,21 @@ CFStringRef CFCopyDescription(CFTypeRef cf) {
     if (NULL == cf) return NULL;
     // CFTYPE_OBJC_FUNCDISPATCH0(CFStringRef, cf, _copyDescription);  // XXX returns 0 refcounted item under GC
     __CFGenericAssertIsCF(cf);
-    if (NULL != __CFRuntimeClassTable[__CFGenericTypeID_inline(cf)]->copyDebugDesc) {
-	CFStringRef result = __CFRuntimeClassTable[__CFGenericTypeID_inline(cf)]->copyDebugDesc(cf);
+    CFRuntimeClass const * class = __CFRuntimeGetClassWithTypeID(__CFGenericTypeID_inline(cf));
+    if (NULL != class->copyDebugDesc) {
+	CFStringRef result = class->copyDebugDesc(cf);
 	if (NULL != result) return result;
     }
-    return CFStringCreateWithFormat(kCFAllocatorSystemDefault, NULL, CFSTR("<%s %p [%p]>"), __CFRuntimeClassTable[__CFGenericTypeID_inline(cf)]->className, cf, CFGetAllocator(cf));
+    return CFStringCreateWithFormat(kCFAllocatorSystemDefault, NULL, CFSTR("<%s %p [%p]>"), class->className, cf, CFGetAllocator(cf));
 }
 
 // Definition: if type produces a formatting description, return that string, otherwise NULL
 CF_PRIVATE CFStringRef __CFCopyFormattingDescription(CFTypeRef cf, CFDictionaryRef formatOptions) {
     if (NULL == cf) return NULL;
     __CFGenericAssertIsCF(cf);
-    if (NULL != __CFRuntimeClassTable[__CFGenericTypeID_inline(cf)]->copyFormattingDesc) {
-	return __CFRuntimeClassTable[__CFGenericTypeID_inline(cf)]->copyFormattingDesc(cf, formatOptions);
+    CFRuntimeClass const *class = __CFRuntimeGetClassWithTypeID(__CFGenericTypeID_inline(cf));
+    if (NULL != class->copyFormattingDesc) {
+	return class->copyFormattingDesc(cf, formatOptions);
     }
     return NULL;
 }
@@ -1071,10 +1128,6 @@ CF_PRIVATE void __THE_PROCESS_HAS_FORKED_AND_YOU_CANNOT_USE_THIS_COREFOUNDATION_
 #endif
 
 
-CF_EXPORT const void *__CFArgStuff;
-const void *__CFArgStuff = NULL;
-void *__CFAppleLanguages = NULL;
-
 // do not cache CFFIXED_USER_HOME or HOME, there are situations where they can change
 
 static struct {
@@ -1091,11 +1144,7 @@ static struct {
     {"TZ", NULL},
     {"NEXT_ROOT", NULL},
     {"DYLD_IMAGE_SUFFIX", NULL},
-    {"CFProcessPath", NULL},
-    {"CFNETWORK_LIBRARY_PATH", NULL},
-    {"CFUUIDVersionNumber", NULL},
     {"CFBundleDisableStringsSharing", NULL},
-    {"CFCharacterSetCheckForExpandedSet", NULL},
     {"CF_CHARSET_PATH", NULL},
     {"__CF_USER_TEXT_ENCODING", NULL},
     {"APPLE_FRAMEWORKS_ROOT", NULL},
@@ -1164,28 +1213,24 @@ _CFThreadRef _CF_pthread_main_thread_np(void) {
 
 #if TARGET_OS_LINUX || TARGET_OS_BSD
 static void __CFInitialize(void) __attribute__ ((constructor));
+static
 #endif
 #if TARGET_OS_WIN32
 CF_EXPORT
 #endif
 
-CF_PRIVATE os_unfair_recursive_lock CFPlugInGlobalDataLock;
-
 void __CFInitialize(void) {
     if (!__CFInitialized && !__CFInitializing) {
         __CFInitializing = 1;
 
-    // This is a no-op on Darwin, but is needed on Linux and Windows.
-    _CFPerformDynamicInitOfOSRecursiveLock(&CFPlugInGlobalDataLock);
-
+        // _CFMainPThread is not used on Darwin platforms and is left uninitialized.
 #if TARGET_OS_WIN32
         if (!pthread_main_np()) HALT;   // CoreFoundation must be initialized on the main thread
 
         DuplicateHandle(GetCurrentProcess(), GetCurrentThread(),
                         GetCurrentProcess(), &_CFMainPThread, 0, FALSE,
                         DUPLICATE_SAME_ACCESS);
-#else
-        // move this next line up into the #if above after Foundation gets off this symbol. Also: <rdar://problem/39622745> Stop using _CFMainPThread
+#elif !TARGET_OS_MAC
         _CFMainPThread = pthread_self();
 #endif
 
@@ -1212,33 +1257,18 @@ void __CFInitialize(void) {
 	pthread_atfork(__cf_atfork_prepare, NULL, __cf_atfork_child);
 #endif
 
-
 #if DEPLOYMENT_RUNTIME_SWIFT        
         extern uintptr_t __CFSwiftGetBaseClass(void);
         
         uintptr_t NSCFType = __CFSwiftGetBaseClass();
-        for (CFIndex idx = 1; idx < __CFRuntimeClassTableSize; idx++) {
-            __CFRuntimeObjCClassTable[idx] = NSCFType;
+        for (CFIndex idx = 1; idx < __CFRuntimeDynamicCFTypeIDTableCount; idx++) {
+            __CFRuntimeDynamicObjCClassTable[idx] = NSCFType;
+        }
+        for (CFIndex idx = 0; idx < __CFRuntimeBuiltinClassCount; idx++) {
+            __CFRuntimeBuiltinObjCClassTable[idx] = NSCFType;
         }
 #endif
         
-
-#if TARGET_OS_MAC
-        {
-            CFIndex idx, cnt;
-            char **args = *_NSGetArgv();
-            cnt = *_NSGetArgc();
-            for (idx = 1; idx < cnt - 1; idx++) {
-                if (NULL == args[idx]) continue;
-                if (0 == strcmp(args[idx], "-AppleLanguages") && args[idx + 1]) {
-                    CFIndex length = strlen(args[idx + 1]);
-                    __CFAppleLanguages = malloc(length + 1);
-                    memmove(__CFAppleLanguages, args[idx + 1], length + 1);
-                    break;
-                }
-            }
-        }
-#endif
 
 
 #if !TARGET_RT_64_BIT
@@ -1263,57 +1293,16 @@ void __CFInitialize(void) {
 #endif
         
 
-        {
-            CFIndex idx, cnt = 0;
-            char **args = NULL;
-#if TARGET_OS_MAC
-            args = *_NSGetArgv();
-            cnt = *_NSGetArgc();
-#elif TARGET_OS_WIN32
-            wchar_t *commandLine = GetCommandLineW();
-            // result is actually pointer to wchar_t *, make sure to account for that below
-            args = (char **)CommandLineToArgvW(commandLine, (int *)&cnt);
-#endif
-            CFIndex count;
-            CFStringRef *list, buffer[256];
-            list = (cnt <= 256) ? buffer : (CFStringRef *)malloc(cnt * sizeof(CFStringRef));
-            for (idx = 0, count = 0; idx < cnt; idx++) {
-                if (NULL == args[idx]) continue;
-#if TARGET_OS_WIN32
-                list[count] = CFStringCreateWithCharacters(kCFAllocatorSystemDefault, (const UniChar *)args[idx], wcslen((wchar_t *)args[idx]));
-#else
-                list[count] = CFStringCreateWithCString(kCFAllocatorSystemDefault, args[idx], kCFStringEncodingUTF8);
-                if (NULL == list[count]) {
-                    list[count] = CFStringCreateWithCString(kCFAllocatorSystemDefault, args[idx], kCFStringEncodingISOLatin1);
-                    // We CANNOT use the string SystemEncoding here;
-                    // Do not argue: it is not initialized yet, but these
-                    // arguments MUST be initialized before it is.
-                    // We should just ignore the argument if the UTF-8
-                    // conversion fails, but out of charity we try once
-                    // more with ISO Latin1, a standard unix encoding.
-                }
-#endif
-                if (NULL != list[count]) count++;
-            }
-            __CFArgStuff = CFArrayCreate(kCFAllocatorSystemDefault, (const void **)list, count, &kCFTypeArrayCallBacks);
-            if (list != buffer) free(list);
-#if TARGET_OS_WIN32
-            LocalFree(args);
-#endif
-        }
-
         _CFProcessPath();	// cache this early
 
         __CFOAInitialize();
         
 
-        if (__CFRuntimeClassTableCount < 256) __CFRuntimeClassTableCount = 256;
-
 
 #if defined(DEBUG) || defined(ENABLE_ZOMBIES)
-        const char *value = __CFgetenv("NSZombieEnabled");
+        const char *value = getenv("NSZombieEnabled");
         if (value && (*value == 'Y' || *value == 'y')) _CFEnableZombies();
-        value = __CFgetenv("NSDeallocateZombies");
+        value = getenv("NSDeallocateZombies");
         if (value && (*value == 'Y' || *value == 'y')) __CFDeallocateZombies = 0xff;
 #endif
 
@@ -1323,7 +1312,7 @@ void __CFInitialize(void) {
 
         __CFProphylacticAutofsAccess = false;
 
-        
+
         __CFInitializing = 0;
         __CFInitialized = 1;
     }
@@ -1345,6 +1334,8 @@ static CFBundleRef RegisterCoreFoundationBundle(void) {
     GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
                        (LPCWSTR)&RegisterCoreFoundationBundle, &ourModule);
     CFAssert(ourModule, __kCFLogAssertion, "GetModuleHandleExW failed");
+    
+    CFAssert(ourModule, __kCFLogAssertion, "GetModuleHandle failed");
 
     wResult = GetModuleFileNameW(ourModule, path, MAX_PATH+1);
     CFAssert1(wResult > 0, __kCFLogAssertion, "GetModuleFileName failed: %d", GetLastError());
@@ -1412,7 +1403,7 @@ static CFTypeRef _CFRetain(CFTypeRef cf, Boolean tryR) {
     if (info & RC_CUSTOM_RC_BIT) {
         if (tryR) return NULL;
         CFTypeID typeID = __CFTypeIDFromInfo(info);
-        CFRuntimeClass const *cfClass = __CFRuntimeClassTable[typeID];
+        CFRuntimeClass const *cfClass = __CFRuntimeGetClassWithTypeID(typeID);
         uint32_t (*refcount)(intptr_t, CFTypeRef) = cfClass->refcount;
         if (!refcount || !(cfClass->version & _kCFRuntimeCustomRefCount) || __CFLowRCFromInfo(info) != 0xFF) {
             CRSetCrashLogMessage("Detected bogus CFTypeRef");
@@ -1523,12 +1514,12 @@ static void _CFRelease(CFTypeRef CF_RELEASES_ARGUMENT cf) {
 #else
     __CFInfoType info = atomic_load(&(((CFRuntimeBase *)cf)->_cfinfoa));
     CFTypeID typeID = __CFTypeIDFromInfo(info);
+    CFRuntimeClass const *cfClass = __CFRuntimeGetClassWithTypeID(typeID);
     if (info & RC_DEALLOCATED_BIT) {
         char msg[256];
 
         // Extra checking of values here because we're already in memory-corruption land
-        if (typeID < __CFRuntimeClassTableSize) {
-            CFRuntimeClass const *cfClass = __CFRuntimeClassTable[typeID];
+        if (cfClass) {
             snprintf(msg, 256, "Detected over-release of a CFTypeRef %p (%lu / %s)", cf, typeID, cfClass ? cfClass->className : "unknown");
         } else {
             snprintf(msg, 256, "Detected over-release of a CFTypeRef %p (unknown type)", cf);
@@ -1543,7 +1534,6 @@ static void _CFRelease(CFTypeRef CF_RELEASES_ARGUMENT cf) {
     Boolean isAllocator = (_kCFRuntimeIDCFAllocator == typeID);
 
     if (info & RC_CUSTOM_RC_BIT) { // custom ref counting for object
-        CFRuntimeClass const *cfClass = __CFRuntimeClassTable[typeID];
         uint32_t (*refcount)(intptr_t, CFTypeRef) = cfClass->refcount;
         if (!refcount || !(cfClass->version & _kCFRuntimeCustomRefCount) || __CFLowRCFromInfo(info) != 0xFF) {
             CRSetCrashLogMessage("Detected bogus CFTypeRef");
@@ -1567,7 +1557,6 @@ static void _CFRelease(CFTypeRef CF_RELEASES_ARGUMENT cf) {
                 return;        // Constant CFTypeRef
             }
             if (1 == rc) {
-                CFRuntimeClass const *cfClass = __CFRuntimeClassTable[typeID];
                 if ((cfClass->version & _kCFRuntimeResourcefulObject) && cfClass->reclaim != NULL) {
                     cfClass->reclaim(cf);
                 }
@@ -1575,7 +1564,7 @@ static void _CFRelease(CFTypeRef CF_RELEASES_ARGUMENT cf) {
                 if (!atomic_compare_exchange_strong(&(((CFRuntimeBase *)cf)->_cfinfoa), &info, newInfo)) {
                     goto again;
                 }
-                void (*func)(CFTypeRef) = __CFRuntimeClassTable[typeID]->finalize;
+                void (*func)(CFTypeRef) = cfClass->finalize;
                 if (NULL != func) {
                     func(cf);
                 }
@@ -1640,7 +1629,6 @@ static void _CFRelease(CFTypeRef CF_RELEASES_ARGUMENT cf) {
         } while (!success);
         
         if (whack) {
-            CFRuntimeClass const *cfClass = __CFRuntimeClassTable[typeID];
             if ((cfClass->version & _kCFRuntimeResourcefulObject) && cfClass->reclaim != NULL) {
                 cfClass->reclaim(cf);
             }
@@ -1648,7 +1636,7 @@ static void _CFRelease(CFTypeRef CF_RELEASES_ARGUMENT cf) {
             if (isAllocator) {
                 goto really_free;
             } else {
-                void (*func)(CFTypeRef) = __CFRuntimeClassTable[typeID]->finalize;
+                void (*func)(CFTypeRef) = cfClass->finalize;
                 if (NULL != func) {
                     func(cf);
                 }
@@ -1716,6 +1704,7 @@ static void _CFRelease(CFTypeRef CF_RELEASES_ARGUMENT cf) {
 }
 
 
+
 #if DEPLOYMENT_RUNTIME_SWIFT
 struct _CFSwiftBridge __CFSwiftBridge = { { NULL } };
 
@@ -1774,10 +1763,10 @@ struct _NSCFXMLBridgeUntyped __NSCFXMLBridgeUntyped = {
 };
 
 // Call out to the CF-level finalizer, because the object is going to go away.
-CF_CROSS_PLATFORM_EXPORT void _CFDeinit(CFTypeRef cf) {
+CF_EXPORT_NONOBJC_ONLY void _CFDeinit(CFTypeRef cf) {
     __CFInfoType info = atomic_load(&(((CFRuntimeBase *)cf)->_cfinfoa));
     CFTypeID typeID = __CFTypeIDFromInfo(info);
-    void (*func)(CFTypeRef) = __CFRuntimeClassTable[typeID]->finalize;
+    void (*func)(CFTypeRef) = __CFRuntimeGetClassWithTypeID(typeID)->finalize;
     if (NULL != func) {
         func(cf);
     }
@@ -1788,7 +1777,7 @@ bool _CFIsSwift(CFTypeID type, CFSwiftRef obj) {
         return false;
     }
     if (obj->isa == (uintptr_t)__CFConstantStringClassReferencePtr) return false;
-    return obj->isa != __CFRuntimeObjCClassTable[type];
+    return obj->isa != __CFISAForTypeID(type);
 }
 
 const char *_NSPrintForDebugger(void *cf) {

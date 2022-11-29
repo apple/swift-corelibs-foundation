@@ -10,41 +10,20 @@
 
 #include <CoreFoundation/CFBase.h>
 #include <CoreFoundation/CFByteOrder.h>
-#include "CFBase.h"
 #include "CFInternal.h"
 #include "CFUniChar.h" 
 #include "CFStringEncodingConverterExt.h"
 #include "CFUnicodeDecomposition.h"
 #include "CFUniCharPriv.h"
-#if TARGET_OS_MAC || TARGET_OS_LINUX || TARGET_OS_BSD || TARGET_OS_WASI
-#include <fcntl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/param.h>
-#include <sys/mman.h>
-#include <unistd.h>
-#include <stdlib.h>
-#endif
-#if TARGET_OS_MAC
-#include <mach/mach.h>
-#endif
 
-#if TARGET_OS_WIN32
-extern void _CFGetFrameworkPath(wchar_t *path, int maxLength);
-#endif
-
-#if TARGET_OS_MAC
-#define __kCFCharacterSetDir "/System/Library/CoreServices"
-#elif TARGET_OS_LINUX || TARGET_OS_BSD || TARGET_OS_WASI
-#define __kCFCharacterSetDir "/usr/local/share/CoreFoundation"
-#elif TARGET_OS_WIN32
-#define __kCFCharacterSetDir "\\Windows\\CoreFoundation"
-#endif
-
-#if TARGET_OS_MAC
-#define USE_MACHO_SEGMENT 1
-#elif DEPLOYMENT_RUNTIME_SWIFT && (TARGET_OS_LINUX || TARGET_OS_BSD || TARGET_OS_WIN32 || TARGET_OS_WASI)
-#define USE_RAW_SYMBOL 1
+#include "CFUniCharBitmapData.inc.h"
+#include "CFUniCharPropertyDatabase.inc.h"
+#if __LITTLE_ENDIAN__
+#include "CFUnicodeCaseMapping-L.inc.h"
+#include "CFUnicodeData-L.inc.h"
+#else
+#include "CFUnicodeCaseMapping-B.inc.h"
+#include "CFUnicodeData-B.inc.h"
 #endif
 
 enum {
@@ -57,321 +36,6 @@ enum {
 CF_INLINE uint32_t __CFUniCharMapExternalSetToInternalIndex(uint32_t cset) { return ((kCFUniCharFirstInternalSet <= cset) ? ((cset - kCFUniCharFirstInternalSet) + kCFUniCharLastExternalSet) : cset) - kCFUniCharFirstBitmapSet; }
 CF_INLINE uint32_t __CFUniCharMapCompatibilitySetID(uint32_t cset) { return ((cset == kCFUniCharControlCharacterSet) ? kCFUniCharControlAndFormatterCharacterSet : (((cset > kCFUniCharLastExternalSet) && (cset < kCFUniCharFirstInternalSet)) ? ((cset - kCFUniCharLastExternalSet) + kCFUniCharFirstInternalSet) : cset)); }
 
-#if TARGET_OS_MAC && USE_MACHO_SEGMENT
-#include <mach-o/getsect.h>
-#include <mach-o/dyld.h>
-#include <mach-o/ldsyms.h>
-
-extern const void* unicode_csbitmaps_section_start      __asm("section$start$__UNICODE$__csbitmaps");
-extern const void* unicode_csbitmaps_section_end        __asm("section$end$__UNICODE$__csbitmaps");
-extern const void* unicode_properties_section_start     __asm("section$start$__UNICODE$__properties");
-extern const void* unicode_properties_section_end       __asm("section$end$__UNICODE$__properties");
-extern const void* unicode_data_section_start           __asm("section$start$__UNICODE$__data");
-extern const void* unicode_data_section_end             __asm("section$end$__UNICODE$__data");
-
-static const void *__CFGetSectDataPtr(const char *segname, const char *sectname, uint64_t *sizep) {
-    // special case three common sections to have fast access
-    if ( strcmp(segname, "__UNICODE") == 0 ) {
-        if ( strcmp(sectname, "__csbitmaps") == 0)  {
-            if (sizep) *sizep = &unicode_csbitmaps_section_end - &unicode_csbitmaps_section_start;
-            return &unicode_csbitmaps_section_start;
-        }
-        else if ( strcmp(sectname, "__properties") == 0 ) {
-            if (sizep) *sizep = &unicode_properties_section_end - &unicode_properties_section_start;
-            return &unicode_properties_section_start;
-        }
-        else if ( strcmp(sectname, "__data") == 0 ) {
-            if (sizep) *sizep = &unicode_data_section_end - &unicode_data_section_start;
-            return &unicode_data_section_start;
-        }
-    }
-    
-    uint32_t idx, cnt = _dyld_image_count();
-    for (idx = 0; idx < cnt; idx++) {
-       void *mh = (void *)_dyld_get_image_header(idx);
-       if (mh != &_mh_dylib_header) continue;
-#if TARGET_RT_64_BIT
-       const struct section_64 *sect = getsectbynamefromheader_64((struct mach_header_64 *)mh, segname, sectname);
-#else
-       const struct section *sect = getsectbynamefromheader((struct mach_header *)mh, segname, sectname);
-#endif
-       if (!sect) break;
-       if (sizep) *sizep = (uint64_t)sect->size;
-       return (char *)sect->addr + _dyld_get_image_vmaddr_slide(idx);
-    }
-    if (sizep) *sizep = 0ULL;
-    return NULL;
-}
-#endif
-
-#if !USE_MACHO_SEGMENT
-
-// Memory map the file
-
-#if TARGET_OS_MAC || TARGET_OS_LINUX || TARGET_OS_BSD || TARGET_OS_WASI
-CF_INLINE void __CFUniCharCharacterSetPath(char *cpath) {
-#elif TARGET_OS_WIN32
-CF_INLINE void __CFUniCharCharacterSetPath(wchar_t *wpath) {
-#else
-#error Unknown or unspecified DEPLOYMENT_TARGET
-#endif
-#if TARGET_OS_MAC
-    strlcpy(cpath, __kCFCharacterSetDir, MAXPATHLEN);
-#elif TARGET_OS_LINUX || TARGET_OS_BSD
-    strlcpy(cpath, __kCFCharacterSetDir, MAXPATHLEN);
-#elif TARGET_OS_WIN32
-    wchar_t frameworkPath[MAXPATHLEN];
-    _CFGetFrameworkPath(frameworkPath, MAXPATHLEN);
-    wcsncpy(wpath, frameworkPath, MAXPATHLEN);
-    wcsncat(wpath, L"\\CoreFoundation.resources\\", MAXPATHLEN - wcslen(wpath));
-#else
-    strlcpy(cpath, __kCFCharacterSetDir, MAXPATHLEN);
-    strlcat(cpath, "/CharacterSets/", MAXPATHLEN);
-#endif
-}
-
-#if TARGET_OS_WIN32
-#define MAX_BITMAP_STATE 512
-//
-//  If a string is placed into this array, then it has been previously 
-//  determined that the bitmap-file cannot be found.  Thus, we make
-//  the assumption it won't be there in future calls and we avoid
-//  hitting the disk un-necessarily.  This assumption isn't 100%
-//  correct, as bitmap-files can be added.  We would have to re-start
-//  the application in order to pick-up the new bitmap info.  
-//
-//  We should probably re-visit this.
-//
-static wchar_t *mappedBitmapState[MAX_BITMAP_STATE];
-static int __nNumStateEntries = -1;
-CRITICAL_SECTION __bitmapStateLock = {0};
-
-bool __GetBitmapStateForName(const wchar_t *bitmapName) {
-    if (NULL == __bitmapStateLock.DebugInfo)
-        InitializeCriticalSection(&__bitmapStateLock);
-    EnterCriticalSection(&__bitmapStateLock);
-    if (__nNumStateEntries >= 0) {
-        for (int i = 0; i < __nNumStateEntries; i++) {
-            if (wcscmp(mappedBitmapState[i], bitmapName) == 0) {
-                LeaveCriticalSection(&__bitmapStateLock);
-                return true;
-            }
-        }
-    }
-    LeaveCriticalSection(&__bitmapStateLock);
-    return false;
-}
-void __AddBitmapStateForName(const wchar_t *bitmapName) {
-    if (NULL == __bitmapStateLock.DebugInfo)
-        InitializeCriticalSection(&__bitmapStateLock);
-    EnterCriticalSection(&__bitmapStateLock);
-    __nNumStateEntries++;
-    mappedBitmapState[__nNumStateEntries] = (wchar_t *)malloc((lstrlenW(bitmapName)+1) * sizeof(wchar_t));
-    lstrcpyW(mappedBitmapState[__nNumStateEntries], bitmapName);
-    LeaveCriticalSection(&__bitmapStateLock);
-}
-#endif
-
-#if TARGET_OS_MAC || TARGET_OS_LINUX || TARGET_OS_BSD || TARGET_OS_WASI
-static bool __CFUniCharLoadBytesFromFile(const char *fileName, const void **bytes, int64_t *fileSize) {
-#elif TARGET_OS_WIN32
-static bool __CFUniCharLoadBytesFromFile(const wchar_t *fileName, const void **bytes, int64_t *fileSize) {
-#else
-#error Unknown or unspecified DEPLOYMENT_TARGET
-#endif
-#if TARGET_OS_WIN32
-    HANDLE bitmapFileHandle = NULL;
-    HANDLE mappingHandle = NULL;
-    
-    if (__GetBitmapStateForName(fileName)) {
-        // The fileName has been tried in the past, so just return false
-        // and move on.
-        *bytes = NULL;
-        return false;
-    }
-    mappingHandle = OpenFileMappingW(FILE_MAP_READ, TRUE, fileName);
-    if (NULL == mappingHandle) {
-        if ((bitmapFileHandle = CreateFileW(fileName, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL)) == INVALID_HANDLE_VALUE) {
-            // We tried to get the bitmap file for mapping, but it's not there.  Add to list of non-existent bitmap-files so
-            // we don't have to try this again in the future.
-            __AddBitmapStateForName(fileName);
-            return false;
-        }
-        mappingHandle = CreateFileMapping(bitmapFileHandle, NULL, PAGE_READONLY, 0, 0, NULL);
-        CloseHandle(bitmapFileHandle);
-        if (!mappingHandle) return false;
-    }
-
-    *bytes = MapViewOfFileEx(mappingHandle, FILE_MAP_READ, 0, 0, 0, 0);
-
-    if (NULL != fileSize) {
-	MEMORY_BASIC_INFORMATION memoryInfo;
-
-	if (0 == VirtualQueryEx(mappingHandle, *bytes, &memoryInfo, sizeof(memoryInfo))) {
-	    *fileSize = 0; // This indicates no checking. Is it right ?
-	} else {
-	    *fileSize = memoryInfo.RegionSize;
-	}
-    }
-
-    CloseHandle(mappingHandle);
-
-    return (*bytes ? true : false);
-#else
-    struct stat statBuf;
-    int fd = -1;
-
-    if ((fd = open(fileName, O_RDONLY, 0)) < 0) {
-	return false;
-    }
-    if (fstat(fd, &statBuf) < 0 || (*bytes = mmap(0, statBuf.st_size, PROT_READ, MAP_PRIVATE, fd, 0)) == (void *)-1) {
-        close(fd);
-        return false;
-    }
-    close(fd);
-
-    if (NULL != fileSize) *fileSize = statBuf.st_size;
-
-    return true;
-#endif
-}
-
-#endif // USE_MACHO_SEGMENT
-
-    
-#if TARGET_OS_MAC || TARGET_OS_LINUX || TARGET_OS_BSD || TARGET_OS_WASI
-#if !defined(CF_UNICHAR_BITMAP_FILE)
-#if USE_MACHO_SEGMENT
-#define CF_UNICHAR_BITMAP_FILE "__csbitmaps"
-#else
-#define CF_UNICHAR_BITMAP_FILE "/CFCharacterSetBitmaps.bitmap"
-#endif
-#endif
-#elif TARGET_OS_WIN32
-#if !defined(CF_UNICHAR_BITMAP_FILE)
-#define CF_UNICHAR_BITMAP_FILE L"CFCharacterSetBitmaps.bitmap"
-#endif
-#else
-#error Unknown or unspecified DEPLOYMENT_TARGET
-#endif
-    
-#if TARGET_OS_MAC || TARGET_OS_LINUX || TARGET_OS_BSD || TARGET_OS_WASI
-#if __CF_BIG_ENDIAN__
-#if USE_MACHO_SEGMENT
-#define MAPPING_TABLE_FILE "__data"
-#else
-#define MAPPING_TABLE_FILE "/CFUnicodeData-B.mapping"
-#endif
-#else
-#if USE_MACHO_SEGMENT
-#define MAPPING_TABLE_FILE "__data"
-#else
-#define MAPPING_TABLE_FILE "/CFUnicodeData-L.mapping"
-#endif
-#endif
-#elif TARGET_OS_WIN32
-#if __CF_BIG_ENDIAN__
-#if USE_MACHO_SEGMENT
-#define MAPPING_TABLE_FILE "__data"
-#else
-#define MAPPING_TABLE_FILE L"CFUnicodeData-B.mapping"
-#endif
-#else
-#if USE_MACHO_SEGMENT
-#define MAPPING_TABLE_FILE "__data"
-#else
-#define MAPPING_TABLE_FILE L"CFUnicodeData-L.mapping"
-#endif
-#endif
-#else
-#error Unknown or unspecified DEPLOYMENT_TARGET
-#endif
-    
-#if TARGET_OS_MAC || TARGET_OS_LINUX || TARGET_OS_BSD || TARGET_OS_WASI
-#if USE_MACHO_SEGMENT
-#define PROP_DB_FILE "__properties"
-#else
-#define PROP_DB_FILE "/CFUniCharPropertyDatabase.data"
-#endif
-#elif TARGET_OS_WIN32
-#if USE_MACHO_SEGMENT
-#define PROP_DB_FILE "__properties"
-#else
-#define PROP_DB_FILE L"CFUniCharPropertyDatabase.data"
-#endif
-#else
-#error Unknown or unspecified DEPLOYMENT_TARGET
-#endif
-
-#if __CF_BIG_ENDIAN__
-#define CF_UNICODE_DATA_SYM __CFUnicodeDataB
-#else
-#define CF_UNICODE_DATA_SYM __CFUnicodeDataL
-#endif
-
-#if TARGET_OS_MAC || TARGET_OS_LINUX || TARGET_OS_BSD || TARGET_OS_WASI
-static bool __CFUniCharLoadFile(const char *bitmapName, const void **bytes, int64_t *fileSize) {
-#if USE_MACHO_SEGMENT
-    *bytes = __CFGetSectDataPtr("__UNICODE", bitmapName, NULL);
-
-    if (NULL != fileSize) *fileSize = 0;
-
-    return *bytes ? true : false;
-#elif USE_RAW_SYMBOL
-    extern void *__CFCharacterSetBitmapData;
-    extern void *CF_UNICODE_DATA_SYM;
-    extern void *__CFUniCharPropertyDatabase;
-
-    if (strcmp(bitmapName, CF_UNICHAR_BITMAP_FILE) == 0) {
-        *bytes = &__CFCharacterSetBitmapData;
-    } else if (strcmp(bitmapName, MAPPING_TABLE_FILE) == 0) {
-        *bytes = &CF_UNICODE_DATA_SYM;
-    } else if (strcmp(bitmapName, PROP_DB_FILE) == 0) {
-        *bytes = &__CFUniCharPropertyDatabase;
-    }
-
-    if (NULL != fileSize) *fileSize = 0;
-
-    return *bytes ? true : false;
-#else
-    char cpath[MAXPATHLEN];
-    __CFUniCharCharacterSetPath(cpath);
-    strlcat(cpath, bitmapName, MAXPATHLEN);
-    Boolean needToFree = false;
-    const char *possiblyFrameworkRootedCPath = CFPathRelativeToAppleFrameworksRoot(cpath, &needToFree);
-    bool result = __CFUniCharLoadBytesFromFile(possiblyFrameworkRootedCPath, bytes, fileSize);
-    if (needToFree) free((void *)possiblyFrameworkRootedCPath);
-    return result;
-#endif
-}
-#elif TARGET_OS_WIN32
-static bool __CFUniCharLoadFile(const wchar_t *bitmapName, const void **bytes, int64_t *fileSize) {
-#if USE_RAW_SYMBOL
-    extern void *__CFCharacterSetBitmapData;
-    extern void *CF_UNICODE_DATA_SYM;
-    extern void *__CFUniCharPropertyDatabase;
-
-    if (wcscmp(bitmapName, CF_UNICHAR_BITMAP_FILE) == 0) {
-        *bytes = &__CFCharacterSetBitmapData;
-    } else if (wcscmp(bitmapName, MAPPING_TABLE_FILE) == 0) {
-        *bytes = &CF_UNICODE_DATA_SYM;
-    } else if (wcscmp(bitmapName, PROP_DB_FILE) == 0) {
-        *bytes = &__CFUniCharPropertyDatabase;
-    }
-
-    if (NULL != fileSize) *fileSize = 0;
-
-    return *bytes ? true : false;
-#else
-    wchar_t wpath[MAXPATHLEN];
-    __CFUniCharCharacterSetPath(wpath);
-    wcsncat(wpath, bitmapName, MAXPATHLEN);
-    return __CFUniCharLoadBytesFromFile(wpath, bytes, fileSize);
-#endif
-}
-#else
-#error Unknown or unspecified DEPLOYMENT_TARGET
-#endif
 
 // Bitmap functions
 /*
@@ -392,122 +56,6 @@ CF_INLINE bool isWhitespaceAndNewline(UTF32Char theChar, uint16_t charset, const
     return ((isWhitespace(theChar, charset, data) || isNewline(theChar, charset, data)) ? true : false);
 }
 
-#if USE_MACHO_SEGMENT
-CF_INLINE bool __CFSimpleFileSizeVerification(const void *bytes, int64_t fileSize) { return true; }
-#elif 1
-// <rdar://problem/8961744> __CFSimpleFileSizeVerification is broken
-static bool __CFSimpleFileSizeVerification(const void *bytes, int64_t fileSize) { return true; }
-#else
-static bool __CFSimpleFileSizeVerification(const void *bytes, int64_t fileSize) {
-    bool result = true;
-
-    if (fileSize > 0) {
-	if ((sizeof(uint32_t) * 2) > fileSize) {
-	    result = false;
-	} else {
-	    uint32_t headerSize = CFSwapInt32BigToHost(*((uint32_t *)((char *)bytes + 4)));
-
-	    if ((headerSize < (sizeof(uint32_t) * 4)) || (headerSize > fileSize)) {
-		result = false;
-	    } else {
-		const uint32_t *lastElement = (uint32_t *)(((uint8_t *)bytes) + headerSize) - 2;
-
-		if ((headerSize + CFSwapInt32BigToHost(lastElement[0]) + CFSwapInt32BigToHost(lastElement[1])) > headerSize) result = false;
-	    }
-	}
-    }
-
-    if (!result) CFLog(kCFLogLevelCritical, CFSTR("File size verification for Unicode database file failed."));
-
-    return result;
-}
-#endif // USE_MACHO_SEGMENT
-
-typedef struct {
-    uint32_t _numPlanes;
-    const uint8_t **_planes;
-} __CFUniCharBitmapData;
-
-static char __CFUniCharUnicodeVersionString[8] = {0, 0, 0, 0, 0, 0, 0, 0};
-
-static uint32_t __CFUniCharNumberOfBitmaps = 0;
-static __CFUniCharBitmapData *__CFUniCharBitmapDataArray = NULL;
-
-static os_unfair_lock __CFUniCharBitmapLock = OS_UNFAIR_LOCK_INIT;
-
-static bool __CFUniCharLoadBitmapData(void) {
-    __CFUniCharBitmapData *array;
-    uint32_t headerSize;
-    uint32_t bitmapSize;
-    int numPlanes;
-    uint8_t currentPlane;
-    const void *bytes;
-    const void *bitmapBase;
-    const void *bitmap;
-    int idx, bitmapIndex;
-    int64_t fileSize;
-
-    os_unfair_lock_lock(&__CFUniCharBitmapLock);
-
-    if (__CFUniCharBitmapDataArray || !__CFUniCharLoadFile(CF_UNICHAR_BITMAP_FILE, &bytes, &fileSize) || !__CFSimpleFileSizeVerification(bytes, fileSize)) {
-        os_unfair_lock_unlock(&__CFUniCharBitmapLock);
-        return false;
-    }
-
-    for (idx = 0;idx < 4 && ((const uint8_t *)bytes)[idx];idx++) {
-        __CFUniCharUnicodeVersionString[idx * 2] = ((const uint8_t *)bytes)[idx];
-        __CFUniCharUnicodeVersionString[idx * 2 + 1] = '.';
-    }
-    __CFUniCharUnicodeVersionString[(idx < 4 ? idx * 2 - 1 : 7)] = '\0';
-
-    headerSize = CFSwapInt32BigToHost(*((uint32_t *)((char *)bytes + 4)));
-
-    bitmapBase = (uint8_t *)bytes + headerSize;
-    bytes = (uint8_t *)bytes + (sizeof(uint32_t) * 2);
-    headerSize -= (sizeof(uint32_t) * 2);
-
-    __CFUniCharNumberOfBitmaps = headerSize / (sizeof(uint32_t) * 2);
-
-    array = (__CFUniCharBitmapData *)CFAllocatorAllocate(kCFAllocatorSystemDefault, sizeof(__CFUniCharBitmapData) * __CFUniCharNumberOfBitmaps, 0);
-
-    for (idx = 0;idx < (int)__CFUniCharNumberOfBitmaps;idx++) {
-        bitmap = (uint8_t *)bitmapBase + CFSwapInt32BigToHost(*((uint32_t *)bytes)); bytes = (uint8_t *)bytes + sizeof(uint32_t);
-        bitmapSize = CFSwapInt32BigToHost(*((uint32_t *)bytes)); bytes = (uint8_t *)bytes + sizeof(uint32_t);
-
-        numPlanes = bitmapSize / (8 * 1024);
-        numPlanes = *(const uint8_t *)((char *)bitmap + (((numPlanes - 1) * ((8 * 1024) + 1)) - 1)) + 1;
-        array[idx]._planes = (const uint8_t **)CFAllocatorAllocate(kCFAllocatorSystemDefault, sizeof(const void *) * numPlanes, 0);
-        array[idx]._numPlanes = numPlanes;
-
-        currentPlane = 0;
-        for (bitmapIndex = 0;bitmapIndex < numPlanes;bitmapIndex++) {
-            if (bitmapIndex == currentPlane) {
-                array[idx]._planes[bitmapIndex] = (const uint8_t *)bitmap;
-                bitmap = (uint8_t *)bitmap + (8 * 1024);
-#if defined (__cplusplus)				
-				currentPlane = *(((const uint8_t*&)bitmap)++);
-#else
-				currentPlane = *((const uint8_t *)bitmap++);
-#endif
-
-            } else {
-                array[idx]._planes[bitmapIndex] = NULL;
-            }
-        }
-    }
-
-    __CFUniCharBitmapDataArray = array;
-
-    os_unfair_lock_unlock(&__CFUniCharBitmapLock);
-
-    return true;
-}
-
-CF_PRIVATE const char *__CFUniCharGetUnicodeVersionString(void) {
-    if (NULL == __CFUniCharBitmapDataArray) __CFUniCharLoadBitmapData();
-    return __CFUniCharUnicodeVersionString;
-}
-
 bool CFUniCharIsMemberOf(UTF32Char theChar, uint32_t charset) {
     charset = __CFUniCharMapCompatibilitySetID(charset);
 
@@ -524,10 +72,8 @@ bool CFUniCharIsMemberOf(UTF32Char theChar, uint32_t charset) {
         default: {
             uint32_t tableIndex = __CFUniCharMapExternalSetToInternalIndex(charset);
 
-            if (NULL == __CFUniCharBitmapDataArray) __CFUniCharLoadBitmapData();
-
             if (tableIndex < __CFUniCharNumberOfBitmaps) {
-                __CFUniCharBitmapData *data = __CFUniCharBitmapDataArray + tableIndex;
+                const __CFUniCharBitmapData *data = __CFUniCharBitmapDataArray + tableIndex;
                 uint8_t planeNo = (theChar >> 16) & 0xFF;
 
                 // The bitmap data for kCFUniCharIllegalCharacterSet is actually LEGAL set less Plane 14 ~ 16
@@ -557,7 +103,6 @@ bool CFUniCharIsMemberOf(UTF32Char theChar, uint32_t charset) {
 }
 
 const uint8_t *CFUniCharGetBitmapPtrForPlane(uint32_t charset, uint32_t plane) {
-    if (NULL == __CFUniCharBitmapDataArray) __CFUniCharLoadBitmapData();
 
     charset = __CFUniCharMapCompatibilitySetID(charset);
 
@@ -565,7 +110,7 @@ const uint8_t *CFUniCharGetBitmapPtrForPlane(uint32_t charset, uint32_t plane) {
         uint32_t tableIndex = __CFUniCharMapExternalSetToInternalIndex(charset);
 
         if (tableIndex < __CFUniCharNumberOfBitmaps) {
-            __CFUniCharBitmapData *data = __CFUniCharBitmapDataArray + tableIndex;
+            const __CFUniCharBitmapData *data = __CFUniCharBitmapDataArray + tableIndex;
 
             return (plane < data->_numPlanes ? data->_planes[plane] : NULL);
         }
@@ -593,7 +138,7 @@ CF_PRIVATE uint8_t CFUniCharGetBitmapForPlane(uint32_t charset, uint32_t plane, 
         }
         return kCFUniCharBitmapFilled;
     } else if (charset == kCFUniCharIllegalCharacterSet) {
-        __CFUniCharBitmapData *data = __CFUniCharBitmapDataArray + __CFUniCharMapExternalSetToInternalIndex(__CFUniCharMapCompatibilitySetID(charset));
+        const __CFUniCharBitmapData *data = __CFUniCharBitmapDataArray + __CFUniCharMapExternalSetToInternalIndex(__CFUniCharMapCompatibilitySetID(charset));
 
         if (plane < data->_numPlanes && (src = data->_planes[plane])) {
             if (isInverted) {
@@ -711,61 +256,25 @@ CF_PRIVATE uint32_t CFUniCharGetNumberOfPlanes(uint32_t charset) {
     } else {
         uint32_t numPlanes;
 
-        if (NULL == __CFUniCharBitmapDataArray) __CFUniCharLoadBitmapData();
-
         numPlanes = __CFUniCharBitmapDataArray[__CFUniCharMapExternalSetToInternalIndex(__CFUniCharMapCompatibilitySetID(charset))]._numPlanes;
 
         return numPlanes;
     }
 }
 
-// Mapping data loading
-static const void **__CFUniCharMappingTables = NULL;
+/*
+type:
+    kCFUniCharToLowercase = 0
+    kCFUniCharToUppercase = 1
+    kCFUniCharToTitlecase = 2
+    kCFUniCharCaseFold
+    kCFUniCharCanonicalDecompMapping
+    kCFUniCharCanonicalPrecompMapping
+    kCFUniCharCompatibilityDecompMapping
 
-static os_unfair_lock __CFUniCharMappingTableLock = OS_UNFAIR_LOCK_INIT;
-
+This order follows that specified by the `mapping` array in UnicodeData/MergeFiles.xml.
+*/
 CF_PRIVATE const void *CFUniCharGetMappingData(uint32_t type) {
-
-    os_unfair_lock_lock(&__CFUniCharMappingTableLock);
-
-    if (NULL == __CFUniCharMappingTables) {
-        const void *bytes;
-        const void *bodyBase;
-        int32_t headerSize;
-        size_t idx, count;
-	int64_t fileSize;
-
-        if (!__CFUniCharLoadFile(MAPPING_TABLE_FILE, &bytes, &fileSize) || !__CFSimpleFileSizeVerification(bytes, fileSize)) {
-            os_unfair_lock_unlock(&__CFUniCharMappingTableLock);
-            return NULL;
-        }
-
-#if defined (__cplusplus)
-        bytes = (uint8_t *)bytes + 4; // Skip Unicode version
-        headerSize = *((uint8_t *)bytes); bytes = (uint8_t *)bytes + sizeof(uint32_t);
-#else
-		bytes += 4; // Skip Unicode version
-        headerSize = _CFUnalignedLoad32(bytes);
-        bytes += sizeof(uint32_t);
-#endif    
-        headerSize -= (sizeof(uint32_t) * 2);
-        bodyBase = (char *)bytes + headerSize;
-
-        count = headerSize / sizeof(uint32_t);
-
-        __CFUniCharMappingTables = (const void **)CFAllocatorAllocate(kCFAllocatorSystemDefault, sizeof(const void *) * count, 0);
-
-        for (idx = 0;idx < count;idx++) {
-#if defined (__cplusplus)            
-            __CFUniCharMappingTables[idx] = (char *)bodyBase + *((uint32_t *)bytes); bytes = (uint8_t *)bytes + sizeof(uint32_t);
-#else
-			__CFUniCharMappingTables[idx] = (char *)bodyBase + _CFUnalignedLoad32(bytes);
-            bytes += sizeof(uint32_t);
-#endif
-        }
-    }
-
-    os_unfair_lock_unlock(&__CFUniCharMappingTableLock);
 
     return __CFUniCharMappingTables[type];
 }
@@ -773,9 +282,6 @@ CF_PRIVATE const void *CFUniCharGetMappingData(uint32_t type) {
 // Case mapping functions
 #define DO_SPECIAL_CASE_MAPPING 1
 
-static uint32_t *__CFUniCharCaseMappingTableCounts = NULL;
-static uint32_t **__CFUniCharCaseMappingTable = NULL;
-static const uint32_t **__CFUniCharCaseMappingExtraTable = NULL;
 
 typedef struct {
     uint32_t _key;
@@ -806,38 +312,6 @@ static uint32_t __CFUniCharGetMappedCase(const __CFUniCharCaseMappings *theTable
 #undef READ_VALUE
 }
 
-#define NUM_CASE_MAP_DATA (kCFUniCharCaseFold + 1)
-
-static bool __CFUniCharLoadCaseMappingTable(void) {
-    uint32_t *countArray;
-    int idx;
-
-    if (NULL == __CFUniCharMappingTables) (void)CFUniCharGetMappingData(kCFUniCharToLowercase);
-    if (NULL == __CFUniCharMappingTables) return false;
-
-    os_unfair_lock_lock(&__CFUniCharMappingTableLock);
-
-    if (__CFUniCharCaseMappingTableCounts) {
-        os_unfair_lock_unlock(&__CFUniCharMappingTableLock);
-        return true;
-    }
-
-    countArray = (uint32_t *)CFAllocatorAllocate(kCFAllocatorSystemDefault, sizeof(uint32_t) * NUM_CASE_MAP_DATA + sizeof(uint32_t *) * NUM_CASE_MAP_DATA * 2, 0);
-    __CFUniCharCaseMappingTable = (uint32_t **)((char *)countArray + sizeof(uint32_t) * NUM_CASE_MAP_DATA);
-    __CFUniCharCaseMappingExtraTable = (const uint32_t **)__CFUniCharCaseMappingTable + NUM_CASE_MAP_DATA;
-
-    for (idx = 0;idx < NUM_CASE_MAP_DATA;idx++) {
-        countArray[idx] = _CFUnalignedLoad32(__CFUniCharMappingTables[idx]) / (sizeof(uint32_t) * 2);
-        __CFUniCharCaseMappingTable[idx] = ((uint32_t *)__CFUniCharMappingTables[idx]) + 1;
-        __CFUniCharCaseMappingExtraTable[idx] = (const uint32_t *)((char *)__CFUniCharCaseMappingTable[idx] + _CFUnalignedLoad32(__CFUniCharMappingTables[idx]));
-    }
-
-    __CFUniCharCaseMappingTableCounts = countArray;
-
-    os_unfair_lock_unlock(&__CFUniCharMappingTableLock);
-    return true;
-}
-
 #if __CF_BIG_ENDIAN__
 #define TURKISH_LANG_CODE	(0x7472) // tr
 #define LITHUANIAN_LANG_CODE	(0x6C74) // lt
@@ -853,7 +327,7 @@ static bool __CFUniCharLoadCaseMappingTable(void) {
 #endif
 
 CFIndex CFUniCharMapCaseTo(UTF32Char theChar, UTF16Char *convertedChar, CFIndex maxLength, uint32_t ctype, uint32_t flags, const uint8_t *langCode) {
-    __CFUniCharBitmapData *data;
+    const __CFUniCharBitmapData *data;
     uint8_t planeNo = (theChar >> 16) & 0xFF;
 
 caseFoldRetry:
@@ -994,11 +468,9 @@ caseFoldRetry:
     }
 #endif // DO_SPECIAL_CASE_MAPPING
 
-    if (NULL == __CFUniCharBitmapDataArray) __CFUniCharLoadBitmapData();
-
     data = __CFUniCharBitmapDataArray + __CFUniCharMapExternalSetToInternalIndex(__CFUniCharMapCompatibilitySetID(ctype + kCFUniCharHasNonSelfLowercaseCharacterSet));
 
-    if (planeNo < data->_numPlanes && data->_planes[planeNo] && CFUniCharIsMemberOfBitmap(theChar, data->_planes[planeNo]) && (__CFUniCharCaseMappingTableCounts || __CFUniCharLoadCaseMappingTable())) {
+    if (planeNo < data->_numPlanes && data->_planes[planeNo] && CFUniCharIsMemberOfBitmap(theChar, data->_planes[planeNo])) {
         uint32_t value = __CFUniCharGetMappedCase((const __CFUniCharCaseMappings *)__CFUniCharCaseMappingTable[ctype], __CFUniCharCaseMappingTableCounts[ctype], theChar);
 
         if (!value && ctype == kCFUniCharToTitlecase) {
@@ -1224,73 +696,8 @@ CF_PRIVATE uint32_t CFUniCharGetConditionalCaseMappingFlags(UTF32Char theChar, U
 }
 
 // Unicode property database
-static __CFUniCharBitmapData *__CFUniCharUnicodePropertyTable = NULL;
-static int __CFUniCharUnicodePropertyTableCount = 0;
 
 const void *CFUniCharGetUnicodePropertyDataForPlane(uint32_t propertyType, uint32_t plane) {
-    static dispatch_once_t once = 0;
-    dispatch_once(&once, ^{
-        __CFUniCharBitmapData *table;
-        const void *bytes;
-        const void *bodyBase;
-        const void *planeBase;
-        int headerSize;
-        int idx, count;
-        int planeIndex, planeCount;
-        int planeSize;
-        int64_t fileSize;
-
-        if (!__CFUniCharLoadFile(PROP_DB_FILE, &bytes, &fileSize) || !__CFSimpleFileSizeVerification(bytes, fileSize)) {
-            CRSetCrashLogMessage("unichar property database is corrupted or missing");
-            HALT;
-        }
-
-#if defined (__cplusplus)
-        bytes = (uint8_t*)bytes + 4; // Skip Unicode version
-        headerSize = CFSwapInt32BigToHost(*((uint32_t *)bytes)); bytes = (uint8_t *)bytes + sizeof(uint32_t);
-#else
-        bytes += 4; // Skip Unicode version
-        headerSize = _CFUnalignedLoad32BE(bytes);
-        bytes += sizeof(uint32_t);
-#endif
-        
-        headerSize -= (sizeof(uint32_t) * 2);
-        bodyBase = (char *)bytes + headerSize;
-
-        count = headerSize / sizeof(uint32_t);
-        __CFUniCharUnicodePropertyTableCount = count;
-
-        table = (__CFUniCharBitmapData *)CFAllocatorAllocate(kCFAllocatorSystemDefault, sizeof(__CFUniCharBitmapData) * count, 0);
-
-        for (idx = 0;idx < count;idx++) {
-            planeCount = *((const uint8_t *)bodyBase);
-            planeBase = (char *)bodyBase + planeCount + (planeCount % 4 ? 4 - (planeCount % 4) : 0);
-            table[idx]._planes = (const uint8_t **)CFAllocatorAllocate(kCFAllocatorSystemDefault, sizeof(const void *) * planeCount, 0);
-
-            for (planeIndex = 0;planeIndex < planeCount;planeIndex++) {
-                if ((planeSize = ((const uint8_t *)bodyBase)[planeIndex + 1])) {
-                    table[idx]._planes[planeIndex] = (const uint8_t *)planeBase;
-#if defined (__cplusplus)
-                    planeBase = (char*)planeBase + (planeSize * 256);
-#else
-                    planeBase += (planeSize * 256);
-#endif
-                } else {
-                    table[idx]._planes[planeIndex] = NULL;
-                }
-            }
-
-            table[idx]._numPlanes = planeCount;
-#if defined (__cplusplus)
-            bodyBase = (const uint8_t *)bodyBase + (CFSwapInt32BigToHost(*(uint32_t *)bytes));
-            ((uint32_t *&)bytes) ++;
-#else
-            bodyBase += _CFUnalignedLoad32BE(bytes++);
-#endif
-        }
-
-        __CFUniCharUnicodePropertyTable = table;
-    });
     return (plane < __CFUniCharUnicodePropertyTable[propertyType]._numPlanes ? __CFUniCharUnicodePropertyTable[propertyType]._planes[plane] : NULL);
 }
 
@@ -1397,8 +804,11 @@ bool CFUniCharFillDestinationBuffer(const UTF32Char *src, CFIndex srcLength, voi
                 dstBuffer += bytesToWrite;
                 switch (bytesToWrite) {	/* note: everything falls through. */
                     case 4:	*--dstBuffer = (currentChar | byteMark) & byteMask; currentChar >>= 6;
+                    CF_FALLTHROUGH;
                     case 3:	*--dstBuffer = (currentChar | byteMark) & byteMask; currentChar >>= 6;
+                    CF_FALLTHROUGH;
                     case 2:	*--dstBuffer = (currentChar | byteMark) & byteMask; currentChar >>= 6;
+                    CF_FALLTHROUGH;
                     case 1:	*--dstBuffer =  currentChar | firstByteMark[bytesToWrite];
                 }
                 dstBuffer += bytesToWrite;
@@ -1426,6 +836,4 @@ bool CFUniCharFillDestinationBuffer(const UTF32Char *src, CFIndex srcLength, voi
 
     return true;
 }
-
-#undef USE_MACHO_SEGMENT
 

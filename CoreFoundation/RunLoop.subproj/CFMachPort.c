@@ -50,7 +50,7 @@ struct __CFMachPort {
     CFRunLoopSourceRef _source;                 /* immutable, once created */
     CFMachPortCallBack _callout;                /* immutable */
     CFMachPortContext _context;                 /* immutable */
-    CFLock_t _lock;
+    os_unfair_lock _lock;
     const void *(*retain)(const void *info); // use these to store the real callbacks
     void        (*release)(const void *info);
 };
@@ -120,20 +120,20 @@ CF_INLINE void __CFMachPortInvalidateLocked(CFRunLoopSourceRef source, CFMachPor
 
     mp->_context.info = NULL;
     if (cb) {
-        __CFUnlock(&mp->_lock);
+        os_unfair_lock_unlock(&mp->_lock);
         cb(mp, info);
-        __CFLock(&mp->_lock);
+        os_unfair_lock_lock(&mp->_lock);;
     }
     if (NULL != source) {
-        __CFUnlock(&mp->_lock);
+        os_unfair_lock_unlock(&mp->_lock);
         CFRunLoopSourceInvalidate(source);
         CFRelease(source);
-        __CFLock(&mp->_lock);
+        os_unfair_lock_lock(&mp->_lock);;
     }
     if (release && info) {
-        __CFUnlock(&mp->_lock);
+        os_unfair_lock_unlock(&mp->_lock);
         release(info);
-        __CFLock(&mp->_lock);
+        os_unfair_lock_lock(&mp->_lock);;
     }
     mp->_state = kCFMachPortStateInvalid;
 #pragma GCC diagnostic push
@@ -147,7 +147,7 @@ static void __CFMachPortDeallocate(CFTypeRef cf) {
     CFMachPortRef mp = (CFMachPortRef)cf;
 
     // CFMachPortRef is invalid before we get here
-    __CFLock(&mp->_lock);
+    os_unfair_lock_lock(&mp->_lock);;
     CFRunLoopSourceRef source = NULL;
     Boolean wasReady = (mp->_state == kCFMachPortStateReady);
     if (wasReady) {
@@ -170,7 +170,7 @@ static void __CFMachPortDeallocate(CFTypeRef cf) {
 
     const mach_port_t port = mp->_port;
     const Boolean doSend = __CFMachPortHasSend(mp), doReceive = __CFMachPortHasReceive(mp);
-    __CFUnlock(&mp->_lock);
+    os_unfair_lock_unlock(&mp->_lock);
     
     _cfmp_record_deallocation(_CFMPLifetimeClientCFMachPort, port, doSend, doReceive);
     
@@ -201,11 +201,11 @@ static void __CFMachPortChecker(void) {
             CFRunLoopSourceRef source = NULL;
             Boolean wasReady = (mp->_state == kCFMachPortStateReady);
             if (wasReady) {
-                __CFLock(&mp->_lock); // take this lock second
+                os_unfair_lock_lock(&mp->_lock);; // take this lock second
                 // double check the state under lock, just in case, we should be the last reference per retain count check above... but it doesn't hurt to be robust.
                 wasReady = (mp->_state == kCFMachPortStateReady);
                 if (!wasReady) {
-                    __CFUnlock(&mp->_lock);
+                    os_unfair_lock_unlock(&mp->_lock);
                 }
                 else {
                     mp->_state = kCFMachPortStateInvalidating;
@@ -220,13 +220,13 @@ static void __CFMachPortChecker(void) {
                     source = mp->_source;
                     mp->_source = NULL;
                     CFRetain(mp); // matched below:  <live-to-invalidate>
-                    __CFUnlock(&mp->_lock);
+                    os_unfair_lock_unlock(&mp->_lock);
                     dispatch_async(dispatch_get_main_queue(), ^{
                         // We can grab the mach port-specific spin lock here since we're no longer on the same thread as the one taking the all mach ports spin lock.
                         // But be sure to release it during callouts
-                        __CFLock(&mp->_lock);
+                        os_unfair_lock_lock(&mp->_lock);;
                         __CFMachPortInvalidateLocked(source, mp);
-                        __CFUnlock(&mp->_lock);
+                        os_unfair_lock_unlock(&mp->_lock);
                         CFRelease(mp); // matched above:  </live-to-invalidate>
                     });
                 }
@@ -268,11 +268,14 @@ CFMachPortRef _CFMachPortCreateWithPort2(CFAllocatorRef allocator, mach_port_t p
     kern_return_t ret = mach_port_type(mach_task_self(), port, &type);
     if (KERN_SUCCESS != ret || (0 == (type & MACH_PORT_TYPE_PORT_RIGHTS))) {
         if (type & ~MACH_PORT_TYPE_DEAD_NAME) {
-            CFLog(kCFLogLevelError, CFSTR("*** CFMachPortCreateWithPort(): bad Mach port parameter (0x%lx) or unsupported mysterious kind of Mach port (%d, %ld)"), (unsigned long)port, ret, (unsigned long)type);
+            os_log_error(_CFOSLog(), "*** CFMachPortCreateWithPort(): bad Mach port parameter (0x%lx) or unsupported mysterious kind of Mach port (%d, %ld)", (unsigned long)port, ret, (unsigned long)type);
+        } else {
+            os_log_error(_CFOSLog(), "*** CFMachPortCreateWithPort(): mach_port_type for 0x%lx failed with %d", (unsigned long)port, ret);
         }
         return NULL;
     }
 
+    Boolean fromCache = false;
     CFMachPortRef mp = NULL;
     os_unfair_lock_lock(&__CFAllMachPortsLock);
     // First, do a scan for an existing CFMachPortRef for the specified port:
@@ -283,6 +286,7 @@ CFMachPortRef _CFMachPortCreateWithPort2(CFAllocatorRef allocator, mach_port_t p
             if (p && p->_port == port) {
                 CFRetain(p);
                 mp = p; // mp now has +2 retain count:  1: from set  2: from this local retain
+                fromCache = true;
                 break;
             }
         }
@@ -298,11 +302,12 @@ CFMachPortRef _CFMachPortCreateWithPort2(CFAllocatorRef allocator, mach_port_t p
         CFMachPortRef const memory = (CFMachPortRef)_CFRuntimeCreateInstance(allocator, CFMachPortGetTypeID(), size, NULL);
         if (NULL == memory) {
             os_unfair_lock_unlock(&__CFAllMachPortsLock);
+            os_log_error(_CFOSLog(), "*** CFMachPortCreateWithPort(): allocation failure");
             return NULL;
         }
         memory->_port = port;
         memory->_callout = callout;
-        memory->_lock = CFLockInit;
+        memory->_lock = OS_UNFAIR_LOCK_INIT;
         if (NULL != context) {
             memmove(&memory->_context, context, sizeof(CFMachPortContext));
             memory->_context.info = context->retain ? (void *)context->retain(context->info) : context->info;
@@ -340,6 +345,7 @@ CFMachPortRef _CFMachPortCreateWithPort2(CFAllocatorRef allocator, mach_port_t p
     }
     
     if (mp && !CFMachPortIsValid(mp)) { // must do this outside lock to avoid deadlock
+        os_log_error(_CFOSLog(), "*** CFMachPortCreateWithPort(): invalid mach port %p (from cache: %d)", mp, fromCache);
         CFRelease(mp); // NOTE: we release the extra +1 introduced in this function (or birth) so that the only potential refcount left for this frame is from the set of all ports.
         mp = NULL;
     }
@@ -362,6 +368,9 @@ CFMachPortRef CFMachPortCreate(CFAllocatorRef allocator, CFMachPortCallBack call
         if (MACH_PORT_NULL != port) {
             // inserting the send right failed, so only decrement the receive
             mach_port_mod_refs(mach_task_self(), port, MACH_PORT_RIGHT_RECEIVE, -1);
+            os_log_error(_CFOSLog(), "*** CFMachPortCreate failed. mach_port_insert_right() returned %d for port %d", ret, port);
+        } else {
+            os_log_error(_CFOSLog(), "*** CFMachPortCreate failed. mach_port_allocate() returned %d", ret);
         }
         return NULL;
     }
@@ -387,7 +396,7 @@ void CFMachPortInvalidate(CFMachPortRef mp) {
     CFRunLoopSourceRef source = NULL;
     Boolean wasReady = false;
     os_unfair_lock_lock(&__CFAllMachPortsLock); // take this lock first
-    __CFLock(&mp->_lock);
+    os_unfair_lock_lock(&mp->_lock);;
     wasReady = (mp->_state == kCFMachPortStateReady);
     if (wasReady) {
         mp->_state = kCFMachPortStateInvalidating;
@@ -409,12 +418,12 @@ void CFMachPortInvalidate(CFMachPortRef mp) {
         source = mp->_source;
         mp->_source = NULL;
     }
-    __CFUnlock(&mp->_lock);
+    os_unfair_lock_unlock(&mp->_lock);
     os_unfair_lock_unlock(&__CFAllMachPortsLock); // release this lock last
     if (wasReady) {
-        __CFLock(&mp->_lock);
+        os_unfair_lock_lock(&mp->_lock);;
         __CFMachPortInvalidateLocked(source, mp);
-        __CFUnlock(&mp->_lock);
+        os_unfair_lock_unlock(&mp->_lock);
     }
     CFRelease(mp); // matched above:  </live-to-invalidate>
 }
@@ -448,9 +457,9 @@ Boolean CFMachPortIsValid(CFMachPortRef mp) {
 
 CFMachPortInvalidationCallBack CFMachPortGetInvalidationCallBack(CFMachPortRef mp) {
     CF_ASSERT_TYPE(_kCFRuntimeIDCFMachPort, mp);
-    __CFLock(&mp->_lock);
+    os_unfair_lock_lock(&mp->_lock);;
     CFMachPortInvalidationCallBack cb = mp->_icallout;
-    __CFUnlock(&mp->_lock);
+    os_unfair_lock_unlock(&mp->_lock);
     return cb;
 }
 
@@ -466,18 +475,18 @@ void CFMachPortSetInvalidationCallBack(CFMachPortRef mp, CFMachPortInvalidationC
 	    CFLog(kCFLogLevelError, CFSTR("*** WARNING: CFMachPortSetInvalidationCallBack() called on a CFMachPort with a Mach port (0x%x) which does not have any send rights.  This is not going to work.  Callback function: %p"), mp->_port, callout);
 	}
     }
-    __CFLock(&mp->_lock);
+    os_unfair_lock_lock(&mp->_lock);;
     void *const info = mp->_context.info;
     if (__CFMachPortIsValid(mp) || !callout) {
         mp->_icallout = callout;
     } else if (!mp->_icallout && callout) {
-        __CFUnlock(&mp->_lock);
+        os_unfair_lock_unlock(&mp->_lock);
         callout(mp, info);
-        __CFLock(&mp->_lock);
+        os_unfair_lock_lock(&mp->_lock);;
     } else {
         CFLog(kCFLogLevelWarning, CFSTR("CFMachPortSetInvalidationCallBack(): attempt to set invalidation callback (%p) on invalid CFMachPort (%p) thwarted"), callout, mp);
     }
-    __CFUnlock(&mp->_lock);
+    os_unfair_lock_unlock(&mp->_lock);
 }
 
 /* Returns the number of messages queued for a receive port. */
@@ -498,7 +507,7 @@ static mach_port_t __CFMachPortGetPort(void *info) {
 CF_PRIVATE void *__CFMachPortPerform(void *msg, CFIndex size, CFAllocatorRef allocator, void *info) {
     CHECK_FOR_FORK_RET(NULL);
     CFMachPortRef mp = (CFMachPortRef)info;
-    __CFLock(&mp->_lock);
+    os_unfair_lock_lock(&mp->_lock);;
     Boolean isValid = __CFMachPortIsValid(mp);
     void *context_info = NULL;
     void (*context_release)(const void *) = NULL;
@@ -510,7 +519,7 @@ CF_PRIVATE void *__CFMachPortPerform(void *msg, CFIndex size, CFAllocatorRef all
             context_info = mp->_context.info;
         }
     }
-    __CFUnlock(&mp->_lock);
+    os_unfair_lock_unlock(&mp->_lock);
     if (isValid) {
         mp->_callout(mp, msg, size, context_info);
 
@@ -532,7 +541,7 @@ CFRunLoopSourceRef CFMachPortCreateRunLoopSource(CFAllocatorRef allocator, CFMac
     CHECK_FOR_FORK_RET(NULL);
     if (!CFMachPortIsValid(mp)) return NULL;
     CFRunLoopSourceRef result = NULL;
-    __CFLock(&mp->_lock);
+    os_unfair_lock_lock(&mp->_lock);;
     if (__CFMachPortIsValid(mp)) {
         if (NULL != mp->_source && !CFRunLoopSourceIsValid(mp->_source)) {
             CFRelease(mp->_source);
@@ -553,7 +562,7 @@ CFRunLoopSourceRef CFMachPortCreateRunLoopSource(CFAllocatorRef allocator, CFMac
         }
         result = mp->_source ? (CFRunLoopSourceRef)CFRetain(mp->_source) : NULL;
     }
-    __CFUnlock(&mp->_lock);
+    os_unfair_lock_unlock(&mp->_lock);
     return result;
 }
 
@@ -581,6 +590,7 @@ void __CFMachMessageCheckForAndDestroyUnsentMessage(kern_return_t const kr, mach
         case MACH_SEND_TIMEOUT: // fallthrough
         case MACH_SEND_INVALID_DEST:
             mach_msg_destroy(msg);
+            break;
         default:
             break;
     }

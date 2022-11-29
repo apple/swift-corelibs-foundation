@@ -25,6 +25,7 @@
 #include "CFMachPort_Lifetime.h"
 #include <math.h>
 #include <mach/mach_time.h>
+#include <os/log.h>
 #include <dlfcn.h>
 #if __HAS_DISPATCH__
 #include <dispatch/dispatch.h>
@@ -60,7 +61,6 @@ static CFMutableDictionaryRef __CFAllRemoteMessagePorts = NULL;
 
 struct __CFMessagePort {
     CFRuntimeBase _base;
-    CFLock_t _lock;
     CFStringRef _name;
     CFMachPortRef _port;		/* immutable; invalidated */
     CFMutableDictionaryRef _replies;
@@ -73,6 +73,9 @@ struct __CFMessagePort {
     CFMessagePortInvalidationCallBack _icallout;
     CFMessagePortCallBack _callout;	/* only used by local port; immutable */
     CFMessagePortCallBackEx _calloutEx;	/* only used by local port; immutable */
+    os_unfair_lock _lock;
+
+    /* MUST BE LAST */
     CFMessagePortContext _context;	/* not part of remote port; immutable; invalidated */
 };
 
@@ -126,11 +129,11 @@ CF_INLINE void __CFMessagePortSetIsDeallocing(CFMessagePortRef ms) {
 }
 
 CF_INLINE void __CFMessagePortLock(CFMessagePortRef ms) {
-    __CFLock(&(ms->_lock));
+    os_unfair_lock_lock(&(ms->_lock));
 }
 
 CF_INLINE void __CFMessagePortUnlock(CFMessagePortRef ms) {
-    __CFUnlock(&(ms->_lock));
+    os_unfair_lock_unlock(&(ms->_lock));
 }
 
 // Just a heuristic
@@ -351,6 +354,7 @@ static CFMessagePortRef __CFMessagePortCreateLocal(CFAllocatorRef allocator, CFS
 	    CFRelease(name);
 	    CFAllocatorDeallocate(kCFAllocatorSystemDefault, utfname);
             if (!CFMessagePortIsValid(existing)) { // must do this outside lock to avoid deadlock
+	        os_log_error(_CFOSLog(), "*** CFMessagePortCreateLocal(): existing port invalid");
 	        CFRelease(existing);
                 existing = NULL;
             }
@@ -365,12 +369,13 @@ static CFMessagePortRef __CFMessagePortCreateLocal(CFAllocatorRef allocator, CFS
 	    CFRelease(name);
 	}
 	CFAllocatorDeallocate(kCFAllocatorSystemDefault, utfname);
+	os_log_error(_CFOSLog(), "*** CFMessagePortCreateLocal(): memory allocation failed");
 	return NULL;
     }
     __CFMessagePortUnsetValid(memory);
     __CFMessagePortUnsetExtraMachRef(memory);
     __CFMessagePortUnsetRemote(memory);
-    memory->_lock = CFLockInit;
+    memory->_lock = OS_UNFAIR_LOCK_INIT;
     memory->_name = name;
     if (perPID) {
         memory->_perPID = getpid(); // actual value not terribly useful for local ports
@@ -389,6 +394,7 @@ static CFMessagePortRef __CFMessagePortCreateLocal(CFAllocatorRef allocator, CFS
 	    CFMachPortContext ctx = {0, memory, NULL, NULL, NULL};
 	    native = CFMachPortCreate(allocator, __CFMessagePortDummyCallback, &ctx, NULL);
 	    if (!native) {
+		os_log_error(_CFOSLog(), "*** CFMessagePortCreateLocal(): CFMachPortCreate() failed");
 		CFAllocatorDeallocate(kCFAllocatorSystemDefault, utfname);
 		// name is released by deallocation
 		CFRelease(memory);
@@ -443,7 +449,8 @@ static CFMessagePortRef __CFMessagePortCreateRemote(CFAllocatorRef allocator, CF
     CFMachPortContext ctx;
     uint8_t *utfname = NULL;
     CFIndex size;
-    mach_port_t port = MACH_PORT_NULL;
+    mach_port_t port;
+    kern_return_t ret;
 
     CFStringRef const name = __CFMessagePortCreateSanitizedStringName(inName, &utfname, NULL);
     if (NULL == name) {
@@ -477,7 +484,7 @@ static CFMessagePortRef __CFMessagePortCreateRemote(CFAllocatorRef allocator, CF
     __CFMessagePortUnsetValid(memory);
     __CFMessagePortUnsetExtraMachRef(memory);
     __CFMessagePortSetRemote(memory);
-    memory->_lock = CFLockInit;
+    memory->_lock = OS_UNFAIR_LOCK_INIT;
     memory->_name = name;
     memory->_replies = CFDictionaryCreateMutable(kCFAllocatorSystemDefault, 0, NULL, &kCFTypeDictionaryValueCallBacks);
     if (perPID) {
@@ -488,7 +495,7 @@ static CFMessagePortRef __CFMessagePortCreateRemote(CFAllocatorRef allocator, CF
     ctx.retain = NULL;
     ctx.release = NULL;
     ctx.copyDescription = NULL;
-    native = CFMachPortCreateWithPort(allocator, port, __CFMessagePortDummyCallback, &ctx, NULL);
+    native = (KERN_SUCCESS == ret) ? CFMachPortCreateWithPort(allocator, port, __CFMessagePortDummyCallback, &ctx, NULL) : NULL;
     CFAllocatorDeallocate(kCFAllocatorSystemDefault, utfname);
     if (NULL == native) {
 	// name is released by deallocation
@@ -901,7 +908,7 @@ SInt32 CFMessagePortSendRequest(CFMessagePortRef remote, SInt32 msgid, CFDataRef
 	sendOpts = MACH_SEND_TIMEOUT;
 	sendTimeout *= 1000.0;
 	if (sendTimeout < 1.0) sendTimeout = 0.0;
-	sendTimeOut = (uint32_t)floor(sendTimeout);
+	sendTimeOut = floor(sendTimeout);
     }
     __CFMessagePortUnlock(remote);
     ret = mach_msg((mach_msg_header_t *)sendmsg, MACH_SEND_MSG|sendOpts, sendmsg->header.msgh_size, 0, MACH_PORT_NULL, sendTimeOut, MACH_PORT_NULL);

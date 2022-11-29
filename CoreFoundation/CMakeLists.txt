@@ -125,6 +125,7 @@ add_framework(CoreFoundation
                 # Base
                 Base.subproj/CFAsmMacros.h
                 Base.subproj/CFInternal.h
+                Base.subproj/CFObjCTypes.h
                 Base.subproj/CFKnownLocations.h
                 Base.subproj/CFLogUtilities.h
                 Base.subproj/CFPriv.h
@@ -312,6 +313,7 @@ add_framework(CoreFoundation
                 NumberDate.subproj/CFBigNumber.c
                 NumberDate.subproj/CFDate.c
                 NumberDate.subproj/CFNumber.c
+                NumberDate.subproj/CFNumberConstants.c
                 NumberDate.subproj/CFTimeZone.c
                 # Parsing
                 Parsing.subproj/CFBinaryPList.c
@@ -383,7 +385,8 @@ target_compile_definitions(CoreFoundation
                              $<$<COMPILE_LANGUAGE:ASM>:CF_CHARACTERSET_UNICODE_DATA_L="CharacterSets/CFUnicodeData-L.mapping">)
 target_include_directories(CoreFoundation
                            PRIVATE
-                             ${PROJECT_SOURCE_DIR})
+                             ${PROJECT_SOURCE_DIR}
+                             ${PROJECT_SOURCE_DIR}/StringEncodings.subproj/UnicodeData)
 target_link_libraries(CoreFoundation PRIVATE
   Threads::Threads
   ${CMAKE_DL_LIBS}

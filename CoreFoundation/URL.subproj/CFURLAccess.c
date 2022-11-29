@@ -236,7 +236,7 @@ static Boolean _CFFileURLWritePropertiesToResource(CFURLRef url, CFDictionaryRef
                 CFNumberRef modeNum = (CFNumberRef)value;
                 CFNumberGetValue(modeNum, kCFNumberSInt32Type, &mode);
             } else {
-#if TARGET_OS_MAC || TARGET_OS_LINUX || TARGET_OS_BSD || TARGET_OS_WASI
+#if TARGET_OS_MAC || TARGET_OS_LINUX || TARGET_OS_BSD
 #define MODE_TYPE mode_t
 #elif TARGET_OS_WIN32
 #define MODE_TYPE uint16_t
@@ -783,8 +783,8 @@ Boolean CFURLWriteDataAndPropertiesToResource(CFURLRef url, CFDataRef data, CFDi
             if (!_CFFileURLWritePropertiesToResource(url, propertyDict, errorCode))
                 success = false;
         }
-        return success;
 #endif
+        return success;
     } else {
         CFRelease(scheme);
 #if TARGET_OS_MAC

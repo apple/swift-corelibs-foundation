@@ -48,9 +48,9 @@ struct __CFRunArray {
 
 /* To protect accesses to the refcounts of shared CFRunArrayGuts
 */
-static CFLock_t runArrayLock = CFLockInit;	
-#define RLEARRAYLOCK {__CFLock(&runArrayLock);}
-#define RLEARRAYUNLOCK {__CFUnlock(&runArrayLock);}
+static os_unfair_lock runArrayLock = OS_UNFAIR_LOCK_INIT;
+#define RLEARRAYLOCK {os_unfair_lock_lock(&runArrayLock);}
+#define RLEARRAYUNLOCK {os_unfair_lock_unlock(&runArrayLock);}
 
 
 

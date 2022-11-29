@@ -128,9 +128,9 @@ CFStringRef CFStringConvertEncodingToIANACharSetName(CFStringEncoding encoding) 
     CFStringRef name = NULL;
     CFIndex value = encoding;
     static CFMutableDictionaryRef mappingTable = NULL;
-    static CFLock_t lock = CFLockInit;
+    static os_unfair_lock lock = OS_UNFAIR_LOCK_INIT;
 
-    __CFLock(&lock);
+    os_unfair_lock_lock_with_options(&lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
     name = ((NULL == mappingTable) ? NULL : (CFStringRef)CFDictionaryGetValue(mappingTable, (const void*)value));
 
     if (NULL == name) {
@@ -149,7 +149,7 @@ CFStringRef CFStringConvertEncodingToIANACharSetName(CFStringEncoding encoding) 
             CFRelease(name);
         }
     }
-    __CFUnlock(&lock);
+    os_unfair_lock_unlock(&lock);
 
     return name;
 }
@@ -639,7 +639,7 @@ CF_PRIVATE CFComparisonResult _CFCompareStringsWithLocale(CFStringInlineBuffer *
         } else
 #endif
         {
-            compResult = ((memcmp(characters1, characters2, sizeof(UniChar) * __CFMin(range1.length, range2.length)) < 0) ? kCFCompareLessThan : kCFCompareGreaterThan);
+            compResult = ((memcmp(characters1, characters2, sizeof(UniChar) * MIN(range1.length, range2.length)) < 0) ? kCFCompareLessThan : kCFCompareGreaterThan);
         }
     } else {
         UniChar *buffer1 = NULL;

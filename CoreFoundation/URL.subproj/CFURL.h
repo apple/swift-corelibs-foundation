@@ -474,7 +474,6 @@ CF_IMPLICIT_BRIDGING_ENABLED
 #endif
 
 
-
 #if TARGET_OS_MAC || CF_BUILDING_CF || NSBUILDINGFOUNDATION || DEPLOYMENT_RUNTIME_SWIFT
 CF_IMPLICIT_BRIDGING_DISABLED
 
@@ -921,10 +920,10 @@ CF_EXPORT
 const CFStringRef kCFURLFileProtectionNone API_AVAILABLE(ios(9.0), watchos(2.0), tvos(9.0)) API_UNAVAILABLE(macos); // The file has no special protections associated with it. It can be read from or written to at any time.
 
 CF_EXPORT
-const CFStringRef kCFURLFileProtectionComplete API_AVAILABLE(ios(9.0), watchos(2.0), tvos(9.0)) API_UNAVAILABLE(macos); // The file is stored in an encrypted format on disk and cannot be read from or written to while the device is locked or booting.
+const CFStringRef kCFURLFileProtectionComplete API_AVAILABLE(ios(9.0), watchos(2.0), tvos(9.0)) API_UNAVAILABLE(macos); // The file is stored in an encrypted format on disk and cannot be read from or written to while the device is locked or booting. Transient data files with this protection type should be excluded from backups using kCFURLIsExcludedFromBackupKey.
 
 CF_EXPORT
-const CFStringRef kCFURLFileProtectionCompleteUnlessOpen API_AVAILABLE(ios(9.0), watchos(2.0), tvos(9.0)) API_UNAVAILABLE(macos); // The file is stored in an encrypted format on disk. Files can be created while the device is locked, but once closed, cannot be opened again until the device is unlocked. If the file is opened when unlocked, you may continue to access the file normally, even if the user locks the device. There is a small performance penalty when the file is created and opened, though not when being written to or read from. This can be mitigated by changing the file protection to kCFURLFileProtectionComplete when the device is unlocked.
+const CFStringRef kCFURLFileProtectionCompleteUnlessOpen API_AVAILABLE(ios(9.0), watchos(2.0), tvos(9.0)) API_UNAVAILABLE(macos); // The file is stored in an encrypted format on disk. Files can be created while the device is locked, but once closed, cannot be opened again until the device is unlocked. If the file is opened when unlocked, you may continue to access the file normally, even if the user locks the device. There is a small performance penalty when the file is created and opened, though not when being written to or read from. This can be mitigated by changing the file protection to kCFURLFileProtectionComplete when the device is unlocked. Transient data files with this protection type should be excluded from backups using kCFURLIsExcludedFromBackupKey.
 
 CF_EXPORT
 const CFStringRef kCFURLFileProtectionCompleteUntilFirstUserAuthentication API_AVAILABLE(ios(9.0), watchos(2.0), tvos(9.0)) API_UNAVAILABLE(macos); // The file is stored in an encrypted format on disk and cannot be accessed until after the device has booted. After the user unlocks the device for the first time, your app can access the file and continue to access it even if the user subsequently locks the device.
@@ -1246,8 +1245,8 @@ Boolean CFURLStartAccessingSecurityScopedResource(CFURLRef url) API_AVAILABLE(ma
 CF_EXPORT
 void CFURLStopAccessingSecurityScopedResource(CFURLRef url) API_AVAILABLE(macos(10.7), ios(8.0), watchos(2.0), tvos(9.0)); // On OSX, available in MacOS X 10.7.3 and later
 
-#endif /* !DEPLOYMENT_TARGET_SWIFT */
-#endif /*  TARGET_OS_MAC || CF_BUILDING_CF || NSBUILDINGFOUNDATION || DEPLOYMENT_RUNTIME_SWIFT */
+#endif /* !DEPLOYMENT_RUNTIME_SWIFT */
+#endif /* TARGET_OS_MAC || CF_BUILDING_CF || NSBUILDINGFOUNDATION || DEPLOYMENT_RUNTIME_SWIFT */
 
 CF_EXTERN_C_END
 CF_IMPLICIT_BRIDGING_DISABLED

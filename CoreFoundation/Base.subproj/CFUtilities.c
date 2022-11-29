@@ -22,6 +22,7 @@
 #include "CFBundle_Internal.h"
 #endif
 #include <CoreFoundation/CFPriv.h>
+#include <CoreFoundation/CFString_Private.h>
 #if TARGET_OS_MAC || TARGET_OS_WIN32
 #include <CoreFoundation/CFBundle.h>
 #endif
@@ -37,8 +38,10 @@
 #endif
 #include <math.h>
 #include <string.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
+
 #if TARGET_OS_MAC
 #include <asl.h>
 #else
@@ -95,8 +98,7 @@
 #endif
 
 CF_PRIVATE os_log_t _CFOSLog(void) {
-    static os_log_t logger = NULL;
-
+    static os_log_t logger;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         logger = os_log_create("com.apple.foundation", "general");
@@ -187,8 +189,11 @@ CFHashCode CFHashBytes(uint8_t *bytes, CFIndex length) {
     }
     switch (rem) {
     case 3:  ELF_STEP(bytes[length - 3]);
+    CF_FALLTHROUGH;
     case 2:  ELF_STEP(bytes[length - 2]);
+    CF_FALLTHROUGH;
     case 1:  ELF_STEP(bytes[length - 1]);
+    CF_FALLTHROUGH;
     case 0:  ;
     }
     return H;
@@ -311,31 +316,37 @@ static CFDictionaryRef _CFCopyVersionDictionary(CFStringRef path) {
 
     if (plist) {
 	CFBundleRef locBundle = NULL;
-	CFStringRef fullVersion, vers, versExtra, build;
+	CFStringRef fullVersion, shortVersion, vers, versExtra, build;
 	CFStringRef versionString = _CFCopyLocalizedVersionKey(&locBundle, _kCFSystemVersionProductVersionStringKey);
 	CFStringRef buildString = _CFCopyLocalizedVersionKey(&locBundle, _kCFSystemVersionBuildStringKey);
 	CFStringRef fullVersionString = _CFCopyLocalizedVersionKey(&locBundle, CFSTR("FullVersionString"));
 	if (locBundle) CFRelease(locBundle);
 
         // Now build the full version string
-        if (CFEqual(fullVersionString, CFSTR("FullVersionString"))) {
-            CFRelease(fullVersionString);
-            fullVersionString = CFStringCreateWithFormat(kCFAllocatorSystemDefault, NULL, CFSTR("%@ %%@ (%@ %%@)"), versionString, buildString);
-        }
         vers = (CFStringRef)CFDictionaryGetValue((CFDictionaryRef)plist, _kCFSystemVersionProductVersionKey);
         versExtra = (CFStringRef)CFDictionaryGetValue((CFDictionaryRef)plist, _kCFSystemVersionProductVersionExtraKey);
         if (vers && versExtra) vers = CFStringCreateWithFormat(kCFAllocatorSystemDefault, NULL, CFSTR("%@ %@"), vers, versExtra);
         build = (CFStringRef)CFDictionaryGetValue((CFDictionaryRef)plist, _kCFSystemVersionBuildVersionKey);
-        fullVersion = CFStringCreateWithFormat(kCFAllocatorSystemDefault, NULL, fullVersionString, (vers ? vers : CFSTR("?")), build ? build : CFSTR("?"));
+        shortVersion = CFStringCreateCopy(kCFAllocatorSystemDefault, (vers) ? vers : CFSTR("?"));
+        
+        CFStringRef formattedFullVersion = CFStringCreateStringWithValidatedFormat(kCFAllocatorSystemDefault, NULL, CFSTR("%@ %@"), fullVersionString, NULL, (vers ? vers : CFSTR("?")), build ? build : CFSTR("?"));
+        if (!formattedFullVersion || CFEqual(formattedFullVersion, CFSTR("FullVersionString"))) {
+            fullVersion = CFStringCreateWithFormat(kCFAllocatorSystemDefault, NULL, CFSTR("%@ %@ (%@ %@)"), versionString, (vers ? vers : CFSTR("?")), buildString, build ? build : CFSTR("?"));
+        } else {
+            fullVersion = CFRetain(formattedFullVersion);
+        }
         if (vers && versExtra) CFRelease(vers);
+        if (formattedFullVersion) CFRelease(formattedFullVersion);
         
 	CFDictionarySetValue((CFMutableDictionaryRef)plist, _kCFSystemVersionProductVersionStringKey, versionString);
 	CFDictionarySetValue((CFMutableDictionaryRef)plist, _kCFSystemVersionBuildStringKey, buildString);
 	CFDictionarySetValue((CFMutableDictionaryRef)plist, CFSTR("FullVersionString"), fullVersion);
+	CFDictionarySetValue((CFMutableDictionaryRef)plist, _kCFSystemVersionShortVersionStringKey, shortVersion);
  	CFRelease(versionString);
 	CFRelease(buildString);
 	CFRelease(fullVersionString);
         CFRelease(fullVersion);
+        CFRelease(shortVersion);
     }
 #elif TARGET_OS_WIN32
     OSVERSIONINFOEX osvi;
@@ -359,7 +370,6 @@ static CFDictionaryRef _CFCopyVersionDictionary(CFStringRef path) {
     return (CFDictionaryRef)plist;
 }
 
-#if !TARGET_OS_WASI
 CFStringRef _CFCopySystemVersionDictionaryValue(CFStringRef key) {
     CFStringRef versionString;
     CFDictionaryRef dict = _CFCopyServerVersionDictionary();
@@ -372,7 +382,19 @@ CFStringRef _CFCopySystemVersionDictionaryValue(CFStringRef key) {
 }
 
 CFStringRef CFCopySystemVersionString(void) {
-    return _CFCopySystemVersionDictionaryValue(CFSTR("FullVersionString"));
+    CFDictionaryRef dict = _CFCopySystemVersionDictionary();
+    
+    if (!dict) {
+        return NULL;
+    }
+    
+    CFStringRef versionString = (CFStringRef)CFDictionaryGetValue(dict, CFSTR("FullVersionString"));
+    if (versionString) {
+        CFRetain(versionString);
+    }
+    
+    CFRelease(dict);
+    return versionString;
 }
 
 CFDictionaryRef _CFCopySystemVersionDictionary(void) {
@@ -428,6 +450,7 @@ CFDictionaryRef _CFCopyServerVersionDictionary(void) {
     }
 }
 
+
 static CFOperatingSystemVersion _CFCalculateOSVersion(void) {
     CFOperatingSystemVersion versionStruct = {-1, 0, 0};
 #if TARGET_OS_WIN32
@@ -439,6 +462,12 @@ static CFOperatingSystemVersion _CFCalculateOSVersion(void) {
     }
 #else
     CFStringRef resolvedProductVersionKey = _kCFSystemVersionProductVersionKey;
+#if TARGET_OS_OSX
+    // If we're on a Mac but running an iOS app, use the `iOSSupportVersion` instead
+    if (dyld_get_active_platform() == PLATFORM_IOS) {
+        resolvedProductVersionKey = CFSTR("iOSSupportVersion");
+    }
+#endif
     CFStringRef productVersion = _CFCopySystemVersionDictionaryValue(resolvedProductVersionKey);
     if (productVersion) {
         CFArrayRef components = CFStringCreateArrayBySeparatingStrings(kCFAllocatorDefault, productVersion, CFSTR("."));
@@ -489,11 +518,14 @@ CONST_STRING_DECL(_kCFSystemVersionProductUserVisibleVersionKey, "ProductUserVis
 CONST_STRING_DECL(_kCFSystemVersionBuildVersionKey, "ProductBuildVersion")
 CONST_STRING_DECL(_kCFSystemVersionProductVersionStringKey, "Version")
 CONST_STRING_DECL(_kCFSystemVersionBuildStringKey, "Build")
-#endif
+CONST_STRING_DECL(_kCFSystemVersionShortVersionStringKey, "ShortVersionString")
+
 
 CF_EXPORT Boolean _CFExecutableLinkedOnOrAfter(CFSystemVersion version) {
     return true;
 }
+
+
 
 #if TARGET_OS_OSX
 CF_PRIVATE void *__CFLookupCarbonCoreFunction(const char *name) {
@@ -511,24 +543,14 @@ CF_PRIVATE void *__CFLookupCarbonCoreFunction(const char *name) {
 #endif
 
 #if TARGET_OS_MAC
-CF_PRIVATE void *__CFLookupCoreServicesInternalFunction(const char *name) {
-    static void *image = NULL;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        image = dlopen("/System/Library/PrivateFrameworks/CoreServicesInternal.framework/CoreServicesInternal", RTLD_LAZY | RTLD_LOCAL);
-    });
-    void *dyfunc = NULL;
-    if (image) {
-        dyfunc = dlsym(image, name);
-    }
-    return dyfunc;
-}
-
 CF_PRIVATE void *__CFLookupCFNetworkFunction(const char *name) {
     static void *image = NULL;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        const char *path = __CFgetenvIfNotRestricted("CFNETWORK_LIBRARY_PATH");
+        const char *path = NULL;
+        if (!__CFProcessIsRestricted()) {
+            path = getenv("CFNETWORK_LIBRARY_PATH");
+        }
         if (!path) {
             path = "/System/Library/Frameworks/CFNetwork.framework/CFNetwork";
         }
@@ -661,7 +683,7 @@ CF_INLINE BOOL _CFCanChangeEUIDs(void) {
     return true;
 #endif
 }
-
+    
 #if !TARGET_OS_WASI
 typedef struct _ugids {
     uid_t _euid;
@@ -715,7 +737,7 @@ CF_EXPORT uid_t _CFGetEGID(void) {
     __CFGetUGIDs(NULL, &egid);
     return egid;
 }
-#endif
+#endif // !TARGET_OS_WASI
 
 const char *_CFPrintForDebugger(const void *obj) {
 	static char *result = NULL;
@@ -836,7 +858,9 @@ typedef enum {
 
 static bool also_do_stderr(const _cf_logging_style style) {
     bool result = false;
-#if TARGET_OS_LINUX || TARGET_OS_WIN32
+#define _CF_USE_STDERR_LOGGING_ONLY 0
+    
+#if _CF_USE_STDERR_LOGGING_ONLY
     // just log to stderr, other logging facilities are out
     result = true;
 #elif TARGET_OS_MAC
@@ -855,11 +879,11 @@ static bool also_do_stderr(const _cf_logging_style style) {
         // can and do change at runtime under certain circumstances, so we need to
         // keep it dynamic.
         //
-        if (debugger_attached() || __CFgetenv("OS_ACTIVITY_DT_MODE")) {
+        if (debugger_attached() || getenv("OS_ACTIVITY_DT_MODE")) {
             return false;
         }
 
-        if (!__CFProcessIsRestricted() && __CFgetenv("CFLOG_FORCE_STDERR")) {
+        if (!__CFProcessIsRestricted() && getenv("CFLOG_FORCE_STDERR")) {
             return true;
         }
 
@@ -877,7 +901,7 @@ static bool also_do_stderr(const _cf_logging_style style) {
         result = false;
     } else if (style == _cf_logging_style_legacy) {
         // compatibility path
-        if (!issetugid() && __CFgetenv("CFLOG_FORCE_STDERR")) {
+        if (!issetugid() && getenv("CFLOG_FORCE_STDERR")) {
             return true;
         }
         struct stat sb;
@@ -908,7 +932,7 @@ static struct tm *localtime_r(time_t *tv, struct tm *result) {
 static void _populateBanner(char **banner, char **time, char **thread, int *bannerLen) {
     double dummy;
     CFAbsoluteTime at = CFAbsoluteTimeGetCurrent();
-    time_t tv = (time_t)floor(at + kCFAbsoluteTimeIntervalSince1970);
+    time_t tv = floor(at + kCFAbsoluteTimeIntervalSince1970);
     struct tm mine;
     localtime_r(&tv, &mine);
     int32_t year = mine.tm_year + 1900;
@@ -926,9 +950,6 @@ static void _populateBanner(char **banner, char **time, char **thread, int *bann
 #elif TARGET_OS_WIN32
     bannerLen = asprintf(banner, "%04d-%02d-%02d %02d:%02d:%02d.%03d %s[%d:%lx] ", year, month, day, hour, minute, second, ms, *_CFGetProgname(), getpid(), GetCurrentThreadId());
     asprintf(thread, "%lx", GetCurrentThreadId());
-#elif TARGET_OS_WASI
-    bannerLen = asprintf(banner, "%04d-%02d-%02d %02d:%02d:%02d.%03d [%x] ", year, month, day, hour, minute, second, ms, (unsigned int)pthread_self());
-    asprintf(thread, "%lx", pthread_self());
 #else
     bannerLen = asprintf(banner, "%04d-%02d-%02d %02d:%02d:%02d.%03d %s[%d:%x] ", year, month, day, hour, minute, second, ms, *_CFGetProgname(), getpid(), (unsigned int)pthread_self());
     asprintf(thread, "%lx", pthread_self());
@@ -1019,7 +1040,7 @@ static void __CFLogCStringLegacy(int32_t lev, const char *message, size_t length
         _populateBanner(&banner, &time, &thread, &bannerLen);
     }
     
-#if TARGET_OS_MAC
+#if TARGET_OS_MAC || (TARGET_OS_WIN32 && !defined(CF_OPEN_SOURCE))
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated"
     uid_t euid;
@@ -1056,7 +1077,7 @@ static void _CFLogvEx2Predicate(CFLogFunc logit, CFStringRef (*copyDescFunc)(voi
     if (3 < val) return; // allow up to 4 nested invocations
     _CFSetTSD(__CFTSDKeyIsInCFLog, (void *)(val + 1), NULL);
 #endif
-    CFStringRef str = format ? _CFStringCreateWithFormatAndArgumentsAux2(kCFAllocatorSystemDefault, copyDescFunc, contextDescFunc, formatOptions, (CFStringRef)format, args) : 0;
+    CFStringRef str = format ? _CFStringCreateWithFormatAndArgumentsAux2(kCFAllocatorSystemDefault, copyDescFunc, contextDescFunc, formatOptions, NULL, (CFStringRef)format, args) : 0;
     CFIndex blen = str ? CFStringGetMaximumSizeForEncoding(CFStringGetLength(str), kCFStringEncodingUTF8) + 1 : 0;
     char *buf = str ? (char *)malloc(blen) : 0;
     if (str && buf) {
@@ -1110,12 +1131,7 @@ CF_PRIVATE void _CFLogSimple(int32_t lev, char *format, ...) {
 void CFLog(int32_t lev, CFStringRef format, ...) {
     va_list args;
     va_start(args, format); 
-    
-    #if !TARGET_OS_WASI
     _CFLogvEx3(NULL, NULL, NULL, NULL, lev, format, args, __builtin_return_address(0));
-    #else
-    _CFLogvEx3(NULL, NULL, NULL, NULL, lev, format, args, NULL);
-    #endif
     va_end(args);
 }
     
@@ -1367,7 +1383,7 @@ CF_PRIVATE Boolean _CFReadMappedFromFile(CFStringRef path, Boolean map, Boolean 
     if (0LL == statBuf.st_size) {
         bytes = malloc(8); // don't return constant string -- it's freed!
 	length = 0;
-#if TARGET_OS_MAC || TARGET_OS_LINUX || TARGET_OS_BSD || TARGET_OS_WASI
+#if TARGET_OS_MAC || TARGET_OS_LINUX || TARGET_OS_BSD
     } else if (map) {
         if((void *)-1 == (bytes = mmap(0, (size_t)statBuf.st_size, PROT_READ, MAP_PRIVATE, fd, 0))) {
 	    int32_t savederrno = errno;
@@ -1662,7 +1678,7 @@ CF_EXPORT Boolean _CFExtensionIsValidToAppend(CFStringRef extension) {
 }
 
 
-#if DEPLOYMENT_RUNTIME_SWIFT && !TARGET_OS_WASI
+#if DEPLOYMENT_RUNTIME_SWIFT
 
 CFDictionaryRef __CFGetEnvironment() {
     static dispatch_once_t once = 0L;
@@ -1671,7 +1687,7 @@ CFDictionaryRef __CFGetEnvironment() {
 #if TARGET_OS_MAC
         extern char ***_NSGetEnviron(void);
         char **envp = *_NSGetEnviron();
-#elif TARGET_OS_BSD || TARGET_OS_CYGWIN || TARGET_OS_WASI
+#elif TARGET_OS_BSD || TARGET_OS_CYGWIN
         extern char **environ;
         char **envp = environ;
 #elif TARGET_OS_LINUX

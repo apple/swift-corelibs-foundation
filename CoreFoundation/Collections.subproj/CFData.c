@@ -14,6 +14,7 @@
 #include "CFInternal.h"
 #include "CFRuntime_Internal.h"
 #include <string.h>
+#include <assert.h>
 
 
 
@@ -208,13 +209,13 @@ static void __CFDataHandleOutOfMemory(CFTypeRef obj, CFIndex numBytes) CLANG_ANA
     HALT;
 }
 
-#define FAUX_HALT_MSG(msg) fprintf(stderr, "%s\n", msg)
+#define ASSERT_MSG(condition, msg) do { assert(condition); } while(0);
 
-CF_INLINE void __CFDataValidateRange(CFDataRef data, CFRange range) {
-    if (range.location < 0) FAUX_HALT_MSG("range.location out of range (<0)");
-    if (range.location > __CFDataLength(data)) FAUX_HALT_MSG("range.location out of range (>len)");
-    if (range.length < 0) FAUX_HALT_MSG("length cannot be less than zero");
-    if (range.location + range.length > __CFDataLength(data)) FAUX_HALT_MSG("ending index out of bounds");
+CF_INLINE void __CFDataValidateRange(CFDataRef data, CFIndex dataLength, CFRange range) {
+    ASSERT_MSG(range.location >= 0, "range.location out of range (<0)");
+    ASSERT_MSG(range.location <= dataLength, "range.location out of range (>len)");
+    ASSERT_MSG(range.length >= 0, "length cannot be less than zero");
+    ASSERT_MSG(range.location + range.length <= dataLength, "ending index out of bounds");
 }
 
 static Boolean __CFDataEqual(CFTypeRef cf1, CFTypeRef cf2) {
@@ -527,7 +528,8 @@ uint8_t *CFDataGetMutableBytePtr(CFMutableDataRef data) {
 void CFDataGetBytes(CFDataRef data, CFRange range, uint8_t *buffer) {
     CF_OBJC_FUNCDISPATCHV(CFDataGetTypeID(), void, (NSData *)data, getBytes:(void *)buffer range:NSMakeRange(range.location, range.length));
     CF_SWIFT_NSDATA_FUNCDISPATCHV(_kCFRuntimeIDCFData, void, data, NSData.getBytes, range, buffer);
-    __CFDataValidateRange(data, range);
+    CFIndex dataLength = __CFDataLength(data);
+    __CFDataValidateRange(data, dataLength, range);
     memmove(buffer, _CFDataGetBytePtrNonObjC(data) + range.location, range.length);
 }
 
@@ -627,12 +629,14 @@ void CFDataReplaceBytes(CFMutableDataRef data, CFRange range, const uint8_t *new
     CF_OBJC_FUNCDISPATCHV(CFDataGetTypeID(), void, (NSMutableData *)data, replaceBytesInRange:NSMakeRange(range.location, range.length) withBytes:(const void *)newBytes length:(NSUInteger)newBytesLength);
     CF_SWIFT_NSDATA_FUNCDISPATCHV(_kCFRuntimeIDCFData, void, data, NSData.replaceBytes, range, newBytes, newBytesLength);
     __CFGenericValidateType(data, CFDataGetTypeID());
-    __CFDataValidateRange(data, range);
-    CFAssert1(__CFDataIsMutable(data), __kCFLogAssertion, "%s(): data is immutable", __PRETTY_FUNCTION__);
-    CFAssert2(0 <= newBytesLength, __kCFLogAssertion, "%s(): newLength (%ld) cannot be less than zero", __PRETTY_FUNCTION__, newBytesLength);
 
     CFIndex const originalCapacity = __CFDataCapacity(data);
     CFIndex const originalLength = __CFDataLength(data);
+
+    __CFDataValidateRange(data, originalLength, range);
+    CFAssert1(__CFDataIsMutable(data), __kCFLogAssertion, "%s(): data is immutable", __PRETTY_FUNCTION__);
+    CFAssert2(0 <= newBytesLength, __kCFLogAssertion, "%s(): newLength (%ld) cannot be less than zero", __PRETTY_FUNCTION__, newBytesLength);
+
     if (range.length < 0) HALT_MSG("Negative range.length passed to CFDataReplaceBytes");
     if (newBytesLength < 0) HALT_MSG("Negative buffer length passed to CFDataReplaceBytes");
     CFIndex const newLength = originalLength - range.length + newBytesLength;
@@ -860,9 +864,16 @@ CFRange CFDataFind(CFDataRef data, CFDataRef dataToFind, CFRange searchRange, CF
     // No objc dispatch
     __CFGenericValidateType(data, CFDataGetTypeID());
     __CFGenericValidateType(dataToFind, CFDataGetTypeID());
-    __CFDataValidateRange(data, searchRange);
+    CFIndex dataLength = CFDataGetLength(data);
+    __CFDataValidateRange(data, dataLength, searchRange);
     
     return _CFDataFindBytes(data, dataToFind, searchRange, compareOptions);
+}
+
+Boolean __CFDataGetBinaryPlistTopLevelInfo(CFDataRef data, uint8_t *marker, uint64_t *offset, CFBinaryPlistTrailer *trailer) {
+    CF_OBJC_FUNCDISPATCHV(CFDataGetTypeID(), Boolean, (NSData *)data, _getBPlistMarker:(uint8_t *)marker offset:(uint64_t *)offset trailer:(CFBinaryPlistTrailer *)trailer);
+
+    return __CFBinaryPlistGetTopLevelInfo(CFDataGetBytePtr(data), CFDataGetLength(data), marker, offset, trailer);
 }
 
 #undef INLINE_BYTES_THRESHOLD

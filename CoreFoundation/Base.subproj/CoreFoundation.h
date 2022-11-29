@@ -22,9 +22,7 @@
 #include <limits.h>
 #include <locale.h>
 #include <math.h>
-#if !defined(__wasi__)
 #include <setjmp.h>
-#endif
 #include <signal.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -35,8 +33,13 @@
 #if defined(__STDC_VERSION__) && (199901L <= __STDC_VERSION__)
 
 #include <inttypes.h>
-#include <stdbool.h>
 #include <stdint.h>
+
+#endif
+
+#if defined(__STDC_VERSION__) && (199901L <= __STDC_VERSION__) && (__STDC_VERSION__ <= 201710L)
+
+#include <stdbool.h>
 
 #endif
 
@@ -49,6 +52,7 @@
 #include <CoreFoundation/CFBitVector.h>
 #include <CoreFoundation/CFByteOrder.h>
 #include <CoreFoundation/CFCalendar.h>
+#include <CoreFoundation/CFCGTypes.h>
 #include <CoreFoundation/CFCharacterSet.h>
 #include <CoreFoundation/CFData.h>
 #include <CoreFoundation/CFDate.h>
@@ -58,9 +62,7 @@
 #include <CoreFoundation/CFLocale.h>
 #include <CoreFoundation/CFNumber.h>
 #include <CoreFoundation/CFNumberFormatter.h>
-#if !TARGET_OS_WASI
 #include <CoreFoundation/CFPreferences.h>
-#endif
 #include <CoreFoundation/CFPropertyList.h>
 #include <CoreFoundation/CFSet.h>
 #include <CoreFoundation/CFString.h>
@@ -90,11 +92,8 @@
 #endif
 
 #include <CoreFoundation/CFUserNotification.h>
-
-#if !DEPLOYMENT_RUNTIME_SWIFT
 #include <CoreFoundation/CFXMLNode.h>
 #include <CoreFoundation/CFXMLParser.h>
-#endif
 
 #endif /* ! __COREFOUNDATION_COREFOUNDATION__ */
 

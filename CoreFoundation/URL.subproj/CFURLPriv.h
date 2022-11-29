@@ -873,6 +873,36 @@ CF_EXPORT Boolean _CFURLRevocableBookmarksRevokeForBundleIdentifier(CFStringRef 
 /** Notification sent when the set of active clients changes. */
 CF_EXPORT const CFNotificationName _kCFURLRevocableBookmarksClientsDidChangeNotification API_AVAILABLE(macos(10.16)) API_UNAVAILABLE(ios, watchos, tvos);
 
+#pragma mark - Percent Encoded Properties
+
+CF_EXPORT
+CFStringRef  _CFURLCopyPassword(CFURLRef  anURL, Boolean removePercentEscapes)
+    API_AVAILABLE(macos(13.0), ios(16.0), watchos(9.0), tvos(16.0));
+
+CF_EXPORT
+CFStringRef _CFURLCopyUserName(CFURLRef  anURL, Boolean removePercentEscapes)
+    API_AVAILABLE(macos(13.0), ios(16.0), watchos(9.0), tvos(16.0));
+
+CF_EXPORT
+CFStringRef _CFURLCopyQueryString(CFURLRef anURL, Boolean removePercentEscapes)
+    API_AVAILABLE(macos(13.0), ios(16.0), watchos(9.0), tvos(16.0));
+
+CF_EXPORT
+CFStringRef _CFURLCopyFragment(CFURLRef anURL, Boolean removePercentEscapes)
+    API_AVAILABLE(macos(13.0), ios(16.0), watchos(9.0), tvos(16.0));
+
+CF_EXPORT
+CFStringRef  _CFURLCopyHostName(CFURLRef  anURL, Boolean removePercentEscapes)
+    API_AVAILABLE(macos(13.0), ios(16.0), watchos(9.0), tvos(16.0));
+
+CF_EXPORT
+CFStringRef  _CFURLCopyPath(CFURLRef  anURL, Boolean removePercentEscapes)
+    API_AVAILABLE(macos(13.0), ios(16.0), watchos(9.0), tvos(16.0));
+
+CF_EXPORT
+CFURLRef  _CFURLCreateCopyAppendingPathComponent(CFURLRef  anURL, CFStringRef pathComponent, Boolean isDirectory)
+    API_AVAILABLE(macos(13.0), ios(16.0), watchos(9.0), tvos(16.0));
+
 CF_EXTERN_C_END
 
 #endif /* ! __COREFOUNDATION_CFURLPRIV__ */

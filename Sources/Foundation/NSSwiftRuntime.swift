@@ -320,6 +320,8 @@ internal func __CFInitializeSwift() {
     __CFSwiftBridge.NSURL.setTemporaryResourceValueForKey = _CFSwiftSetTemporaryResourceValueForKey
     __CFSwiftBridge.NSURL.resourceIsReachable = _CFSwiftURLResourceIsReachable
 #endif
+
+    __CFSwiftBridge.NSLocale.preferenceForKey = _CFSwiftLocaleGetPreferenceForKey
 }
 
 public func === (lhs: AnyClass, rhs: AnyClass) -> Bool {

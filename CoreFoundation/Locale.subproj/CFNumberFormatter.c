@@ -126,9 +126,10 @@ CFNumberFormatterRef CFNumberFormatterCreate(CFAllocatorRef allocator, CFLocaleR
     }
     if (kCFNumberFormatterNoStyle == style) {
         status = U_ZERO_ERROR;
-        UChar pound = '#';
-        __cficu_unum_applyPattern(memory->_nf, false, &pound, 1, NULL, &status);
-	__cficu_unum_setAttribute(memory->_nf, UNUM_MAX_INTEGER_DIGITS, 42);
+        UniChar pound[] = { '#' };
+        __cficu_unum_applyPattern(memory->_nf, false, pound, 1, NULL, &status);
+        
+        __cficu_unum_setAttribute(memory->_nf, UNUM_MAX_INTEGER_DIGITS, 42);
 	__cficu_unum_setAttribute(memory->_nf, UNUM_MAX_FRACTION_DIGITS, 0);
     }
     //Prior to Gala, CFLocaleCreateCopy() always just retained. This caused problems because CFLocaleGetValue(locale, kCFLocaleCalendarKey) would create a calendar, then set its locale to self, leading to a retain cycle
@@ -162,19 +163,15 @@ CFNumberFormatterRef CFNumberFormatterCreate(CFAllocatorRef allocator, CFLocaleR
     return (CFNumberFormatterRef)memory;
 }
 
-extern CFDictionaryRef __CFLocaleGetPrefs(CFLocaleRef locale);
-
 static void __substituteFormatStringFromPrefsNF(CFNumberFormatterRef formatter) {
     CFIndex formatStyle = formatter->_style;
     if (kCFNumberFormatterSpellOutStyle == formatStyle) return;
     if (kCFNumberFormatterOrdinalStyle == formatStyle) return;
     if (kCFNumberFormatterDurationStyle == formatStyle) return;
     if (kCFNumberFormatterCurrencyPluralStyle == formatStyle) return;
-    CFStringRef prefName = CFSTR("AppleICUNumberFormatStrings");
     if (kCFNumberFormatterNoStyle != formatStyle) {
 	CFStringRef pref = NULL;
-	CFDictionaryRef prefs = __CFLocaleGetPrefs(formatter->_locale);
-	CFPropertyListRef metapref = prefs ? CFDictionaryGetValue(prefs, prefName) : NULL;
+        CFPropertyListRef metapref = __CFLocaleGetPref(formatter->_locale, AppleICUNumberFormatStrings);
 	if (NULL != metapref && CFGetTypeID(metapref) == CFDictionaryGetTypeID()) {
 	    CFStringRef key;
 	    switch (formatStyle) {
@@ -282,28 +279,28 @@ static CFStringRef __CFNumberFormatterCreateCompressedString(CFStringRef inStrin
 // Should not be called for rule-based ICU formatters; not supported
 static void __CFNumberFormatterApplySymbolPrefs(const void *key, const void *value, void *context) {
     if (CFGetTypeID(key) == CFStringGetTypeID() && CFGetTypeID(value) == CFStringGetTypeID()) {
-	CFNumberFormatterRef const formatter = (CFNumberFormatterRef)context;
-	UNumberFormatSymbol const sym = (UNumberFormatSymbol)CFStringGetIntValue((CFStringRef)key);
-	CFStringRef const item = (CFStringRef)value;
-	
-	UErrorCode status = U_ZERO_ERROR;
-	CFIndex item_cnt = CFStringGetLength(item);
-	if (item_cnt > 0) {
-	    CFIndex const buffer_size = __CFMin(BUFFER_SIZE, item_cnt);
-	    STACK_BUFFER_DECL(UChar, item_buffer, buffer_size);
-	    
-	    UChar *item_ustr = (UChar *)CFStringGetCharactersPtr(item);
-	    if (NULL == item_ustr) {
-		CFStringGetCharacters(item, CFRangeMake(0, buffer_size), (UniChar *)item_buffer);
-		item_ustr = item_buffer;
-		item_cnt = buffer_size;
-	    }
-	    
-	    __cficu_unum_setSymbol(formatter->_nf, sym, item_ustr, item_cnt, &status);
-	} else {
-        UChar empty = 0;
-	    __cficu_unum_setSymbol(formatter->_nf, sym, &empty, 0, &status);
-	}
+        CFNumberFormatterRef const formatter = (CFNumberFormatterRef)context;
+        UNumberFormatSymbol const sym = (UNumberFormatSymbol)CFStringGetIntValue((CFStringRef)key);
+        CFStringRef const item = (CFStringRef)value;
+        
+        UErrorCode status = U_ZERO_ERROR;
+        CFIndex item_cnt = CFStringGetLength(item);
+        if (item_cnt > 0) {
+            CFIndex const buffer_size = __CFMin(BUFFER_SIZE, item_cnt);
+            STACK_BUFFER_DECL(UChar, item_buffer, buffer_size);
+            
+            UChar *item_ustr = (UChar *)CFStringGetCharactersPtr(item);
+            if (NULL == item_ustr) {
+                CFStringGetCharacters(item, CFRangeMake(0, buffer_size), (UniChar *)item_buffer);
+                item_ustr = item_buffer;
+                item_cnt = buffer_size;
+            }
+            
+            __cficu_unum_setSymbol(formatter->_nf, sym, item_ustr, item_cnt, &status);
+        } else {
+            UniChar empty = 0;
+            __cficu_unum_setSymbol(formatter->_nf, sym, &empty, 0, &status);
+        }
     }
 }
 
@@ -344,25 +341,24 @@ static UErrorCode __CFNumberFormatterApplyPattern(CFNumberFormatterRef formatter
 
 static void __CFNumberFormatterCustomize(CFNumberFormatterRef formatter) {
     __substituteFormatStringFromPrefsNF(formatter);
-    CFDictionaryRef prefs = __CFLocaleGetPrefs(formatter->_locale);
-    CFPropertyListRef metapref = prefs ? CFDictionaryGetValue(prefs, CFSTR("AppleICUNumberSymbols")) : NULL;
+    CFPropertyListRef metapref = __CFLocaleGetPref(formatter->_locale, AppleICUNumberSymbols);
     if (NULL != metapref && CFGetTypeID(metapref) == CFDictionaryGetTypeID()) {
 	CFDictionaryApplyFunction((CFDictionaryRef)metapref, __CFNumberFormatterApplySymbolPrefs, formatter);
     }
 }
 
 CFLocaleRef CFNumberFormatterGetLocale(CFNumberFormatterRef formatter) {
-    __CFGenericValidateType(formatter, CFNumberFormatterGetTypeID());
+    CF_ASSERT_TYPE(_kCFRuntimeIDCFNumberFormatter, formatter);
     return formatter->_locale;
 }
 
 CFNumberFormatterStyle CFNumberFormatterGetStyle(CFNumberFormatterRef formatter) {
-    __CFGenericValidateType(formatter, CFNumberFormatterGetTypeID());
+    CF_ASSERT_TYPE(_kCFRuntimeIDCFNumberFormatter, formatter);
     return formatter->_style;
 }
 
 CFStringRef CFNumberFormatterGetFormat(CFNumberFormatterRef formatter) {
-    __CFGenericValidateType(formatter, CFNumberFormatterGetTypeID());
+    CF_ASSERT_TYPE(_kCFRuntimeIDCFNumberFormatter, formatter);
     if (kCFNumberFormatterSpellOutStyle == formatter->_style) return NULL;
     if (kCFNumberFormatterOrdinalStyle == formatter->_style) return NULL;
     if (kCFNumberFormatterDurationStyle == formatter->_style) return NULL;
@@ -390,7 +386,7 @@ CFStringRef CFNumberFormatterGetFormat(CFNumberFormatterRef formatter) {
 }
 
 void CFNumberFormatterSetFormat(CFNumberFormatterRef formatter, CFStringRef formatString) {
-    __CFGenericValidateType(formatter, CFNumberFormatterGetTypeID());
+    CF_ASSERT_TYPE(_kCFRuntimeIDCFNumberFormatter, formatter);
     __CFGenericValidateType(formatString, CFStringGetTypeID());
     if (kCFNumberFormatterSpellOutStyle == formatter->_style) return;
     if (kCFNumberFormatterOrdinalStyle == formatter->_style) return;
@@ -429,7 +425,7 @@ void CFNumberFormatterSetFormat(CFNumberFormatterRef formatter, CFStringRef form
 CFStringRef CFNumberFormatterCreateStringWithNumber(CFAllocatorRef allocator, CFNumberFormatterRef formatter, CFNumberRef number) {
     if (allocator == NULL) allocator = __CFGetDefaultAllocator();
     __CFGenericValidateType(allocator, CFAllocatorGetTypeID());
-    __CFGenericValidateType(formatter, CFNumberFormatterGetTypeID());
+    CF_ASSERT_TYPE(_kCFRuntimeIDCFNumberFormatter, formatter);
     __CFGenericValidateType(number, CFNumberGetTypeID());
     // The values of CFNumbers with large unsigned 64-bit ints don't survive well through this
     CFNumberType type = CFNumberGetType(number);
@@ -477,7 +473,7 @@ CFStringRef CFNumberFormatterCreateStringWithNumber(CFAllocatorRef allocator, CF
 CFStringRef CFNumberFormatterCreateStringWithValue(CFAllocatorRef allocator, CFNumberFormatterRef formatter, CFNumberType numberType, const void *valuePtr) {
     if (allocator == NULL) allocator = __CFGetDefaultAllocator();
     __CFGenericValidateType(allocator, CFAllocatorGetTypeID());
-    __CFGenericValidateType(formatter, CFNumberFormatterGetTypeID());
+    CF_ASSERT_TYPE(_kCFRuntimeIDCFNumberFormatter, formatter);
     GET_MULTIPLIER;
     UChar *ustr = NULL, ubuffer[BUFFER_SIZE + 1];
     UErrorCode status = U_ZERO_ERROR;
@@ -528,7 +524,7 @@ CFStringRef CFNumberFormatterCreateStringWithValue(CFAllocatorRef allocator, CFN
 CFNumberRef CFNumberFormatterCreateNumberFromString(CFAllocatorRef allocator, CFNumberFormatterRef formatter, CFStringRef string, CFRange *rangep, CFOptionFlags options) {
     if (allocator == NULL) allocator = __CFGetDefaultAllocator();
     __CFGenericValidateType(allocator, CFAllocatorGetTypeID());
-    __CFGenericValidateType(formatter, CFNumberFormatterGetTypeID());
+    CF_ASSERT_TYPE(_kCFRuntimeIDCFNumberFormatter, formatter);
     __CFGenericValidateType(string, CFStringGetTypeID());
     char buffer[16] __attribute__ ((aligned (8)));
     CFRange r = rangep ? *rangep : CFRangeMake(0, CFStringGetLength(string));
@@ -612,7 +608,7 @@ CFNumberRef CFNumberFormatterCreateNumberFromString(CFAllocatorRef allocator, CF
 }
 
 Boolean CFNumberFormatterGetValueFromString(CFNumberFormatterRef formatter, CFStringRef string, CFRange *rangep, CFNumberType numberType, void *valuePtr) {
-    __CFGenericValidateType(formatter, CFNumberFormatterGetTypeID());
+    CF_ASSERT_TYPE(_kCFRuntimeIDCFNumberFormatter, formatter);
     __CFGenericValidateType(string, CFStringGetTypeID());
     CFStringRef stringToParse = formatter->_isLenient ? __CFNumberFormatterCreateCompressedString(string, false, rangep) : (CFStringRef)CFRetain(string);
     CFRange range = {0, 0};
@@ -791,7 +787,7 @@ void CFNumberFormatterSetProperty(CFNumberFormatterRef formatter, CFStringRef ke
     UErrorCode status = U_ZERO_ERROR;
     UChar ubuffer[BUFFER_SIZE];
     CFIndex cnt;
-    __CFGenericValidateType(formatter, CFNumberFormatterGetTypeID());
+    CF_ASSERT_TYPE(_kCFRuntimeIDCFNumberFormatter, formatter);
     __CFGenericValidateType(key, CFStringGetTypeID());
     // rule-based formatters don't do attributes and symbols, except for one
     if (CFEqual(kCFNumberFormatterFormattingContextKey, key)) {
@@ -1013,7 +1009,7 @@ CFTypeRef CFNumberFormatterCopyProperty(CFNumberFormatterRef formatter, CFString
     UErrorCode status = U_ZERO_ERROR;
     UChar ubuffer[BUFFER_SIZE];
     CFIndex cnt;
-    __CFGenericValidateType(formatter, CFNumberFormatterGetTypeID());
+    CF_ASSERT_TYPE(_kCFRuntimeIDCFNumberFormatter, formatter);
     __CFGenericValidateType(key, CFStringGetTypeID());
     // rule-based formatters don't do attributes and symbols, except for one
     if (CFEqual(kCFNumberFormatterFormattingContextKey, key)) {
@@ -1247,6 +1243,7 @@ Boolean CFNumberFormatterGetDecimalInfoForCurrencyCode(CFStringRef currencyCode,
 
 // This is for NSNumberFormatter use only!
 void *_CFNumberFormatterGetFormatter(CFNumberFormatterRef formatter) {
+    CF_ASSERT_TYPE(_kCFRuntimeIDCFNumberFormatter, formatter);
     return (void *)formatter->_nf;
 }
 

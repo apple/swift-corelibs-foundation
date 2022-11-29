@@ -55,6 +55,7 @@ CF_EXPORT const CFRunLoopMode kCFRunLoopCommonModes;
 
 CF_EXPORT CFTypeID CFRunLoopGetTypeID(void);
 
+CF_SWIFT_UNAVAILABLE_FROM_ASYNC("CFRunLoopGetCurrent cannot be used from async contexts.")
 CF_EXPORT CFRunLoopRef CFRunLoopGetCurrent(void);
 CF_EXPORT CFRunLoopRef CFRunLoopGetMain(void);
 
@@ -66,8 +67,12 @@ CF_EXPORT void CFRunLoopAddCommonMode(CFRunLoopRef rl, CFRunLoopMode mode);
 
 CF_EXPORT CFAbsoluteTime CFRunLoopGetNextTimerFireDate(CFRunLoopRef rl, CFRunLoopMode mode);
 
+CF_SWIFT_UNAVAILABLE_FROM_ASYNC("CFRunLoopRun cannot be used from async contexts.")
 CF_EXPORT void CFRunLoopRun(void);
+
+CF_SWIFT_UNAVAILABLE_FROM_ASYNC("CFRunLoopRunInMode cannot be used from async contexts.")
 CF_EXPORT CFRunLoopRunResult CFRunLoopRunInMode(CFRunLoopMode mode, CFTimeInterval seconds, Boolean returnAfterSourceHandled);
+
 CF_EXPORT Boolean CFRunLoopIsWaiting(CFRunLoopRef rl);
 CF_EXPORT void CFRunLoopWakeUp(CFRunLoopRef rl);
 CF_EXPORT void CFRunLoopStop(CFRunLoopRef rl);

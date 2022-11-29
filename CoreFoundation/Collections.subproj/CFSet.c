@@ -254,6 +254,17 @@ void CFSetApplyFunction(CFSetRef hc, CFSetApplierFunction applier, void *context
     });
 }
 
+CF_PRIVATE void CFSetApply(CFSetRef hc, void (^block)(const void *key, Boolean *stop)) {
+    CF_OBJC_FUNCDISPATCHV(_kCFRuntimeIDCFDictionary, void, (NSSet *)hc, enumerateObjectsWithOptions:0 usingBlock:(void (^ _Nonnull)(id _Nonnull, BOOL * _Nonnull))block);
+    __CFGenericValidateType(hc, CFDictionaryGetTypeID());
+    CFBasicHashApply((CFBasicHashRef)hc, ^(CFBasicHashBucket bkt) {
+        Boolean stop = false;
+        block((void const *)bkt.weak_key, &stop);
+        if (stop) return (Boolean)false;
+        return (Boolean)true;
+    });
+}
+
 // This function is for Foundation's benefit; no one else should use it.
 CF_EXPORT unsigned long _CFSetFastEnumeration(CFSetRef hc, struct __objcFastEnumerationStateEquivalent *state, void *stackbuffer, unsigned long count) {
     if (CF_IS_SWIFT(CFSetGetTypeID(), hc)) return 0;

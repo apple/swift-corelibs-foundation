@@ -187,6 +187,7 @@ static CFCalendarUnit _CFCalendarNextHigherUnit(CFCalendarUnit unit) {
             break;
         case kCFCalendarUnitNanosecond:
             higherUnit = kCFCalendarUnitSecond;
+            break;
         default:
             break;
     }
@@ -426,8 +427,11 @@ static CFDateRef _Nullable _CFCalendarCreateDateAfterDateMatchingMonth(CFCalenda
                 // If year is set, at this point we'd already be at the start of the right year, so we can just iterate forward to find the month we need
                 if (goBackwards) {
                     CFIndex numMonth = CFCalendarGetComponentFromDate(calendar, kCFCalendarUnitMonth, monthBegin);
-                    if ((numMonth == 3) && CFEqual(CFCalendarGetIdentifier(calendar), kCFCalendarIdentifierGregorian)) {
-                        mInv -= (86400*3); // Take it back 3 days so we land in february.  That is, March has 31 days, and Feb can have 28 or 29, so to ensure we get to either Feb 1 or 2, we need to take it back 3 days.
+                    CFCalendarIdentifier identifier = CFCalendarGetIdentifier(calendar);
+                    Boolean hasLeapMonth3 = CFEqual(identifier, kCFCalendarIdentifierGregorian) || CFEqual(identifier, kCFCalendarIdentifierBuddhist) || CFEqual(identifier, kCFCalendarIdentifierJapanese);
+                    if (numMonth == 3 && hasLeapMonth3) {
+                        // Take it back 3 days so we land in february.  That is, March has 31 days, and Feb can have 28 or 29, so to ensure we get to either Feb 1 or 2, we need to take it back 3 days.
+                        mInv -= (86400*3);
                     } else {
                         mInv -= 86400; // Take it back a day
                     }
@@ -2123,7 +2127,7 @@ static CFDateRef _Nullable _CFCalendarCreateAdjustedDateForMismatches(CFCalendar
 #pragma mark -
 #pragma mark Enumerate Entry Point
 
-CF_CROSS_PLATFORM_EXPORT void _CFCalendarEnumerateDates(CFCalendarRef calendar, CFDateRef start, CFDateComponentsRef matchingComponents, CFOptionFlags opts, void (^block)(CFDateRef _Nullable, Boolean, Boolean*)) {
+CF_PRIVATE void _CFCalendarEnumerateDates(CFCalendarRef calendar, CFDateRef start, CFDateComponentsRef matchingComponents, CFOptionFlags opts, void (^block)(CFDateRef, Boolean, Boolean*)) {
     if (!start || !_CFCalendarVerifyCalendarOptions(opts) || !_CFCalendarVerifyCFDateComponentsValues(calendar, matchingComponents)) {
         return;
     }

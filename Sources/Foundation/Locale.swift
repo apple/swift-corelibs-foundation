@@ -484,3 +484,7 @@ extension Locale : Codable {
         try container.encode(self.identifier, forKey: .identifier)
     }
 }
+
+func _CFSwiftLocaleGetPreferenceForKey(_ locale: AnyObject, _ key: CFString) -> Optional<Unmanaged<AnyObject>> {
+    return nil
+}

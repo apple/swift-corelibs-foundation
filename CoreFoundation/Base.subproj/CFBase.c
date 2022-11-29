@@ -59,7 +59,7 @@ struct __CFAllocator {
 };
 
 CF_INLINE uintptr_t __CFISAForCFAllocator(void) {
-    return _GetCFRuntimeObjcClassAtIndex(_kCFRuntimeIDCFAllocator);
+    return __CFISAForTypeID(_kCFRuntimeIDCFAllocator);
 }
 
 CF_INLINE CFAllocatorRetainCallBack __CFAllocatorGetRetainFunction(const CFAllocatorContext *context) {
@@ -853,8 +853,7 @@ void _CFRuntimeSetCFMPresent(void *addr) {
 /* Keep this assembly at the bottom of the source file! */
 
 
-extern void __HALT(void);
-void __HALT() {
+extern void __HALT() {
     __builtin_trap();
 }
 

@@ -58,8 +58,12 @@ CF_PRIVATE SInt32 _CFBundleCurrentArchitecture(void) {
 #elif defined(__x86_64__)
     arch = kCFBundleExecutableArchitectureX86_64;
 #elif defined(BINARY_SUPPORT_DYLD)
+// rdar://88999532 (Disable warnings from macho deprecations)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     const NXArchInfo *archInfo = NXGetLocalArchInfo();
     if (archInfo) arch = archInfo->cputype;
+#pragma clang diagnostic pop
 #endif
     return arch;
 }
@@ -87,7 +91,8 @@ CF_PRIVATE CFArrayRef _CFBundleDYLDCopyLoadedImagePathsForHint(CFStringRef hint)
         }
     }
     for (i = 0; i < numImages; i++) {
-        const char *curName = _dyld_get_image_name(i), *lastComponent = NULL;
+        const char *curName = _CFBundleNormalizedPath(_dyld_get_image_name(i));
+        const char *lastComponent = NULL;
         if (curName && (!processPath || 0 != strcmp(curName, processPath)) && mhp != (void *)_dyld_get_image_header(i)) lastComponent = strrchr(curName, '/');
         if (lastComponent) {
             CFStringRef str = CFStringCreateWithFileSystemRepresentation(kCFAllocatorSystemDefault, lastComponent + 1);
@@ -138,7 +143,7 @@ CF_PRIVATE CFArrayRef _CFBundleDYLDCopyLoadedImagePathsIfChanged(void) {
         result = CFArrayCreateMutable(kCFAllocatorSystemDefault, 0, &kCFTypeArrayCallBacks);
 
         for (i = 0; i < numImages; i++) {
-            curName = _dyld_get_image_name(i);
+            curName = _CFBundleNormalizedPath(_dyld_get_image_name(i));
             if (curName && i == 0) cleanedCurName = _cleanedPathForPath(curName);
             if (curName && (!processPath || 0 != strcmp(curName, processPath)) && (!processPath || !cleanedCurName || 0 != strcmp(cleanedCurName, processPath)) && mhp != (void *)_dyld_get_image_header(i)) {
                 curStr = CFStringCreateWithFileSystemRepresentation(kCFAllocatorSystemDefault, curName);
@@ -160,7 +165,7 @@ CF_PRIVATE CFArrayRef _CFBundleDYLDCopyLoadedImagePathsIfChanged(void) {
 static CFStringRef _CFBundleDYLDCopyLoadedImagePathForPointer(void *p) {
     CFStringRef result = NULL;
 #if USE_DYLD_PRIV
-    const char *name = dyld_image_path_containing_address(p);
+    const char *name = _CFBundleNormalizedPath(dyld_image_path_containing_address(p));
     if (name) result = CFStringCreateWithFileSystemRepresentation(kCFAllocatorSystemDefault, name);
 #else /* USE_DYLD_PRIV */
     if (!result) {
@@ -581,9 +586,7 @@ CF_PRIVATE Boolean _CFBundleDlfcnLoadBundle(CFBundleRef bundle, Boolean forceGlo
                     _CFBundleDlfcnPreflight(bundle, subError);
                     if (!localError) localError = _CFBundleCreateErrorDebug(CFGetAllocator(bundle), bundle, CFBundleExecutableLinkError, errorString);
                 } else {
-                    CFStringRef executableString = CFStringCreateWithFileSystemRepresentation(kCFAllocatorSystemDefault, buff);
-                    CFLog(__kCFLogBundle, CFSTR("Error loading %@:  %@"), executableString, errorString ? errorString : CFSTR("(no additional info)"));
-                    if (executableString) CFRelease(executableString);
+                    os_log_error(_CFOSLog(), "Error loading %{public}s (%lu):  %{public}s", buff, strlen(buff), dyldError ? dyldError : "(no additional info)");
                 }
                 if (errorString) CFRelease(errorString);
             }
@@ -632,9 +635,7 @@ CF_PRIVATE Boolean _CFBundleDlfcnLoadFramework(CFBundleRef bundle, CFErrorRef *e
                     _CFBundleDlfcnPreflight(bundle, subError);
                     if (!localError) localError = _CFBundleCreateErrorDebug(CFGetAllocator(bundle), bundle, CFBundleExecutableLinkError, errorString);
                 } else {
-                    CFStringRef executableString = CFStringCreateWithFileSystemRepresentation(kCFAllocatorSystemDefault, buff);
-                    CFLog(__kCFLogBundle, CFSTR("Error loading %@:  %@"), executableString, errorString ? errorString : CFSTR("(no additional info)"));
-                    CFRelease(executableString);
+                    os_log_error(_CFOSLog(), "Error loading %{public}s (%lu):  %{public}s", buff, strlen(buff), dyldError ? dyldError : "(no additional info)");
                 }
                 if (errorString) CFRelease(errorString);
             }
@@ -761,7 +762,7 @@ CF_PRIVATE void *_CFBundleDLLGetSymbolByName(CFBundleRef bundle, CFStringRef sym
 #endif /* BINARY_SUPPORT_DLL */
 
 // For Swift:
-CF_CROSS_PLATFORM_EXPORT CFStringRef _CFBundleCopyLoadedImagePathForAddress(const void *p) {
+CF_EXPORT_NONOBJC_ONLY CFStringRef _CFBundleCopyLoadedImagePathForAddress(const void *p) {
     return _CFBundleCopyLoadedImagePathForPointer((void *)p);
 }
 

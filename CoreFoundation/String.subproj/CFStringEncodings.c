@@ -81,7 +81,6 @@ UniChar const __CFIdempotentCharToUniCharTable[256] = {
 240, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250, 251, 252, 253, 254, 255
 };
 
-#if TARGET_OS_OSX || TARGET_OS_IPHONE
 UniChar const __CFMacRomanCharToUnicharTable[256] = {
   0,   1,   2,   3,   4,   5,   6,   7,   8,   9,  10,  11,  12,  13,  14,  15,
  16,  17,  18,  19,  20,  21,  22,  23,  24,  25,  26,  27,  28,  29,  30,  31,
@@ -220,7 +219,6 @@ UniChar const __CFMacRomanCharToUnicharTable[256] = {
 0x02DB, /* OGONEK */
 0x02C7, /* CARON */
 };
-#endif
 
 CF_PRIVATE void __CFSetCharToUniCharFunc(CFStringEncodingCheapEightBitToUnicodeProc _Nullable func) {
     if (__CFCharToUniCharFunc != func) {
@@ -246,7 +244,7 @@ CF_PRIVATE void __CFSetCharToUniCharFunc(CFStringEncodingCheapEightBitToUnicodeP
     }
 }
 
-CF_PRIVATE void __CFStrConvertBytesToUnicode(const uint8_t *bytes, UniChar *buffer, CFIndex numChars) {
+void __CFStrConvertBytesToUnicode(const uint8_t *bytes, UniChar *buffer, CFIndex numChars) {
     CFIndex idx;
     for (idx = 0; idx < numChars; idx++) buffer[idx] = __CFCharToUniCharTable[bytes[idx]];
 }
@@ -680,13 +678,9 @@ CFIndex __CFStringEncodeByteStream(CFStringRef string, CFIndex rangeLoc, CFIndex
     const UniChar *unichars;
 
     if (encoding == kCFStringEncodingUTF8 && (unichars = CFStringGetCharactersPtr(string))) {
-        static dispatch_once_t onceToken;
-        static CFStringEncodingToBytesProc __CFToUTF8 = NULL;
-        dispatch_once(&onceToken, ^{
-            // Thiis encoder is built-in, no need to check it more than once
-            __CFToUTF8 = CFStringEncodingGetConverter(kCFStringEncodingUTF8)->toBytes.standard;
-        });
 
+        // Bypass CFStringEncodingGetConverter and go straight to __CFConverterUTF8.
+        CFStringEncodingToBytesProc __CFToUTF8 = __CFConverterUTF8.toBytes.standard;
         numCharsProcessed = __CFToUTF8((generatingExternalFile ? kCFStringEncodingPrependBOM : 0), unichars + rangeLoc, rangeLen, buffer, (buffer ? max : 0), &totalBytesWritten);
 
     } else if (encoding == kCFStringEncodingNonLossyASCII) {
@@ -830,7 +824,7 @@ CFIndex __CFStringEncodeByteStream(CFStringRef string, CFIndex rangeLoc, CFIndex
                     return numCharsProcessed;
                 }
 		
-                CFIndex uninterestingTailLen = buffer ? (rangeLen - __CFMin(max, rangeLen)) : 0;
+                CFIndex uninterestingTailLen = buffer ? (rangeLen - MIN(max, rangeLen)) : 0;
                 while (*ptr < 0x80 && rangeLen > uninterestingTailLen) {
                     ++ptr;
                     --rangeLen;

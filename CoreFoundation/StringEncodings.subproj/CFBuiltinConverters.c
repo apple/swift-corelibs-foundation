@@ -279,7 +279,8 @@ static bool __CFToMacRoman(uint32_t flags, UniChar character, uint8_t *byte) {
     }
 }
 
-#if TARGET_OS_MAC
+CF_PRIVATE UniChar const __CFMacRomanCharToUnicharTable[256];
+
 static bool __CFFromMacRoman(uint32_t flags, uint8_t byte, UniChar *character) {
     *character = __CFMacRomanCharToUnicharTable[byte];
     return true;
@@ -311,7 +312,6 @@ const CFStringEncodingConverter __CFConverterMacRoman = {
     .toBytesPrecompose = __CFToMacRomanPrecompose,
     .isValidCombiningChar = CFStringEncodingIsValidCombiningCharacterForLatin1,
 };
-#endif
 
 /* Win Latin1 (ANSI CodePage 1252) */
 #define NUM_1252_FROM_UNI 27
@@ -818,10 +818,15 @@ CF_INLINE uint16_t __CFToUTF8Core(uint32_t ch, uint8_t *bytes, uint32_t maxByteL
 
     switch (bytesToWrite) {	/* note: code falls through cases! */
         case 6: bytes[5] = (ch | byteMark) & byteMask; ch >>= 6;
+        CF_FALLTHROUGH;
         case 5: bytes[4] = (ch | byteMark) & byteMask; ch >>= 6;
+        CF_FALLTHROUGH;
         case 4: bytes[3] = (ch | byteMark) & byteMask; ch >>= 6;
+        CF_FALLTHROUGH;
         case 3: bytes[2] = (ch | byteMark) & byteMask; ch >>= 6;
+        CF_FALLTHROUGH;
         case 2: bytes[1] = (ch | byteMark) & byteMask; ch >>= 6;
+        CF_FALLTHROUGH;
         case 1: bytes[0] =  ch | firstByteMark[bytesToWrite];
     }
     return bytesToWrite;
@@ -933,8 +938,11 @@ static CFIndex __CFFromUTF8(uint32_t flags, const uint8_t *bytes, CFIndex numByt
          */
         switch (extraBytesToRead) {
             case 3:	ch += *source++; ch <<= 6;
+            CF_FALLTHROUGH;
             case 2:	ch += *source++; ch <<= 6;
+            CF_FALLTHROUGH;
             case 1:	ch += *source++; ch <<= 6;
+            CF_FALLTHROUGH;
             case 0:	ch += *source++;
         }
         ch -= offsetsFromUTF8[extraBytesToRead];
@@ -1044,8 +1052,11 @@ static CFIndex __CFFromUTF8Len(uint32_t flags, const uint8_t *source, CFIndex nu
          */
         switch (extraBytesToRead) {
             case 3:	ch += *source++; ch <<= 6;
+            CF_FALLTHROUGH;
             case 2:	ch += *source++; ch <<= 6;
+            CF_FALLTHROUGH;
             case 1:	ch += *source++; ch <<= 6;
+            CF_FALLTHROUGH;
             case 0:	ch += *source++;
         }
         ch -= offsetsFromUTF8[extraBytesToRead];

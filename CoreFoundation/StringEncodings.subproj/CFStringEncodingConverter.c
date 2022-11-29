@@ -325,7 +325,7 @@ static CFIndex __CFToUnicodeStandardEightBitWrapper(const void *converter, uint3
     *usedCharLen = 0;
 
     while ((processedByteLen < numBytes) && (!maxCharLen || (*usedCharLen < maxCharLen))) {
-        if (!(usedLen = ((const _CFEncodingConverter*)converter)->definition->toUnicode.cheapEightBit(flags, bytes[processedByteLen], charBuffer))) break;
+        if (!(usedLen = ((const _CFEncodingConverter*)converter)->definition->toUnicode.standardEightBit(flags, bytes[processedByteLen], charBuffer))) break;
 
         if (maxCharLen) {
             CFIndex idx;
@@ -354,7 +354,7 @@ static CFIndex __CFToCanonicalUnicodeStandardEightBitWrapper(const void *convert
     CFIndex theUsedCharLen = 0;
 
     while ((processedByteLen < numBytes) && (!maxCharLen || (theUsedCharLen < maxCharLen))) {
-        if (!(usedLen = ((const _CFEncodingConverter*)converter)->definition->toUnicode.cheapEightBit(flags, bytes[processedByteLen], charBuffer))) break;
+        if (!(usedLen = ((const _CFEncodingConverter*)converter)->definition->toUnicode.standardEightBit(flags, bytes[processedByteLen], charBuffer))) break;
 
         for (idx = 0;idx < usedLen;idx++) {
             if (CFUniCharIsDecomposableCharacter(charBuffer[idx], isHFSPlus)) {
@@ -486,19 +486,16 @@ static CFIndex __CFToCanonicalUnicodeCheapMultiByteWrapper(const void *converter
 CF_INLINE _CFEncodingConverter *__CFEncodingConverterFromDefinition(const CFStringEncodingConverter *definition, CFStringEncoding encoding) {
 #define NUM_OF_ENTRIES_CYCLE (10)
     static uint32_t _currentIndex = 0;
-    static uint32_t _allocatedSize = 0;
     static _CFEncodingConverter *_allocatedEntries = NULL;
     _CFEncodingConverter *converter;
 
 
-    if ((_currentIndex + 1) >= _allocatedSize) {
+    if ((_currentIndex + 1) >= NUM_OF_ENTRIES_CYCLE) {
         _currentIndex = 0;
-        _allocatedSize = 0;
         _allocatedEntries = NULL;
     }
     if (_allocatedEntries == NULL) { // Not allocated yet
         _allocatedEntries = (_CFEncodingConverter *)CFAllocatorAllocate(kCFAllocatorSystemDefault, sizeof(_CFEncodingConverter) * NUM_OF_ENTRIES_CYCLE, 0);
-        _allocatedSize = NUM_OF_ENTRIES_CYCLE;
         converter = &(_allocatedEntries[_currentIndex]);
     } else {
         converter = &(_allocatedEntries[++_currentIndex]);
@@ -557,11 +554,9 @@ CF_INLINE const CFStringEncodingConverter *__CFStringEncodingConverterGetDefinit
         case kCFStringEncodingUTF8:
             return &__CFConverterUTF8;
 
-#if TARGET_OS_MAC
         case kCFStringEncodingMacRoman:
             return &__CFConverterMacRoman;
-#endif
-
+            
         case kCFStringEncodingWindowsLatin1:
             return &__CFConverterWinLatin1;
 

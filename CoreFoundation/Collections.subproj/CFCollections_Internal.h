@@ -18,6 +18,8 @@ CF_EXTERN_C_BEGIN
 CF_ASSUME_NONNULL_BEGIN
 
 CF_PRIVATE void CFDictionaryApply(CFDictionaryRef theDict, void (^block)(const void * _Nullable key, const void * _Nullable value, Boolean *stop));
+CF_PRIVATE void CFSetApply(CFSetRef set, void (^block)(const void *key, Boolean *stop));
+CF_PRIVATE void CFArrayApply(CFArrayRef array, CFRange range, void (^block)(const void * _Nonnull item, Boolean *stop));
 
 CF_ASSUME_NONNULL_END
 CF_EXTERN_C_END

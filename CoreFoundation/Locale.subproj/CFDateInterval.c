@@ -7,13 +7,10 @@
       See http://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
  */
 
-#include <CoreFoundation/CFRuntime.h>
+#include "CFRuntime_Internal.h"
 #include <CoreFoundation/CFString.h>
 #include "CFInternal.h"
 #include <CoreFoundation/CFDateInterval.h>
-
-/* Runtime setup */
-static CFTypeID __kCFDateIntervalTypeID = _kCFRuntimeNotATypeID;
 
 struct __CFDateInterval {
     CFRuntimeBase _base;
@@ -48,7 +45,7 @@ static CFStringRef __CFDateIntervalCopyDescription(CFTypeRef cf) {
     return CFStringCreateWithFormat(kCFAllocatorSystemDefault, NULL, CFSTR("<CFDateInterval %p [%p]> %@ %f"), di, CFGetAllocator(di), di->_start, di->_duration);
 }
 
-static const CFRuntimeClass __CFDateIntervalClass = {
+const CFRuntimeClass __CFDateIntervalClass = {
     0,
     "CFDateInterval",
     NULL,   // init
@@ -61,11 +58,7 @@ static const CFRuntimeClass __CFDateIntervalClass = {
 };
 
 CF_PRIVATE CFTypeID CFDateIntervalGetTypeID(void) {
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        __kCFDateIntervalTypeID = _CFRuntimeRegisterClass(&__CFDateIntervalClass);
-    });
-    return __kCFDateIntervalTypeID;
+    return _kCFRuntimeIDCFDateInterval;
 }
 
 CF_EXPORT CFDateIntervalRef CFDateIntervalCreate(CFAllocatorRef _Nullable allocator, CFDateRef startDate, CFTimeInterval duration) {

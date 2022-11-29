@@ -80,8 +80,7 @@ enum {
     kCFStringEncodingPrecomposeLatin1CharacterSelector = 4
 };
 
-#define BOOTSTRAPFUNC_NAME	CFStringEncodingBootstrap
-typedef const CFStringEncodingConverter* (*CFStringEncodingBootstrapProc)(uint32_t encoding, const void *getSelector);
+typedef const CFStringEncodingConverter* (*CFStringEncodingBootstrapProc)(uint32_t encoding, void *getSelector);
 
 /* Latin precomposition */
 /* This function does not precompose recursively nor to U+01E0 and U+01E1.

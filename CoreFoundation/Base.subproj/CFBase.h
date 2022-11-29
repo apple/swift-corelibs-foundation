@@ -306,6 +306,12 @@ CF_EXTERN_C_BEGIN
 # define CF_SWIFT_NAME(_name)
 #endif
 
+#if __has_attribute(__swift_attr__)
+#  define CF_SWIFT_UNAVAILABLE_FROM_ASYNC(msg) __attribute__((__swift_attr__("@_unavailableFromAsync(message: \"" msg "\")")))
+#else
+#  define CF_SWIFT_UNAVAILABLE_FROM_ASYNC(msg)
+#endif
+
 #if __has_attribute(noescape)
 #define CF_NOESCAPE __attribute__((noescape))
 #else
@@ -322,6 +328,12 @@ CF_EXTERN_C_BEGIN
 #define CF_WARN_UNUSED_RESULT __attribute__((warn_unused_result))
 #else
 #define CF_WARN_UNUSED_RESULT
+#endif
+
+#if __has_attribute(fallthrough)
+#define CF_FALLTHROUGH __attribute__((fallthrough))
+#else
+#define CF_FALLTHROUGH
 #endif
 
 #if !__has_feature(objc_generics_variance)

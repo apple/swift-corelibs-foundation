@@ -166,6 +166,7 @@ private = [
 	'StringEncodings.subproj/CFStringEncodingConverter.h',
 	'Stream.subproj/CFStreamAbstract.h',
 	'Base.subproj/CFInternal.h',
+	'Base.subproj/CFObjCTypes.h',
 	'Parsing.subproj/CFXMLInputStream.h',
 	'Parsing.subproj/CFXMLInterface.h',
 	'PlugIn.subproj/CFPlugIn_Factory.h',

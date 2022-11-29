@@ -11,7 +11,6 @@
 CF_ASSUME_NONNULL_BEGIN
 CF_EXTERN_C_BEGIN
 
-CF_EXPORT CFStringRef _Nullable _CFStringCreateTaggedPointerString(const uint8_t *bytes, CFIndex numBytes);
 
 // Returns a string containing the vocative case of \c givenName based on the language and region of \c locale.
 // Not all languages or regions use the vocative case, so very often, this will return \c givenName as-is.

@@ -15,70 +15,17 @@
 #include <CoreFoundation/CFUnicodeDecomposition.h>
 #include "CFInternal.h"
 #include "CFUniCharPriv.h"
+#include "CFUniCharPropertyDatabase.inc.h"
+#include "CFUniCharDecompositionData.inc.h"
+#include "CFUniCharCompatibilityDecompositionData.inc.h"
+#include "CFUniCharBitmapData.inc.h"
 
 // Canonical Decomposition
-static UTF32Char *__CFUniCharDecompositionTable = NULL;
-static uint32_t __CFUniCharDecompositionTableLength = 0;
-static UTF32Char *__CFUniCharMultipleDecompositionTable = NULL;
 
-static const uint8_t *__CFUniCharDecomposableBitmapForBMP = NULL;
-static const uint8_t *__CFUniCharHFSPlusDecomposableBitmapForBMP = NULL;
+static const uint8_t *__CFUniCharDecomposableBitmapForBMP = (const uint8_t *)__CFUniCharCanonicalDecomposableCharacterSetBitmapPlane0;
+static const uint8_t *__CFUniCharHFSPlusDecomposableBitmapForBMP = (const uint8_t *)__CFUniCharHfsPlusDecomposableCharacterSetBitmapPlane0;
 
-static dispatch_once_t once;
-
-static const uint8_t **__CFUniCharCombiningPriorityTable = NULL;
-static uint8_t __CFUniCharCombiningPriorityTableNumPlane = 0;
-
-static void __CFUniCharLoadDecompositionTable(void) {
-    dispatch_once(&once, ^{
-        const uint32_t *bytes = (uint32_t *)CFUniCharGetMappingData(kCFUniCharCanonicalDecompMapping);
-
-        if (NULL == bytes) {
-            return;
-        }
-
-        __CFUniCharDecompositionTableLength = _CFUnalignedLoad32(bytes++);
-        __CFUniCharDecompositionTable = (UTF32Char *)bytes;
-        __CFUniCharMultipleDecompositionTable = (UTF32Char *)((intptr_t)bytes + __CFUniCharDecompositionTableLength);
-
-        __CFUniCharDecompositionTableLength /= (sizeof(uint32_t) * 2);
-        __CFUniCharDecomposableBitmapForBMP = CFUniCharGetBitmapPtrForPlane(kCFUniCharCanonicalDecomposableCharacterSet, 0);
-        __CFUniCharHFSPlusDecomposableBitmapForBMP = CFUniCharGetBitmapPtrForPlane(kCFUniCharHFSPlusDecomposableCharacterSet, 0);
-
-        CFIndex idx;
-
-        __CFUniCharCombiningPriorityTableNumPlane = CFUniCharGetNumberOfPlanesForUnicodePropertyData(kCFUniCharCombiningProperty);
-        __CFUniCharCombiningPriorityTable = (const uint8_t **)CFAllocatorAllocate(kCFAllocatorSystemDefault, sizeof(uint8_t *) * __CFUniCharCombiningPriorityTableNumPlane, 0);
-        for (idx = 0;idx < __CFUniCharCombiningPriorityTableNumPlane;idx++) __CFUniCharCombiningPriorityTable[idx] = (const uint8_t *)CFUniCharGetUnicodePropertyDataForPlane(kCFUniCharCombiningProperty, idx);
-    });
-}
-
-static CFLock_t __CFUniCharCompatibilityDecompositionTableLock = CFLockInit;
-static UTF32Char *__CFUniCharCompatibilityDecompositionTable = NULL;
-static uint32_t __CFUniCharCompatibilityDecompositionTableLength = 0;
-static UTF32Char *__CFUniCharCompatibilityMultipleDecompositionTable = NULL;
-
-static void __CFUniCharLoadCompatibilityDecompositionTable(void) {
-
-    __CFLock(&__CFUniCharCompatibilityDecompositionTableLock);
-
-    if (NULL == __CFUniCharCompatibilityDecompositionTable) {
-        const uint32_t *bytes = (uint32_t *)CFUniCharGetMappingData(kCFUniCharCompatibilityDecompMapping);
-
-        if (NULL == bytes) {
-            __CFUnlock(&__CFUniCharCompatibilityDecompositionTableLock);
-            return;
-        }
-
-        __CFUniCharCompatibilityDecompositionTableLength = *(bytes++);
-        __CFUniCharCompatibilityDecompositionTable = (UTF32Char *)bytes;
-        __CFUniCharCompatibilityMultipleDecompositionTable = (UTF32Char *)((intptr_t)bytes + __CFUniCharCompatibilityDecompositionTableLength);
-
-        __CFUniCharCompatibilityDecompositionTableLength /= (sizeof(uint32_t) * 2);
-    }
-
-    __CFUnlock(&__CFUniCharCompatibilityDecompositionTableLock);
-}
+static const uint8_t __CFUniCharCombiningPriorityTableNumPlane = __CFUniCharCombiningPriorityTableCount;
 
 CF_INLINE bool __CFUniCharIsDecomposableCharacterWithFlag(UTF32Char character, bool isHFSPlus) {
     return CFUniCharIsMemberOfBitmap(character, (character < 0x10000 ? (isHFSPlus ? __CFUniCharHFSPlusDecomposableBitmapForBMP : __CFUniCharDecomposableBitmapForBMP) : CFUniCharGetBitmapPtrForPlane(kCFUniCharCanonicalDecomposableCharacterSet, ((character >> 16) & 0xFF))));
@@ -146,11 +93,12 @@ static CFIndex __CFUniCharRecursivelyDecomposeCharacter(UTF32Char character, UTF
     uint32_t value = __CFUniCharGetMappedValue((const __CFUniCharDecomposeMappings *)__CFUniCharDecompositionTable, __CFUniCharDecompositionTableLength, character);
     CFIndex length = CFUniCharConvertFlagToCount(value);
     UTF32Char firstChar = value & 0xFFFFFF;
-    UTF32Char *mappings = (length > 1 ? __CFUniCharMultipleDecompositionTable + firstChar : &firstChar);
+    const UTF32Char * firstMappings = (length > 1 ? __CFUniCharMultipleDecompositionTable + firstChar : &firstChar);
     CFIndex usedLength = 0;
 
     if (maxBufferLength < length) return 0;
 
+    UTF32Char *mappings = (UTF32Char *)firstMappings;
     if (value & kCFUniCharRecursiveDecompositionFlag) {
         usedLength = __CFUniCharRecursivelyDecomposeCharacter(*mappings, convertedChars, maxBufferLength - length);
 
@@ -178,7 +126,6 @@ static CFIndex __CFUniCharRecursivelyDecomposeCharacter(UTF32Char character, UTF
 #define HANGUL_NCOUNT (HANGUL_VCOUNT * HANGUL_TCOUNT)
 
 CFIndex CFUniCharDecomposeCharacter(UTF32Char character, UTF32Char *convertedChars, CFIndex maxBufferLength) {
-    __CFUniCharLoadDecompositionTable();
     if (character >= HANGUL_SBASE && character <= (HANGUL_SBASE + HANGUL_SCOUNT)) {
         CFIndex length;
 
@@ -216,8 +163,6 @@ bool CFUniCharDecomposeWithErrorLocation(const UTF16Char *src, CFIndex length, C
 
     // kCFNotFound indicates an insufficiently sized buffer, which is the default failure case.
     if (charIndex) *charIndex = kCFNotFound;
-
-    __CFUniCharLoadDecompositionTable();
 
     while ((length - segmentLength) > 0) {
         currentChar = *(src++);
@@ -359,8 +304,6 @@ CF_PRIVATE CFIndex CFUniCharCompatibilityDecompose(UTF32Char *convertedChars, CF
     const UTF32Char *bufferP;
     const UTF32Char *limit = convertedChars + length;
     CFIndex filledLength;
-
-    if (NULL == __CFUniCharCompatibilityDecompositionTable) __CFUniCharLoadCompatibilityDecompositionTable();
 
     while (convertedChars < limit) {
         currentChar = *convertedChars;

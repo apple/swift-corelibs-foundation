@@ -88,32 +88,5 @@ void OSMemoryBarrier() {
     MemoryBarrier();
 }
 
-void _CFGetFrameworkPath(wchar_t *path, int maxLength) {
-#ifdef _DEBUG
-    // might be nice to get this from the project file at some point
-    wchar_t *DLLFileName = L"CoreFoundation_debug.dll";
-#else
-    wchar_t *DLLFileName = L"CoreFoundation.dll";
-#endif
-    path[0] = path[1] = 0;
-    DWORD wResult;
-    CFIndex idx;
-    HMODULE ourModule = GetModuleHandleW(DLLFileName);
-    
-    CFAssert(ourModule, __kCFLogAssertion, "GetModuleHandle failed");
-    
-    wResult = GetModuleFileNameW(ourModule, path, maxLength);
-    CFAssert1(wResult > 0, __kCFLogAssertion, "GetModuleFileName failed: %d", GetLastError());
-    CFAssert1(wResult < maxLength, __kCFLogAssertion, "GetModuleFileName result truncated: %s", path);
-    
-    // strip off last component, the DLL name
-    for (idx = wResult - 1; idx; idx--) {
-        if ('\\' == path[idx]) {
-            path[idx] = '\0';
-            break;
-        }
-    }
-}
-
 #endif
 

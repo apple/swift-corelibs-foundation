@@ -25,41 +25,6 @@
 #define __HAS_DISPATCH__ 1
 #endif
 
-// Darwin may or may not define these macros, but we rely on them for building in Swift; define them privately.
-#ifndef TARGET_OS_LINUX
-#define TARGET_OS_LINUX 0
-#endif
-#ifndef TARGET_OS_BSD
-#define TARGET_OS_BSD 0
-#endif
-#ifndef TARGET_OS_ANDROID
-#define TARGET_OS_ANDROID 0
-#endif
-#ifndef TARGET_OS_CYGWIN
-#define TARGET_OS_CYGWIN 0
-#endif
-#ifndef TARGET_OS_WASI
-#define TARGET_OS_WASI 0
-#endif
-#ifndef TARGET_OS_MAC
-#define TARGET_OS_MAC 0
-#endif
-#ifndef TARGET_OS_IPHONE
-#define TARGET_OS_IPHONE 0
-#endif
-#ifndef TARGET_OS_OSX
-#define TARGET_OS_OSX 0
-#endif
-#ifndef TARGET_OS_IOS
-#define TARGET_OS_IOS 0
-#endif
-#ifndef TARGET_OS_TV
-#define TARGET_OS_TV 0
-#endif
-#ifndef TARGET_OS_WATCH
-#define TARGET_OS_WATCH 0
-#endif
-
 #include <CoreFoundation/CFBase.h>
 
 
@@ -84,25 +49,9 @@ extern "C" {
 #include <pthread/qos.h>
 #endif
 
-#define SystemIntegrityCheck(A, B)	do {} while (0)
-
-    
-#if INCLUDE_OBJC
-#include <objc/objc.h>
-#else
-typedef signed char	BOOL; 
-typedef char * id;
-typedef char * Class;
-#ifndef YES
-#define YES (BOOL)1
-#endif
-#ifndef NO
-#define NO (BOOL)0
-#endif
-#ifndef nil
-#define nil NULL
-#endif
-#endif
+// This defines 'id' and 'Class' on platforms that do not have them.
+// These redefinitions aren't API, but certain contexts may import CF headers without the prefix header (e.g. the importer during a swift-corelibs-foundation build).
+#include <CoreFoundation/CFObjCTypes.h>
 
 #define CRSetCrashLogMessage(A) do {} while (0)
 #define CRSetCrashLogMessage2(A) do {} while (0)
@@ -254,9 +203,9 @@ CF_EXPORT void OSMemoryBarrier();
 CF_INLINE uint64_t mach_absolute_time() {
 #if TARGET_OS_WIN32
     ULONGLONG ullTime;
-	QueryUnbiasedInterruptTimePrecise(&ullTime);
+    QueryUnbiasedInterruptTimePrecise(&ullTime);
     return ullTime;
-#elif TARGET_OS_LINUX || TARGET_OS_BSD || TARGET_OS_MAC
+#else
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (uint64_t)ts.tv_nsec + (uint64_t)ts.tv_sec * 1000000000UL;
@@ -283,9 +232,12 @@ CF_INLINE int flsl( long mask ) {
 }
 #endif // TARGET_OS_LINUX || TARGET_OS_WIN32 || defined(__OpenBSD__) || TARGET_OS_WASI
 
-#if TARGET_OS_LINUX || TARGET_OS_WASI
-    
+#if TARGET_OS_LINUX
+
+#ifndef CF_PRIVATE
 #define CF_PRIVATE extern __attribute__((visibility("hidden")))
+#endif
+
 #define __weak
 
 #define strtoll_l(a,b,c,locale) strtoll(a,b,c)
@@ -311,13 +263,6 @@ typedef unsigned long fd_mask;
 #undef interface
 #endif
 
-#if TARGET_OS_CYGWIN
-#define HAVE_STRUCT_TIMESPEC 1
-#define strncasecmp_l(a, b, c, d) strncasecmp(a, b, c)
-#define _NO_BOOL_TYPEDEF
-#undef interface
-#endif
-
 #include <malloc.h>
 CF_INLINE size_t malloc_size(void *memblock) {
     return malloc_usable_size(memblock);
@@ -327,7 +272,10 @@ CF_INLINE size_t malloc_size(void *memblock) {
 #if TARGET_OS_BSD
 #define HAVE_STRUCT_TIMESPEC 1
 
+#ifndef CF_PRIVATE
 #define CF_PRIVATE extern __attribute__((visibility("hidden")))
+#endif
+
 #define __strong
 #define __weak
 
@@ -353,7 +301,9 @@ CF_INLINE size_t malloc_size(void *memblock) {
 typedef int mode_t;
 
 // This works because things aren't actually exported from the DLL unless they have a __declspec(dllexport) on them... so extern by itself is closest to __private_extern__ on Mac OS
+#ifndef CF_PRIVATE
 #define CF_PRIVATE extern
+#endif
     
 #define __builtin_expect(P1,P2) P1
 
@@ -448,7 +398,7 @@ CF_INLINE int popcountll(long long x) {
 #define CF_TEST_PRIVATE CF_PRIVATE
 #endif
 
-#if TARGET_OS_WIN32 || (TARGET_OS_LINUX && !defined(_GNU_SOURCE))
+#if TARGET_OS_WIN32
 
 #include <stdarg.h>
 

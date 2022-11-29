@@ -77,6 +77,8 @@ CF_EXPORT _Nullable CFStringRef _CFURLComponentsCopyPercentEncodedHost(CFURLComp
 CF_EXPORT _Nullable CFStringRef _CFURLComponentsCopyPercentEncodedPath(CFURLComponentsRef components) _CF_URL_COMPONENTS_API_AVAILABLE(macos(10.12), ios(10.0), watchos(3.0), tvos(10.0));
 CF_EXPORT _Nullable CFStringRef _CFURLComponentsCopyPercentEncodedQuery(CFURLComponentsRef components) _CF_URL_COMPONENTS_API_AVAILABLE(macos(10.12), ios(10.0), watchos(3.0), tvos(10.0));
 CF_EXPORT _Nullable CFStringRef _CFURLComponentsCopyPercentEncodedFragment(CFURLComponentsRef components) _CF_URL_COMPONENTS_API_AVAILABLE(macos(10.12), ios(10.0), watchos(3.0), tvos(10.0));
+CF_EXPORT _Nullable CFStringRef _CFURLComponentsCopyEncodedHost(CFURLComponentsRef components)
+    _CF_URL_COMPONENTS_API_AVAILABLE(macos(13.0), ios(16.0), watchos(9.0), tvos(16.0));
 
 // These return false if the conversion fails
 CF_EXPORT Boolean _CFURLComponentsSetPercentEncodedUser(CFURLComponentsRef components, _Nullable CFStringRef user) _CF_URL_COMPONENTS_API_AVAILABLE(macos(10.12), ios(10.0), watchos(3.0), tvos(10.0));
@@ -85,6 +87,8 @@ CF_EXPORT Boolean _CFURLComponentsSetPercentEncodedHost(CFURLComponentsRef compo
 CF_EXPORT Boolean _CFURLComponentsSetPercentEncodedPath(CFURLComponentsRef components, _Nullable CFStringRef path) _CF_URL_COMPONENTS_API_AVAILABLE(macos(10.12), ios(10.0), watchos(3.0), tvos(10.0));
 CF_EXPORT Boolean _CFURLComponentsSetPercentEncodedQuery(CFURLComponentsRef components, _Nullable CFStringRef query) _CF_URL_COMPONENTS_API_AVAILABLE(macos(10.12), ios(10.0), watchos(3.0), tvos(10.0));
 CF_EXPORT Boolean _CFURLComponentsSetPercentEncodedFragment(CFURLComponentsRef components, _Nullable CFStringRef fragment) _CF_URL_COMPONENTS_API_AVAILABLE(macos(10.12), ios(10.0), watchos(3.0), tvos(10.0));
+CF_EXPORT Boolean _CFURLComponentsSetEncodedHost(CFURLComponentsRef components, _Nullable CFStringRef host)
+    _CF_URL_COMPONENTS_API_AVAILABLE(macos(13.0), ios(16.0), watchos(9.0), tvos(16.0));
 
 CF_EXPORT CFRange _CFURLComponentsGetRangeOfScheme(CFURLComponentsRef components) _CF_URL_COMPONENTS_API_AVAILABLE(macos(10.12), ios(10.0), watchos(3.0), tvos(10.0));
 CF_EXPORT CFRange _CFURLComponentsGetRangeOfUser(CFURLComponentsRef components) _CF_URL_COMPONENTS_API_AVAILABLE(macos(10.12), ios(10.0), watchos(3.0), tvos(10.0));
@@ -102,6 +106,7 @@ CF_EXPORT CFStringRef _Nullable _CFStringCreateByRemovingPercentEncoding(CFAlloc
 CF_EXPORT CFCharacterSetRef _CFURLComponentsGetURLUserAllowedCharacterSet(void) _CF_URL_COMPONENTS_API_AVAILABLE(macos(10.12), ios(10.0), watchos(3.0), tvos(10.0));
 CF_EXPORT CFCharacterSetRef _CFURLComponentsGetURLPasswordAllowedCharacterSet(void) _CF_URL_COMPONENTS_API_AVAILABLE(macos(10.12), ios(10.0), watchos(3.0), tvos(10.0));
 CF_EXPORT CFCharacterSetRef _CFURLComponentsGetURLHostAllowedCharacterSet(void) _CF_URL_COMPONENTS_API_AVAILABLE(macos(10.12), ios(10.0), watchos(3.0), tvos(10.0));
+CF_EXPORT CFCharacterSetRef _CFURLComponentsGetURLPortAllowedCharacterSet(void) _CF_URL_COMPONENTS_API_AVAILABLE(macos(13.0), ios(16.0), watchos(9.0), tvos(16.0));
 CF_EXPORT CFCharacterSetRef _CFURLComponentsGetURLPathAllowedCharacterSet(void) _CF_URL_COMPONENTS_API_AVAILABLE(macos(10.12), ios(10.0), watchos(3.0), tvos(10.0));
 CF_EXPORT CFCharacterSetRef _CFURLComponentsGetURLQueryAllowedCharacterSet(void) _CF_URL_COMPONENTS_API_AVAILABLE(macos(10.12), ios(10.0), watchos(3.0), tvos(10.0));
 CF_EXPORT CFCharacterSetRef _CFURLComponentsGetURLFragmentAllowedCharacterSet(void) _CF_URL_COMPONENTS_API_AVAILABLE(macos(10.12), ios(10.0), watchos(3.0), tvos(10.0));
@@ -115,6 +120,19 @@ CF_EXPORT void _CFURLComponentsSetQueryItems(CFURLComponentsRef components, CFAr
 
 CF_EXPORT _Nullable CFArrayRef _CFURLComponentsCopyPercentEncodedQueryItems(CFURLComponentsRef components) _CF_URL_COMPONENTS_API_AVAILABLE(macos(10.13), ios(11.0), watchos(4.0), tvos(11.0));
 CF_EXPORT Boolean _CFURLComponentsSetPercentEncodedQueryItems(CFURLComponentsRef components, CFArrayRef names, CFArrayRef values) _CF_URL_COMPONENTS_API_AVAILABLE(macos(10.13), ios(11.0), watchos(4.0), tvos(11.0));
+
+typedef CF_OPTIONS(CFOptionFlags, _CFURLRequiredComponents) {
+    kCFURLRequiredComponentScheme     = 0x0001,
+    kCFURLRequiredComponentUser       = 0x0002,
+    kCFURLRequiredComponentPassword   = 0x0004,
+    kCFURLRequiredComponentHost       = 0x0008,
+    kCFURLRequiredComponentPort       = 0x0010,
+    kCFURLRequiredComponentPath       = 0x0020,
+    kCFURLRequiredComponentQuery      = 0x0040,
+    kCFURLRequiredComponentFragment   = 0x0080,
+} _CF_URL_COMPONENTS_API_AVAILABLE(macos(13.0), ios(16.0), watchos(9.0), tvos(16.0));
+
+CF_EXPORT CFRange _CFURLComponentsMatchURLInString(CFStringRef string, _CFURLRequiredComponents requiredComponents, CFDictionaryRef _Nullable defaultValues, CFURLRef _Nullable * _Nullable outURL) _CF_URL_COMPONENTS_API_AVAILABLE(macos(13.0), ios(16.0), watchos(9.0), tvos(16.0));
 
 CF_ASSUME_NONNULL_END
 CF_EXTERN_C_END

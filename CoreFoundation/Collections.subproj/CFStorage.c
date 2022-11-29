@@ -73,7 +73,6 @@ typedef struct __CFStorageNode {
         struct {
             CFIndex capacityInBytes;	// capacityInBytes is capacity of memory; this is either 0, or >= numBytes
             uint8_t *memory;
-	    CFRange cachedRange;       //the absolute range of this node, in "value" units.  This is valid only if this node is referenced by storage->cacheNode, and used by the cache.  In general this is not valid, and the offset needs to be passed down from the tree
         } leaf;
         struct {
             struct __CFStorageNode *child[3];
@@ -95,6 +94,11 @@ CF_INLINE CFStorageDoubleNodeReturn CFStorageDoubleNodeReturnMake(CFStorageNode 
     return v;
 }
 
+typedef struct {
+    CFStorageNode *node;
+    CFRange range; //the absolute range of this node, in "value" units.
+} CFStorageCache;
+
 /* The CFStorage object.
  */
 struct __CFStorage {
@@ -103,7 +107,8 @@ struct __CFStorage {
     uint32_t byteToValueShifter;
     CFLock_t cacheReaderMemoryAllocationLock;
     bool alwaysFrozen;
-    CFStorageNode * volatile cacheNode;
+    CFStorageCache cache;
+    os_unfair_lock cacheLock;
     CFIndex maxLeafCapacity;	    // In terms of bytes
     CFStorageNode rootNode;
 };
@@ -268,39 +273,50 @@ static inline void __CFStorageGetChildren(const CFStorageNode * _Nonnull parent,
 
 #pragma mark Storage cache handling
 
+CF_INLINE CFStorageCache __CFStorageMakeCache(CFStorageNode *node, CFRange range) {
+    CFStorageCache cache;
+    cache.node = node;
+    cache.range = range;
+    return cache;
+}
 
 /* Sets the cache to point at the specified node. loc and len are in terms of values, not bytes. To clear the cache set these two to 0.
  At least one of node or memory should be non-NULL. memory is consulted first when using the cache.
  */
-CF_INLINE void __CFStorageSetCache(CFStorageRef storage, CFStorageNode *node, CFIndex locInBytes) {    
+CF_INLINE void __CFStorageSetCache(CFStorageRef storage, CFStorageNode *node, CFIndex locInBytes) {
+    CFStorageCache cache = __CFStorageMakeCache(NULL, CFRangeMake(0, 0));
     if (node) {
 	ASSERT(node->isLeaf);
-	node->info.leaf.cachedRange = __CFStorageConvertBytesToValueRange(storage, locInBytes, node->numBytes);
+        cache = __CFStorageMakeCache(node, __CFStorageConvertBytesToValueRange(storage, locInBytes, node->numBytes));
     }
-    storage->cacheNode = node;
+    os_unfair_lock_lock_with_options(&storage->cacheLock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
+    storage->cache = cache;
+    os_unfair_lock_unlock(&storage->cacheLock);
 }
 
 /* Gets the location for the specified absolute loc from the cached info.
  Returns NULL if the location is not in the cache.
  */
 CF_INLINE uint8_t *__CFStorageGetFromCache(CFStorageRef storage, CFIndex loc, CFRange * _CF_RESTRICT validConsecutiveValueRange, bool requireUnfrozenNode) {
-    CFStorageNode * const cachedNode = storage->cacheNode; /* It's important we read from this field no more than once, for thread safety with other concurrent reads; that is why the field is marked volatile. */
-    if (! cachedNode) return NULL; /* No cache */
+    os_unfair_lock_lock_with_options(&storage->cacheLock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
+    CFStorageCache const cache = storage->cache;
+    os_unfair_lock_unlock(&storage->cacheLock);
+    if (!cache.node) return NULL; /* No cache */
     
     /* We only allow caching leaf nodes. */
-    ASSERT(cachedNode->isLeaf);
+    ASSERT(cache.node->isLeaf);
     
     /* If the node is frozen, and we require an unfrozen node, then return NULL */
-    if (requireUnfrozenNode && cachedNode->isFrozen) return NULL;
+    if (requireUnfrozenNode && cache.node->isFrozen) return NULL;
     
     /* If there's no memory allocated yet, then allocate it now*/
-    if (! cachedNode->info.leaf.memory) {
-	__CFStorageAllocLeafNodeMemory(CFGetAllocator(storage), storage, cachedNode, cachedNode->numBytes, false);
+    if (!cache.node->info.leaf.memory) {
+	__CFStorageAllocLeafNodeMemory(CFGetAllocator(storage), storage, cache.node, cache.node->numBytes, false);
     }
     
     /* If the node's range starts after loc, or ends before or at loc, return NULL */
-    CFIndex nodeOffset = cachedNode->info.leaf.cachedRange.location;
-    CFIndex nodeLength = cachedNode->info.leaf.cachedRange.length;
+    CFIndex nodeOffset = cache.range.location;
+    CFIndex nodeLength = cache.range.length;
     if (loc < nodeOffset || loc >= nodeOffset + nodeLength) {
 	return NULL;
     }
@@ -308,7 +324,7 @@ CF_INLINE uint8_t *__CFStorageGetFromCache(CFStorageRef storage, CFIndex loc, CF
     /* The cache is valid, so return it */
     validConsecutiveValueRange->location = nodeOffset;
     validConsecutiveValueRange->length = nodeLength;
-    uint8_t *result = cachedNode->info.leaf.memory + __CFStorageConvertValueToByte(storage, loc - nodeOffset);
+    uint8_t *result = cache.node->info.leaf.memory + __CFStorageConvertValueToByte(storage, loc - nodeOffset);
     return result;
 }
 
@@ -1105,6 +1121,7 @@ CFStorageRef CFStorageCreate(CFAllocatorRef allocator, CFIndex valueSize) {
     if (NULL == storage) {
 	return NULL;
     }
+    storage->cacheLock = OS_UNFAIR_LOCK_INIT;
     storage->valueSize = valueSize;
     /* if valueSize is a power of 2, then set the shifter to the log base 2 of valueSize.  Otherwise set it to NO_SHIFTER */
     if (valueSize > 0 && !(valueSize & (valueSize - 1))) {

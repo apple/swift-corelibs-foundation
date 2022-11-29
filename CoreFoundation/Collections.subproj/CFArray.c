@@ -584,6 +584,20 @@ void CFArrayApplyFunction(CFArrayRef array, CFRange range, CFArrayApplierFunctio
     }
 }
 
+CF_PRIVATE void CFArrayApply(CFArrayRef array, CFRange range, void(^block)(const void *, Boolean *stop)) {
+    CFIndex idx;
+    __CFGenericValidateType(array, CFArrayGetTypeID());
+    __CFArrayValidateRange(array, range, __PRETTY_FUNCTION__);
+    CFAssert1(NULL != block, __kCFLogAssertion, "%s(): block may not be NULL", __PRETTY_FUNCTION__);
+    CHECK_FOR_MUTATION(array);
+    for (idx = 0; idx < range.length; idx++) {
+        const void *item = CFArrayGetValueAtIndex(array, range.location + idx);
+        Boolean stop = false;
+        block(item, &stop);
+        if (stop) break;
+    }
+}
+
 CFIndex CFArrayGetFirstIndexOfValue(CFArrayRef array, CFRange range, const void *value) {
     CFIndex idx;
     __CFGenericValidateType(array, CFArrayGetTypeID());

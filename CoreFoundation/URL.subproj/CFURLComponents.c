@@ -1,5 +1,5 @@
 /*	CFURLComponents.c
-	Copyright (c) 2015-2019, Apple Inc. All rights reserved.
+	Copyright (c) 2015-2022, Apple Inc. All rights reserved.
  
 	Portions Copyright (c) 2014-2019, Apple Inc. and the Swift project authors
 	Licensed under Apache License v2.0 with Runtime Library Exception
@@ -8,16 +8,18 @@
 	Responsibility: Jim Luther/Chris Linn
 */
 
+#include <unicode/uidna.h>
 
 #include <CoreFoundation/CFURLComponents.h>
 #include "CFInternal.h"
 #include "CFRuntime_Internal.h"
 #include "CFURLComponents_Internal.h"
 
+
 struct __CFURLComponents {
     CFRuntimeBase _base;
     
-    CFLock_t _lock;
+    os_unfair_lock _lock;
     
     // if inited from URL, I need to keep the URL string and the parsing info
     CFStringRef _urlString;
@@ -42,7 +44,7 @@ struct __CFURLComponents {
     uint32_t	_pathComponentValid     : 1;
     uint32_t	_queryComponentValid	: 1;
     uint32_t	_fragmentComponentValid	: 1;
-    
+
     // These ivars are used by the getters and by [NSURLComponents URL] and [NSURLComponents URLRelativeToURL:]. The values (if not nil) are always correctly percent-encoded.
     CFStringRef _schemeComponent;
     CFStringRef _userComponent;
@@ -79,7 +81,7 @@ static CFStringRef __CFURLComponentsCopyDescription(CFTypeRef cf) {
     return ( result );
 }
 
-CF_CROSS_PLATFORM_EXPORT void __CFURLComponentsDeallocate(CFTypeRef cf) {
+CF_EXPORT_NONOBJC_ONLY void __CFURLComponentsDeallocate(CFTypeRef cf) {
     CFURLComponentsRef instance = (CFURLComponentsRef)cf;
     __CFGenericValidateType(cf, _CFURLComponentsGetTypeID());
     
@@ -110,6 +112,237 @@ CFTypeID _CFURLComponentsGetTypeID(void) {
     return _kCFRuntimeIDCFURLComponents;
 }
 
+// Taken from WebKit URLParser.h
+#define URL_MAX_BUFFER_LEN 2048
+
+/// Taken from WebKit URLParser.h
+static UIDNA* __CFURLComponentsDomainTranscoder() {
+    static UIDNA* encoder;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        UErrorCode status = U_ZERO_ERROR;
+        encoder = uidna_openUTS46(UIDNA_CHECK_BIDI | UIDNA_CHECK_CONTEXTJ | UIDNA_NONTRANSITIONAL_TO_UNICODE | UIDNA_NONTRANSITIONAL_TO_ASCII, &status);
+        if (!U_SUCCESS(status)) {
+            os_log_error(_CFOSLog(), "CFURLComponents failed to create ICU Domain Transcoder(UIDNA) with error: %d", status);
+            encoder = NULL;
+        }
+    });
+    return encoder;
+}
+
+static inline void __CFURLComponentsPercentEncodeComponent(CFMutableStringRef string, CFRange componentRange, CFCharacterSetRef allowedCharacters) {
+    CFStringRef componentString = CFStringCreateWithSubstring(kCFAllocatorDefault, string, componentRange);
+    CFStringRef encodedString = _CFStringCreateByAddingPercentEncodingWithAllowedCharacters(kCFAllocatorDefault, componentString, allowedCharacters);
+    CFStringReplace(string, componentRange, encodedString);
+    CFRelease(componentString);
+    CFRelease(encodedString);
+}
+
+static inline Boolean __CFURLComponentsEncodeDecodeHost(CFMutableStringRef urlString, CFRange hostRange, Boolean shouldEncode, Boolean shouldUsePercentEncode) {
+    // Attempts to encode the host
+    Boolean result = false;
+    CFStringRef hostString = CFStringCreateWithSubstring(kCFAllocatorDefault, urlString, hostRange);
+    if (shouldUsePercentEncode) {
+        CFStringRef codedHostName = shouldEncode ?
+            _CFStringCreateByAddingPercentEncodingWithAllowedCharacters(kCFAllocatorSystemDefault, hostString, _CFURLComponentsGetURLHostAllowedCharacterSet()) :
+            _CFStringCreateByRemovingPercentEncoding(kCFAllocatorSystemDefault, hostString);
+        CFStringReplace(urlString, hostRange, codedHostName);
+        CFRelease(codedHostName);
+        CFRelease(hostString);
+        return true;
+    }
+
+    CFStringRef rawHostString = _CFStringCreateByRemovingPercentEncoding(kCFAllocatorDefault, hostString);
+    if (rawHostString == NULL) {
+        // If the hostString contains `%` that are not part of the percent encoding,
+        // _CFStringCreateByRemovingPercentEncoding will return NULL.
+        // In that case use hostString instead.
+        rawHostString = CFStringCreateCopy(kCFAllocatorSystemDefault, hostString);
+    }
+
+    STACK_BUFFER_DECL(UChar, destinationBuffer, URL_MAX_BUFFER_LEN);
+    UIDNAInfo processingDetails = UIDNA_INFO_INITIALIZER;
+    UErrorCode error = U_ZERO_ERROR;
+
+    const UChar *ucharBuffer = CFStringGetCharactersPtr(rawHostString);
+    SAFE_STACK_BUFFER_DECL(UChar, ucharCharactersBuffer, CFStringGetLength(rawHostString), sizeof(UChar) * URL_MAX_BUFFER_LEN);
+    if (ucharBuffer == NULL) {
+        // Fallback to CFStringGetCharacters
+        CFStringGetCharacters(rawHostString,
+                              CFRangeMake(0, CFStringGetLength(rawHostString)),
+                              (UniChar *)ucharCharactersBuffer);
+        ucharBuffer = ucharCharactersBuffer;
+    }
+
+    UIDNA *transcoder = __CFURLComponentsDomainTranscoder();
+    if (transcoder == NULL) {
+        // Failed to create the transcoder, bail out
+        SAFE_STACK_BUFFER_CLEANUP(ucharCharactersBuffer);
+        CFRelease(rawHostString);
+        CFRelease(hostString);
+        return false;
+    }
+
+    int32_t numCharactersConverted = (shouldEncode ? uidna_nameToASCII : uidna_nameToUnicode)(
+        transcoder,
+        ucharBuffer,
+        CFStringGetLength(rawHostString), destinationBuffer, URL_MAX_BUFFER_LEN, &processingDetails, &error);
+
+    SAFE_STACK_BUFFER_CLEANUP(ucharCharactersBuffer);
+
+    int allowedNameToUnicodeErrors = UIDNA_ERROR_EMPTY_LABEL
+        | UIDNA_ERROR_LABEL_TOO_LONG
+        | UIDNA_ERROR_DOMAIN_NAME_TOO_LONG
+        | UIDNA_ERROR_LEADING_HYPHEN
+        | UIDNA_ERROR_TRAILING_HYPHEN
+        | UIDNA_ERROR_HYPHEN_3_4;
+    int allowedErrors = shouldEncode ? 0 : allowedNameToUnicodeErrors;
+    if (U_SUCCESS(error) && (processingDetails.errors & ~allowedErrors) == 0) {
+        CFStringRef encodedHostName = CFStringCreateWithCharacters(kCFAllocatorDefault, destinationBuffer, numCharactersConverted);
+        // Replace the host name with the encoded version
+        CFStringReplace(urlString, hostRange, encodedHostName);
+        CFRelease(encodedHostName);
+        result = true;
+    }
+    CFRelease(hostString);
+    CFRelease(rawHostString);
+    return result;
+}
+
+// This method creates a scheme "exception list" so we can percent encode the
+// host for these special URLs.
+static inline Boolean __CFURLComponentsHostShouldPercentEncodeHostBasedOnScheme(CFStringRef scheme) {
+    // These values are taken from TelephonyUtilities
+    // They represent the list of schemes that TUDialRequest uses.
+    const CFStringRef telephonySchemes[] = {
+        CFSTR("tel"),
+        CFSTR("telemergencycall"),
+        CFSTR("telprompt"),
+        CFSTR("callto"),
+        CFSTR("facetime"),
+        CFSTR("facetime-prompt"),
+        CFSTR("facetime-audio"),
+        CFSTR("facetime-audio-prompt"),
+        CFSTR("imap"),
+        CFSTR("pop"),
+        CFSTR("addressbook"),
+        CFSTR("contact"),
+        CFSTR("phasset")
+    };
+    for (int index = 0; index < sizeof(telephonySchemes) / sizeof(*telephonySchemes); index++) {
+        CFStringRef targetScheme = telephonySchemes[index];
+        if (CFEqual(targetScheme, scheme)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static inline Boolean __CFURLComponentsIsHostIPv6Literal(CFStringRef hostString) {
+    if (hostString == NULL || CFStringGetLength(hostString) < 2) {
+        return false;
+    }
+    return CFStringGetCharacterAtIndex(hostString, 0) == '[' &&
+        CFStringGetCharacterAtIndex(hostString, CFStringGetLength(hostString) - 1) == ']';
+}
+
+/// Creates a URL from string by automatically encode the host name and the rest of the components.
+static void __CFURLComponentsEncodeURL(CFMutableStringRef urlString, struct _URIParseInfo *parseInfo) {
+    // Validate and encode each component if necessary
+    // Validate and encode the scheme
+    if (parseInfo->schemeExists) {
+        CFRange schemeRange = _CFURIParserGetSchemeRange(parseInfo, false);
+        if (!_CFURIParserValidateComponent(urlString, schemeRange, kURLSchemeAllowed, false)) {
+            // If the scheme is invalid there's nothing we could do since we can't percent encode it
+            return;
+        }
+    }
+
+    // Validate and encode the user name
+    if (parseInfo->userinfoNameExists) {
+        CFRange nameRange = _CFURIParserGetUserinfoNameRange(parseInfo, false);
+        if (!_CFURIParserValidateComponent(urlString, nameRange, kURLUserAllowed, true)) {
+            __CFURLComponentsPercentEncodeComponent(urlString, nameRange, _CFURLComponentsGetURLUserAllowedCharacterSet());
+            // Reparse the string to get the most up-to-date offsets
+            _CFURIParserParseURIReference(urlString, parseInfo);
+        }
+    }
+    // Validate and encode the password
+    if (parseInfo->userinfoPasswordExists) {
+        CFRange passwordRange = _CFURIParserGetUserinfoPasswordRange(parseInfo, false);
+        if (!_CFURIParserValidateComponent(urlString, passwordRange, kURLPasswordAllowed, true)) {
+            __CFURLComponentsPercentEncodeComponent(urlString, passwordRange, _CFURLComponentsGetURLPasswordAllowedCharacterSet());
+            // Reparse the string to get the most up-to-date offsets
+            _CFURIParserParseURIReference(urlString, parseInfo);
+        }
+    }
+    // Validate and encode the host. Host names are encoded via UIDNA
+    if (parseInfo->hostExists) {
+        CFRange hostRange = _CFURIParserGetHostRange(parseInfo, false);
+        if (!_CFURIParserValidateComponent(urlString, hostRange, kURLHostAllowed, true)) {
+            Boolean usePercentEncode = false;
+            if (parseInfo->schemeExists) {
+                CFRange schemeRange = _CFURIParserGetSchemeRange(parseInfo, false);
+                CFStringRef scheme = CFStringCreateWithSubstring(kCFAllocatorSystemDefault, urlString, schemeRange);
+                usePercentEncode = __CFURLComponentsHostShouldPercentEncodeHostBasedOnScheme(scheme);
+                CFRelease(scheme);
+            }
+            // Even though kURLHostAllowed does NOT contain `%`, RFC6874 (https://datatracker.ietf.org/doc/html/rfc6874)
+            // specifies that IPv6 literals can contain a "Zone ID", separated by `%` (for example,
+            // `[fe80::3221:5634:6544%en0]` where en0 is the Zone ID). This percent sign must also be percent-encoded,
+            // turning the final out put to `[fe80::3221:5634:6544%25en0]`.
+            // Use percentEncode here if the hostString is a IPv6 literal
+            CFStringRef hostString = CFStringCreateWithSubstring(kCFAllocatorSystemDefault, urlString, hostRange);
+            usePercentEncode = usePercentEncode || __CFURLComponentsIsHostIPv6Literal(hostString);
+            CFRelease(hostString);
+
+            if (__CFURLComponentsEncodeDecodeHost(urlString, hostRange, true, usePercentEncode)) {
+                // Host succesfully encoded. Reparse the string to get the most up-to-date-offsets
+                _CFURIParserParseURIReference(urlString, parseInfo);
+            } else {
+                // If we can't encode the host name, there's nothing we can do now...
+                return;
+            }
+        }
+    }
+    // Validate the port. Nothing we can do if the port is invalid
+    // since we can't encode it
+    if (parseInfo->portExists) {
+        CFRange portRange = _CFURIParserGetPortRange(parseInfo, false);
+        if (!_CFURIParserValidateComponent(urlString, portRange, kURLPortAllowed, true)) {
+            return;
+        }
+    }
+    // Validate and encode the path
+    CFRange pathRange = _CFURIParserGetPathRange(parseInfo, false);
+    if (pathRange.location != kCFNotFound && pathRange.length > 0) {
+        if (!_CFURIParserValidateComponent(urlString, pathRange, kURLPathAllowed, true)) {
+            __CFURLComponentsPercentEncodeComponent(urlString, pathRange, _CFURLComponentsGetURLPathAllowedCharacterSet());
+            // Reparse the string to get the most up-to-date offsets
+            _CFURIParserParseURIReference(urlString, parseInfo);
+        }
+    }
+    // Validate and encode the query
+    if (parseInfo->queryExists) {
+        CFRange queryRange = _CFURIParserGetQueryRange(parseInfo, false);
+        if (!_CFURIParserValidateComponent(urlString, queryRange, kURLQueryAllowed, true)) {
+            __CFURLComponentsPercentEncodeComponent(urlString, queryRange, _CFURLComponentsGetURLQueryAllowedCharacterSet());
+            // Reparse the string to get the most up-to-date offsets
+            _CFURIParserParseURIReference(urlString, parseInfo);
+        }
+    }
+    // Validate and encode the fragment
+    if (parseInfo->fragmentExists) {
+        CFRange fragmentRange = _CFURIParserGetFragmentRange(parseInfo, false);
+        if (!_CFURIParserValidateComponent(urlString, fragmentRange, kURLFragmentAllowed, true)) {
+            __CFURLComponentsPercentEncodeComponent(urlString, fragmentRange, _CFURLComponentsGetURLFragmentAllowedCharacterSet());
+            // Reparse the string to get the most up-to-date offsets
+            _CFURIParserParseURIReference(urlString, parseInfo);
+        }
+    }
+}
+
 CF_EXPORT CFURLComponentsRef _CFURLComponentsCreate(CFAllocatorRef alloc) {
     CFIndex size = sizeof(struct __CFURLComponents) - sizeof(CFRuntimeBase);
     CFURLComponentsRef memory = (CFURLComponentsRef)_CFRuntimeCreateInstance(alloc, _CFURLComponentsGetTypeID(), size, NULL);
@@ -117,7 +350,7 @@ CF_EXPORT CFURLComponentsRef _CFURLComponentsCreate(CFAllocatorRef alloc) {
         return NULL;
     }
     
-    memory->_lock = CFLockInit;
+    memory->_lock = OS_UNFAIR_LOCK_INIT;
     
     memory->_schemeComponentValid = true;
     memory->_userComponentValid = true;
@@ -145,7 +378,12 @@ CF_EXPORT CFURLComponentsRef _CFURLComponentsCreateWithURL(CFAllocatorRef alloc,
     return result;
 }
 
-CF_EXPORT CFURLComponentsRef _CFURLComponentsCreateWithString(CFAllocatorRef alloc, CFStringRef string) {
+// This method is equivalent to `_CFURLComponentsCreateWithString` prior to
+// rdar://89327583 (Introduce URL.FormatStyle and URL.ParseStrategy for Pattern Matching)
+//
+// We keep it here for backward-compatibility. All apps linked prior to Sydrome will
+// fall back to this method instead of the new one.
+static CFURLComponentsRef __CFURLComponentsCreateWithStringCompatibility(CFAllocatorRef alloc, CFStringRef string) {
     CFURLComponentsRef result = NULL;
     struct _URIParseInfo parseInfo;
     _CFURIParserParseURIReference(string, &parseInfo);
@@ -155,11 +393,11 @@ CF_EXPORT CFURLComponentsRef _CFURLComponentsCreateWithString(CFAllocatorRef all
         if ( result) {
             // copy the _URIParseInfo into the result
             memcpy(&result->_parseInfo, &parseInfo, sizeof(parseInfo));
-            
-            result->_lock = CFLockInit;
-            
+
+            result->_lock = OS_UNFAIR_LOCK_INIT;
+
             result->_urlString = CFStringCreateCopy(alloc, string);
-            
+
             // if there's a semi-colon in the path (what used to delimit the deprecated param component)
             if (result->_parseInfo.semicolonInPathExists) {
                 // this will percent-encode it
@@ -174,6 +412,46 @@ CF_EXPORT CFURLComponentsRef _CFURLComponentsCreateWithString(CFAllocatorRef all
     return ( result );
 }
 
+CF_EXPORT CFURLComponentsRef _CFURLComponentsCreateWithString(CFAllocatorRef alloc, CFStringRef string) {
+    Boolean useCompatibilityMode = false;
+    if (useCompatibilityMode) {
+        return __CFURLComponentsCreateWithStringCompatibility(alloc, string);
+    }
+    CFURLComponentsRef result = NULL;
+    struct _URIParseInfo parseInfo;
+    CFMutableStringRef urlString = CFStringCreateMutableCopy(alloc, URL_MAX_BUFFER_LEN, string);
+    _CFURIParserParseURIReference(urlString, &parseInfo);
+    Boolean urlValid = _CFURIParserURLStringIsValid(urlString, &parseInfo);
+    if (!urlValid) {
+        // Attemps to encode the URL
+        __CFURLComponentsEncodeURL(urlString, &parseInfo);
+    }
+    if ( _CFURIParserURLStringIsValid(urlString, &parseInfo) ) {
+        CFIndex size = sizeof(struct __CFURLComponents) - sizeof(CFRuntimeBase);
+        result = (CFURLComponentsRef)_CFRuntimeCreateInstance(alloc, _CFURLComponentsGetTypeID(), size, NULL);
+        if ( result) {
+            // copy the _URIParseInfo into the result
+            memcpy(&result->_parseInfo, &parseInfo, sizeof(parseInfo));
+            
+            result->_lock = OS_UNFAIR_LOCK_INIT;
+            
+            result->_urlString = CFStringCreateCopy(alloc, urlString);
+            
+            // if there's a semi-colon in the path (what used to delimit the deprecated param component)
+            if (result->_parseInfo.semicolonInPathExists) {
+                // this will percent-encode it
+                CFStringRef path = _CFURLComponentsCopyPath(result);
+                _CFURLComponentsSetPath(result, path);
+                if ( path ) {
+                    CFRelease(path);
+                }
+            }
+        }
+    }
+    CFRelease(urlString);
+    return ( result );
+}
+
 CF_EXPORT CFURLComponentsRef _CFURLComponentsCreateCopy(CFAllocatorRef alloc, CFURLComponentsRef components) {
     CFIndex size = sizeof(struct __CFURLComponents) - sizeof(CFRuntimeBase);
     CFURLComponentsRef memory = (CFURLComponentsRef)_CFRuntimeCreateInstance(alloc, _CFURLComponentsGetTypeID(), size, NULL);
@@ -181,8 +459,8 @@ CF_EXPORT CFURLComponentsRef _CFURLComponentsCreateCopy(CFAllocatorRef alloc, CF
         return NULL;
     }
     
-    __CFLock(&components->_lock);
-    memory->_lock = CFLockInit;
+    os_unfair_lock_lock_with_options(&components->_lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
+    memory->_lock = OS_UNFAIR_LOCK_INIT;
     memory->_urlString = components->_urlString ? CFStringCreateCopy(alloc, components->_urlString) : NULL;
     
     memory->_parseInfo = components->_parseInfo;
@@ -221,7 +499,7 @@ CF_EXPORT CFURLComponentsRef _CFURLComponentsCreateCopy(CFAllocatorRef alloc, CF
     if (components->_fragmentComponent) {
         memory->_fragmentComponent = CFStringCreateCopy(alloc, components->_fragmentComponent);
     }
-    __CFUnlock(&components->_lock);
+    os_unfair_lock_unlock(&components->_lock);
     
     return memory;
 }
@@ -366,18 +644,52 @@ CF_EXPORT CFStringRef _CFURLComponentsCopyString(CFURLComponentsRef components) 
         CFStringRef temp = _CFURLComponentsCopyPercentEncodedFragment(components);
         if (temp) CFRelease(temp);
     }
+
+    CFStringRef hostString = NULL;
+    if (components->_hostComponent) {
+        // Retrieve the hostString
+        CFRange hostRange = CFRangeMake(0, CFStringGetLength(components->_hostComponent));
+        // Remove `[` and `]` for IPv6 literals
+        if (hostRange.length > 2 &&
+            CFStringGetCharacterAtIndex(components->_hostComponent, 0) == '[' &&
+            CFStringGetCharacterAtIndex(components->_hostComponent, hostRange.length - 1) == ']') {
+            hostRange = CFRangeMake(1, hostRange.length - 2);
+        }
+        Boolean hostValid = _CFURIParserValidateComponent(
+            components->_hostComponent,
+            hostRange,
+            kURLHostAllowed, true);
+        // Even though kURLHostAllowed contains `:`, it can only be part of
+        // an IPv6 literal
+        if (hostValid && hostRange.location == 0) {
+            hostValid = CFStringFind(components->_hostComponent, CFSTR(":"), 0).location == kCFNotFound;
+        }
+
+        if (components->_schemeComponent != NULL &&
+            __CFURLComponentsHostShouldPercentEncodeHostBasedOnScheme(components->_schemeComponent) && !hostValid) {
+            hostString = _CFStringCreateByAddingPercentEncodingWithAllowedCharacters(kCFAllocatorSystemDefault, components->_hostComponent, _CFURLComponentsGetURLHostAllowedCharacterSet());
+        } else if (hostValid) {
+            hostString = CFStringCreateCopy(kCFAllocatorSystemDefault, components->_hostComponent);
+        }
+    }
     
-    Boolean hasAuthority = (components->_userComponent || components->_passwordComponent || components->_hostComponent || components->_portComponent);
+    Boolean hasAuthority = (components->_userComponent || components->_passwordComponent || hostString || components->_portComponent);
     // If there's an authority component and a path component, then the path must either begin with "/" or be an empty string.
     if ( hasAuthority && components->_pathComponent && CFStringGetLength(components->_pathComponent) && (CFStringGetCharacterAtIndex(components->_pathComponent, 0) != '/') ) {
         result = NULL;
+        if (hostString) {
+            CFRelease(hostString);
+        }
     }
     // If there's no authority component and a path component, the path component must not start with "//".
     else if ( !hasAuthority && components->_pathComponent && CFStringGetLength(components->_pathComponent) >= 2 && (CFStringGetCharacterAtIndex(components->_pathComponent, 0) == '/') && (CFStringGetCharacterAtIndex(components->_pathComponent, 1) == '/') ) {
         result = NULL;
+        if (hostString) {
+            CFRelease(hostString);
+        }
     }
     else {
-        __CFLock(&components->_lock);
+        os_unfair_lock_lock_with_options(&components->_lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
         
         CFStringAppendBuffer buf;
         UniChar chars[2];
@@ -391,7 +703,7 @@ CF_EXPORT CFStringRef _CFURLComponentsCopyString(CFURLComponentsRef components) 
             chars[0] = ':';
             CFStringAppendCharactersToAppendBuffer(&buf, chars, 1);
         }
-        if ( components->_userComponent || components->_passwordComponent || components->_hostComponent || components->_portComponent ) {
+        if ( components->_userComponent || components->_passwordComponent || hostString || components->_portComponent ) {
             // append "//"
             chars[0] = chars[1] = '/';
             CFStringAppendCharactersToAppendBuffer(&buf, chars, 2);
@@ -411,9 +723,9 @@ CF_EXPORT CFStringRef _CFURLComponentsCopyString(CFURLComponentsRef components) 
             chars[0] = '@';
             CFStringAppendCharactersToAppendBuffer(&buf, chars, 1);
         }
-        if ( components->_hostComponent ) {
-            // append "<host>"
-            CFStringAppendStringToAppendBuffer(&buf, components->_hostComponent);
+        if ( hostString ) {
+            CFStringAppendStringToAppendBuffer(&buf, hostString);
+            CFRelease(hostString);
         }
         if ( components->_portComponent ) {
             // append ":<port>"
@@ -448,7 +760,7 @@ CF_EXPORT CFStringRef _CFURLComponentsCopyString(CFURLComponentsRef components) 
             CFStringAppendStringToAppendBuffer(&buf, components->_fragmentComponent);
         }
         result = CFStringCreateMutableWithAppendBuffer(&buf);
-        __CFUnlock(&components->_lock);
+        os_unfair_lock_unlock(&components->_lock);
     }
     
     return ( result );
@@ -471,13 +783,13 @@ static inline CFStringRef CreateComponentWithURLStringRange(CFStringRef urlStrin
 CF_EXPORT CFStringRef _CFURLComponentsCopyScheme(CFURLComponentsRef components) {
     CFStringRef result;
     
-    __CFLock(&components->_lock);
+    os_unfair_lock_lock_with_options(&components->_lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
     if ( !components->_schemeComponentValid ) {
         components->_schemeComponent = CreateComponentWithURLStringRange(components->_urlString, _CFURIParserGetSchemeRange(&components->_parseInfo, false));
         components->_schemeComponentValid = true;
     }
     result = components->_schemeComponent ? CFRetain(components->_schemeComponent) : NULL;
-    __CFUnlock(&components->_lock);
+    os_unfair_lock_unlock(&components->_lock);
     
     return ( result );
 }
@@ -485,7 +797,7 @@ CF_EXPORT CFStringRef _CFURLComponentsCopyScheme(CFURLComponentsRef components) 
 CF_EXPORT CFStringRef _CFURLComponentsCopyUser(CFURLComponentsRef components) {
     CFStringRef result;
     
-    __CFLock(&components->_lock);
+    os_unfair_lock_lock_with_options(&components->_lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
     if ( !components->_userComponentValid ) {
         components->_userComponent = CreateComponentWithURLStringRange(components->_urlString, _CFURIParserGetUserinfoNameRange(&components->_parseInfo, false));
         components->_userComponentValid = true;
@@ -507,7 +819,7 @@ CF_EXPORT CFStringRef _CFURLComponentsCopyUser(CFURLComponentsRef components) {
             result = NULL;
         }
     }
-    __CFUnlock(&components->_lock);
+    os_unfair_lock_unlock(&components->_lock);
     
     return ( result );
 }
@@ -515,13 +827,13 @@ CF_EXPORT CFStringRef _CFURLComponentsCopyUser(CFURLComponentsRef components) {
 CF_EXPORT CFStringRef _CFURLComponentsCopyPassword(CFURLComponentsRef components) {
     CFStringRef result;
     
-    __CFLock(&components->_lock);
+    os_unfair_lock_lock_with_options(&components->_lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
     if ( !components->_passwordComponentValid ) {
         components->_passwordComponent = CreateComponentWithURLStringRange(components->_urlString, _CFURIParserGetUserinfoPasswordRange(&components->_parseInfo, false));
         components->_passwordComponentValid = true;
     }
     result = components->_passwordComponent ? _CFStringCreateByRemovingPercentEncoding(kCFAllocatorSystemDefault, components->_passwordComponent) : NULL;
-    __CFUnlock(&components->_lock);
+    os_unfair_lock_unlock(&components->_lock);
     
     return ( result );
 }
@@ -583,13 +895,47 @@ static void _SetValidPortComponent(CFURLComponentsRef components) {
 CF_EXPORT CFStringRef _CFURLComponentsCopyHost(CFURLComponentsRef components) {
     CFStringRef result;
     
-    __CFLock(&components->_lock);
+    os_unfair_lock_lock_with_options(&components->_lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
     if ( !components->_hostComponentValid ) {
         components->_hostComponent = CreateComponentWithURLStringRange(components->_urlString, _CFURIParserGetHostRange(&components->_parseInfo, false));
         components->_hostComponentValid = true;
     }
     if ( components->_hostComponent ) {
-        result = _CFStringCreateByRemovingPercentEncoding(kCFAllocatorSystemDefault, components->_hostComponent);
+        CFMutableStringRef decoded = CFStringCreateMutableCopy(kCFAllocatorSystemDefault, URL_MAX_BUFFER_LEN, components->_hostComponent);
+        os_unfair_lock_unlock(&components->_lock);
+        CFStringRef scheme = _CFURLComponentsCopyScheme(components);
+        os_unfair_lock_lock_with_options(&components->_lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
+        Boolean usePercentEncode = scheme != NULL &&
+            __CFURLComponentsHostShouldPercentEncodeHostBasedOnScheme(scheme);
+        if (scheme) {
+            CFRelease(scheme);
+        }
+        if (!__CFURLComponentsEncodeDecodeHost(decoded, CFRangeMake(0, CFStringGetLength(decoded)), false, usePercentEncode)) {
+            // Failed to decode
+            result = NULL;
+            CFRelease(decoded);
+        } else {
+            // According to RFC 4343 (https://www.ietf.org/rfc/rfc4343.txt), URL host
+            // names are case-insensitive. However, many apps uses non-standard URLs
+            // such as `amexapp://makePayment` that relies on the host portion
+            // being case sensitive for comparison.
+            //
+            // ICU's IDN encoder (UIDNA) always returns lower case strings
+            // even if the original host name contains uppercase letters (it's
+            // supposed to be case-insensitive after all). Here we perform
+            // a case-insensitive comparison between the decoded string and
+            // the original string and use the original string if the host
+            // name didn't need to be decoded at all.
+            CFComparisonResult decodedMatchesOriginal = CFStringCompare(
+                decoded, components->_hostComponent,
+                kCFCompareCaseInsensitive);
+            if (decodedMatchesOriginal == kCFCompareEqualTo) {
+                result = CFStringCreateCopy(kCFAllocatorSystemDefault, components->_hostComponent);
+                CFRelease(decoded);
+            } else {
+                result = decoded;
+            }
+        }
     }
     else {
         // force initialization of the other authority subcomponents in the order I think they are likely to be present: port, user, password
@@ -627,7 +973,7 @@ CF_EXPORT CFStringRef _CFURLComponentsCopyHost(CFURLComponentsRef components) {
             }
         }
     }
-    __CFUnlock(&components->_lock);
+    os_unfair_lock_unlock(&components->_lock);
     
     return ( result );
 }
@@ -635,10 +981,10 @@ CF_EXPORT CFStringRef _CFURLComponentsCopyHost(CFURLComponentsRef components) {
 CF_EXPORT CFNumberRef _CFURLComponentsCopyPort(CFURLComponentsRef components) {
     CFNumberRef result;
     
-    __CFLock(&components->_lock);
+    os_unfair_lock_lock_with_options(&components->_lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
     _SetValidPortComponent(components);
     result = components->_portComponent ? CFRetain(components->_portComponent) : NULL;
-    __CFUnlock(&components->_lock);
+    os_unfair_lock_unlock(&components->_lock);
     
     return ( result );
 }
@@ -646,7 +992,7 @@ CF_EXPORT CFNumberRef _CFURLComponentsCopyPort(CFURLComponentsRef components) {
 CF_EXPORT CFStringRef _CFURLComponentsCopyPath(CFURLComponentsRef components) {
     CFStringRef result;
     
-    __CFLock(&components->_lock);
+    os_unfair_lock_lock_with_options(&components->_lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
     if ( !components->_pathComponentValid ) {
         components->_pathComponent = CreateComponentWithURLStringRange(components->_urlString, _CFURIParserGetPathRange(&components->_parseInfo, false));
         components->_pathComponentValid = true;
@@ -659,7 +1005,7 @@ CF_EXPORT CFStringRef _CFURLComponentsCopyPath(CFURLComponentsRef components) {
             result = CFRetain(CFSTR(""));
         }
     }
-    __CFUnlock(&components->_lock);
+    os_unfair_lock_unlock(&components->_lock);
     
     return ( result );
 }
@@ -667,13 +1013,13 @@ CF_EXPORT CFStringRef _CFURLComponentsCopyPath(CFURLComponentsRef components) {
 CF_EXPORT CFStringRef _CFURLComponentsCopyQuery(CFURLComponentsRef components) {
     CFStringRef result;
     
-    __CFLock(&components->_lock);
+    os_unfair_lock_lock_with_options(&components->_lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
     if ( !components->_queryComponentValid ) {
         components->_queryComponent = CreateComponentWithURLStringRange(components->_urlString, _CFURIParserGetQueryRange(&components->_parseInfo, false));
         components->_queryComponentValid = true;
     }
     result = components->_queryComponent ? _CFStringCreateByRemovingPercentEncoding(kCFAllocatorSystemDefault, components->_queryComponent) : NULL;
-    __CFUnlock(&components->_lock);
+    os_unfair_lock_unlock(&components->_lock);
     
     return ( result );
 }
@@ -681,13 +1027,13 @@ CF_EXPORT CFStringRef _CFURLComponentsCopyQuery(CFURLComponentsRef components) {
 CF_EXPORT CFStringRef _CFURLComponentsCopyFragment(CFURLComponentsRef components) {
     CFStringRef result;
     
-    __CFLock(&components->_lock);
+    os_unfair_lock_lock_with_options(&components->_lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
     if ( !components->_fragmentComponentValid ) {
         components->_fragmentComponent = CreateComponentWithURLStringRange(components->_urlString, _CFURIParserGetFragmentRange(&components->_parseInfo, false));
         components->_fragmentComponentValid = true;
     }
     result = components->_fragmentComponent ? _CFStringCreateByRemovingPercentEncoding(kCFAllocatorSystemDefault, components->_fragmentComponent) : NULL;
-    __CFUnlock(&components->_lock);
+    os_unfair_lock_unlock(&components->_lock);
     
     return ( result );
 }
@@ -711,13 +1057,13 @@ CF_EXPORT Boolean _CFURLComponentsSchemeIsValid(CFStringRef scheme) {
 CF_EXPORT Boolean _CFURLComponentsSetScheme(CFURLComponentsRef components, CFStringRef scheme) {
     Boolean result;
     if ( _CFURLComponentsSchemeIsValid(scheme) ) {
-        __CFLock(&components->_lock);
+        os_unfair_lock_lock_with_options(&components->_lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
         if (components->_schemeComponent) {
             CFRelease(components->_schemeComponent);
         }
         components->_schemeComponent = scheme ? CFStringCreateCopy(kCFAllocatorSystemDefault, scheme) : NULL;
         components->_schemeComponentValid = true;
-        __CFUnlock(&components->_lock);
+        os_unfair_lock_unlock(&components->_lock);
         result = true;
     }
     else {
@@ -727,29 +1073,59 @@ CF_EXPORT Boolean _CFURLComponentsSetScheme(CFURLComponentsRef components, CFStr
 }
 
 CF_EXPORT Boolean _CFURLComponentsSetUser(CFURLComponentsRef components, CFStringRef user) {
-    __CFLock(&components->_lock);
+    os_unfair_lock_lock_with_options(&components->_lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
     if (components->_userComponent) CFRelease(components->_userComponent);
     components->_userComponent = user ? _CFStringCreateByAddingPercentEncodingWithAllowedCharacters(kCFAllocatorSystemDefault, user, _CFURLComponentsGetURLUserAllowedCharacterSet()) : NULL;
     components->_userComponentValid = true;
-    __CFUnlock(&components->_lock);
+    os_unfair_lock_unlock(&components->_lock);
     return true;
 }
 
 CF_EXPORT Boolean _CFURLComponentsSetPassword(CFURLComponentsRef components, CFStringRef password) {
-    __CFLock(&components->_lock);
+    os_unfair_lock_lock_with_options(&components->_lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
     if (components->_passwordComponent) CFRelease(components->_passwordComponent);
     components->_passwordComponent = password ? _CFStringCreateByAddingPercentEncodingWithAllowedCharacters(kCFAllocatorSystemDefault, password, _CFURLComponentsGetURLPasswordAllowedCharacterSet()) : NULL;
     components->_passwordComponentValid = true;
-    __CFUnlock(&components->_lock);
+    os_unfair_lock_unlock(&components->_lock);
     return true;
 }
 
 CF_EXPORT Boolean _CFURLComponentsSetHost(CFURLComponentsRef components, CFStringRef host) {
-    __CFLock(&components->_lock);
-    if (components->_hostComponent) CFRelease(components->_hostComponent);
-    components->_hostComponent = host ? _CFStringCreateByAddingPercentEncodingWithAllowedCharacters(kCFAllocatorSystemDefault, host, _CFURLComponentsGetURLHostAllowedCharacterSet()) : NULL;
+    os_unfair_lock_lock_with_options(&components->_lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
+    if (components->_hostComponent) {
+        CFRelease(components->_hostComponent);
+        components->_hostComponent = NULL;
+    }
+
+    if (host != NULL) {
+        CFRange hostRange = CFRangeMake(0, CFStringGetLength(host));
+        // Encode the host if necessary
+        if (!_CFURIParserValidateComponent(host, hostRange, kURLHostAllowed, true)) {
+            CFMutableStringRef hostString = CFStringCreateMutableCopy(kCFAllocatorSystemDefault, URL_MAX_BUFFER_LEN, host);
+            // Since we might not know the scheme when host is set, always
+            // use Punycode encoding unless the host is an IPv6 literal. RFC6874
+            // (https://datatracker.ietf.org/doc/html/rfc6874) specifies that IPv6 literals can
+            // contain a "Zone ID", separated by `%` (for example,`[fe80::3221:5634:6544%en0]`
+            // where en0 is the Zone ID). This percent sign must also be percent-encoded,
+            // turning the final out put to `[fe80::3221:5634:6544%25en0]`.
+            Boolean usePercentEncode = __CFURLComponentsIsHostIPv6Literal(hostString);
+            if (__CFURLComponentsEncodeDecodeHost(hostString, hostRange, true, usePercentEncode)) {
+                components->_hostComponent = hostString;
+            } else {
+                // Failed to encode the host, bailout.
+                os_unfair_lock_unlock(&components->_lock);
+                CFRelease(hostString);
+                return false;
+            }
+        } else {
+            components->_hostComponent = CFStringCreateCopy(kCFAllocatorSystemDefault, host);
+        }
+    } else {
+        components->_hostComponent = NULL;
+    }
+
     components->_hostComponentValid = true;
-    __CFUnlock(&components->_lock);
+    os_unfair_lock_unlock(&components->_lock);
     return true;
 }
 
@@ -762,7 +1138,7 @@ CF_EXPORT Boolean _CFURLComponentsSetPort(CFURLComponentsRef components, CFNumbe
             return false;
         }
     }
-    __CFLock(&components->_lock);
+    os_unfair_lock_lock_with_options(&components->_lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
     if (components->_portComponent) CFRelease(components->_portComponent);
     if (port) {
         components->_portComponent = CFNumberCreate(kCFAllocatorSystemDefault, kCFNumberLongLongType, &portNumber);
@@ -770,41 +1146,41 @@ CF_EXPORT Boolean _CFURLComponentsSetPort(CFURLComponentsRef components, CFNumbe
         components->_portComponent = NULL;
     }
     components->_portComponentValid = true;
-    __CFUnlock(&components->_lock);
+    os_unfair_lock_unlock(&components->_lock);
     return true;
 }
 
 CF_EXPORT Boolean _CFURLComponentsSetPath(CFURLComponentsRef components, CFStringRef path) {
-    __CFLock(&components->_lock);
+    os_unfair_lock_lock_with_options(&components->_lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
     if (components->_pathComponent) CFRelease(components->_pathComponent);
     components->_pathComponent = path ? _CFStringCreateByAddingPercentEncodingWithAllowedCharacters(kCFAllocatorSystemDefault, path, _CFURLComponentsGetURLPathAllowedCharacterSet()) : NULL;
     components->_pathComponentValid = true;
-    __CFUnlock(&components->_lock);
+    os_unfair_lock_unlock(&components->_lock);
     return true;
 }
 
 CF_EXPORT Boolean _CFURLComponentsSetQuery(CFURLComponentsRef components, CFStringRef query) {
-    __CFLock(&components->_lock);
+    os_unfair_lock_lock_with_options(&components->_lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
     if (components->_queryComponent) CFRelease(components->_queryComponent);
     components->_queryComponent = query ? _CFStringCreateByAddingPercentEncodingWithAllowedCharacters(kCFAllocatorSystemDefault, query, _CFURLComponentsGetURLQueryAllowedCharacterSet()) : NULL;
     components->_queryComponentValid = true;
-    __CFUnlock(&components->_lock);
+    os_unfair_lock_unlock(&components->_lock);
     return true;
 }
 
 CF_EXPORT Boolean _CFURLComponentsSetFragment(CFURLComponentsRef components, CFStringRef fragment) {
-    __CFLock(&components->_lock);
+    os_unfair_lock_lock_with_options(&components->_lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
     if (components->_fragmentComponent) CFRelease(components->_fragmentComponent);
     components->_fragmentComponent = fragment ? _CFStringCreateByAddingPercentEncodingWithAllowedCharacters(kCFAllocatorSystemDefault, fragment, _CFURLComponentsGetURLFragmentAllowedCharacterSet()) : NULL;
     components->_fragmentComponentValid = true;
-    __CFUnlock(&components->_lock);
+    os_unfair_lock_unlock(&components->_lock);
     return true;
 }
 
 CF_EXPORT CFStringRef _CFURLComponentsCopyPercentEncodedUser(CFURLComponentsRef components) {
     CFStringRef result;
 
-    __CFLock(&components->_lock);
+    os_unfair_lock_lock_with_options(&components->_lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
     if ( !components->_userComponentValid ) {
         components->_userComponent = CreateComponentWithURLStringRange(components->_urlString, _CFURIParserGetUserinfoNameRange(&components->_parseInfo, false));
         components->_userComponentValid = true;
@@ -826,7 +1202,7 @@ CF_EXPORT CFStringRef _CFURLComponentsCopyPercentEncodedUser(CFURLComponentsRef 
             result = NULL;
         }
     }
-    __CFUnlock(&components->_lock);
+    os_unfair_lock_unlock(&components->_lock);
     
     return ( result );
 }
@@ -834,34 +1210,45 @@ CF_EXPORT CFStringRef _CFURLComponentsCopyPercentEncodedUser(CFURLComponentsRef 
 CF_EXPORT CFStringRef _CFURLComponentsCopyPercentEncodedPassword(CFURLComponentsRef components) {
     CFStringRef result;
     
-    __CFLock(&components->_lock);
+    os_unfair_lock_lock_with_options(&components->_lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
     if ( !components->_passwordComponentValid ) {
         components->_passwordComponent = CreateComponentWithURLStringRange(components->_urlString, _CFURIParserGetUserinfoPasswordRange(&components->_parseInfo, false));
         components->_passwordComponentValid = true;
     }
     result = components->_passwordComponent ? CFRetain(components->_passwordComponent) : NULL;
-    __CFUnlock(&components->_lock);
+    os_unfair_lock_unlock(&components->_lock);
     
     return ( result );
 }
 
-CF_EXPORT CFStringRef _CFURLComponentsCopyPercentEncodedHost(CFURLComponentsRef components) {
+CF_EXPORT _Nullable CFStringRef _CFURLComponentsCopyEncodedHost(CFURLComponentsRef components) {
     CFStringRef result;
-    
-    __CFLock(&components->_lock);
+
+    os_unfair_lock_lock_with_options(&components->_lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
     if ( !components->_hostComponentValid ) {
         components->_hostComponent = CreateComponentWithURLStringRange(components->_urlString, _CFURIParserGetHostRange(&components->_parseInfo, false));
         components->_hostComponentValid = true;
     }
     if ( components->_hostComponent ) {
-        result = CFRetain(components->_hostComponent);
+        // At this point _hostComponent should have already been either percent or Punycode encoded.
+        // However, it's still possible that _hostComponent is invalid because Punycode encoder does
+        // not encode "invalid" IDN characters, such as spaces that might appear in a phone number.
+        // In these cases, we'll need to percent-encode.
+        CFIndex hostLength = CFStringGetLength(components->_hostComponent);
+        CFRange hostRange = __CFURLComponentsIsHostIPv6Literal(components->_hostComponent) ?
+            CFRangeMake(1, hostLength - 2) : CFRangeMake(0, hostLength);
+        if (hostLength >= 2 && !_CFURIParserValidateComponent(components->_hostComponent, hostRange, kURLHostAllowed, true)) {
+            result = _CFStringCreateByAddingPercentEncodingWithAllowedCharacters(kCFAllocatorSystemDefault, components->_hostComponent, _CFURLComponentsGetURLHostAllowedCharacterSet());
+        } else {
+            result = CFRetain(components->_hostComponent);
+        }
     }
     else {
         // force initialization of the other authority subcomponents in the order I think they are likely to be present: port, user, password
-        
+
         // ensure the port subcomponent is valid
         _SetValidPortComponent(components);
-        
+
         if ( components->_portComponent ) {
             // if there's a port subcomponent, then there has to be a host subcomponent
             result = CFRetain(CFSTR(""));
@@ -892,21 +1279,31 @@ CF_EXPORT CFStringRef _CFURLComponentsCopyPercentEncodedHost(CFURLComponentsRef 
             }
         }
     }
-    __CFUnlock(&components->_lock);
-    
+    os_unfair_lock_unlock(&components->_lock);
+
     return ( result );
+}
+
+CF_EXPORT CFStringRef _CFURLComponentsCopyPercentEncodedHost(CFURLComponentsRef components) {
+    CFStringRef host = _CFURLComponentsCopyHost(components);
+    CFStringRef encodedHost = NULL;
+    if (host) {
+        encodedHost = _CFStringCreateByAddingPercentEncodingWithAllowedCharacters(kCFAllocatorSystemDefault, host, _CFURLComponentsGetURLHostAllowedCharacterSet());
+        CFRelease(host);
+    }
+    return encodedHost;
 }
 
 CF_EXPORT CFStringRef _CFURLComponentsCopyPercentEncodedPath(CFURLComponentsRef components) {
     CFStringRef result;
     
-    __CFLock(&components->_lock);
+    os_unfair_lock_lock_with_options(&components->_lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
     if ( !components->_pathComponentValid ) {
         components->_pathComponent = CreateComponentWithURLStringRange(components->_urlString, _CFURIParserGetPathRange(&components->_parseInfo, false));
         components->_pathComponentValid = true;
     }
     result = components->_pathComponent ? CFRetain(components->_pathComponent) : NULL;
-    __CFUnlock(&components->_lock);
+    os_unfair_lock_unlock(&components->_lock);
     
     if (!result) result = CFRetain(CFSTR(""));
     
@@ -916,13 +1313,13 @@ CF_EXPORT CFStringRef _CFURLComponentsCopyPercentEncodedPath(CFURLComponentsRef 
 CF_EXPORT CFStringRef _CFURLComponentsCopyPercentEncodedQuery(CFURLComponentsRef components) {
     CFStringRef result;
     
-    __CFLock(&components->_lock);
+    os_unfair_lock_lock_with_options(&components->_lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
     if ( !components->_queryComponentValid ) {
         components->_queryComponent = CreateComponentWithURLStringRange(components->_urlString, _CFURIParserGetQueryRange(&components->_parseInfo, false));
         components->_queryComponentValid = true;
     }
     result = components->_queryComponent ? CFRetain(components->_queryComponent) : NULL;
-    __CFUnlock(&components->_lock);
+    os_unfair_lock_unlock(&components->_lock);
     
     return ( result );
 }
@@ -930,13 +1327,13 @@ CF_EXPORT CFStringRef _CFURLComponentsCopyPercentEncodedQuery(CFURLComponentsRef
 CF_EXPORT CFStringRef _CFURLComponentsCopyPercentEncodedFragment(CFURLComponentsRef components) {
     CFStringRef result;
     
-    __CFLock(&components->_lock);
+    os_unfair_lock_lock_with_options(&components->_lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
     if ( !components->_fragmentComponentValid ) {
         components->_fragmentComponent = CreateComponentWithURLStringRange(components->_urlString, _CFURIParserGetFragmentRange(&components->_parseInfo, false));
         components->_fragmentComponentValid = true;
     }
     result = components->_fragmentComponent ? CFRetain(components->_fragmentComponent) : NULL;
-    __CFUnlock(&components->_lock);
+    os_unfair_lock_unlock(&components->_lock);
     
     return ( result );
 }
@@ -948,11 +1345,11 @@ CF_EXPORT Boolean _CFURLComponentsSetPercentEncodedUser(CFURLComponentsRef compo
             return false;
         }
     }
-    __CFLock(&components->_lock);
+    os_unfair_lock_lock_with_options(&components->_lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
     if (components->_userComponent) CFRelease(components->_userComponent);
     components->_userComponent = percentEncodedUser ? CFStringCreateCopy(kCFAllocatorSystemDefault, percentEncodedUser) : NULL;
     components->_userComponentValid = true;
-    __CFUnlock(&components->_lock);
+    os_unfair_lock_unlock(&components->_lock);
     return true;
 }
 
@@ -963,36 +1360,78 @@ CF_EXPORT Boolean _CFURLComponentsSetPercentEncodedPassword(CFURLComponentsRef c
             return false;
         }
     }
-    __CFLock(&components->_lock);
+    os_unfair_lock_lock_with_options(&components->_lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
     if (components->_passwordComponent) CFRelease(components->_passwordComponent);
     components->_passwordComponent = percentEncodedPassword ? CFStringCreateCopy(kCFAllocatorSystemDefault, percentEncodedPassword) : NULL;
     components->_passwordComponentValid = true;
-    __CFUnlock(&components->_lock);
+    os_unfair_lock_unlock(&components->_lock);
+    return true;
+}
+
+CF_EXPORT Boolean _CFURLComponentsSetEncodedHost(CFURLComponentsRef components, _Nullable CFStringRef host) {
+    CFStringRef uidnaEncodedHost = NULL;
+    if ( host ) {
+        // If the decoded string doesn't contain any invalid characters, we don't have
+        // to encode at all!
+        CFIndex decodedLength = CFStringGetLength(host);
+        CFRange hostRange;
+        if (decodedLength >= 2 &&
+            (CFStringGetCharacterAtIndex(host, 0) == '[') &&
+            (CFStringGetCharacterAtIndex(host, decodedLength - 1) == ']')) {
+            // the host is an IP-Literal -- only validate the characters inside brackets
+            hostRange = CFRangeMake(1, decodedLength - 2);
+        } else {
+            hostRange = CFRangeMake(0, decodedLength);
+        }
+        if (_CFURIParserValidateComponent(host, hostRange, kURLHostAllowed, true)) {
+            uidnaEncodedHost = CFStringCreateCopy(kCFAllocatorSystemDefault, host);
+        } else {
+            // The host is indeed invalid. Encode it now.
+            CFMutableStringRef hostString = CFStringCreateMutableCopy(kCFAllocatorSystemDefault, URL_MAX_BUFFER_LEN, host);
+            // Since we might not know the scheme when host is set, always use Punycode encoding
+            // unless the host is an IPv6 literal. IPv6 literals should be percent-encoded because
+            // they may contain a Zone ID separated by a special character `%`.
+            Boolean usePercentEncode = __CFURLComponentsIsHostIPv6Literal(hostString);
+            if (__CFURLComponentsEncodeDecodeHost(hostString, hostRange, true, usePercentEncode)) {
+                uidnaEncodedHost = hostString;
+            } else {
+                // Failed to encode host, bailout
+                if (hostString) {
+                    CFRelease(hostString);
+                }
+                return false;
+            }
+        }
+    }
+    os_unfair_lock_lock_with_options(&components->_lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
+    if (components->_hostComponent) CFRelease(components->_hostComponent);
+    components->_hostComponent = uidnaEncodedHost ? CFStringCreateCopy(kCFAllocatorSystemDefault, uidnaEncodedHost) : NULL;
+    components->_hostComponentValid = true;
+    os_unfair_lock_unlock(&components->_lock);
+
+    if (uidnaEncodedHost) {
+        CFRelease(uidnaEncodedHost);
+    }
     return true;
 }
 
 CF_EXPORT Boolean _CFURLComponentsSetPercentEncodedHost(CFURLComponentsRef components, CFStringRef percentEncodedHost) {
-    if ( percentEncodedHost ) {
-        CFIndex length = CFStringGetLength(percentEncodedHost);
-        CFRange componentRange;
-        if ( (length >= 2) && (CFStringGetCharacterAtIndex(percentEncodedHost, 0) == '[') && (CFStringGetCharacterAtIndex(percentEncodedHost, length - 1) == ']') ) {
-            // the host is an IP-Literal -- only validate the characters inside brackets
-            componentRange = CFRangeMake(1, length - 2);
-        }
-        else {
-            componentRange = CFRangeMake(0, length);
-        }
-        if ( !_CFURIParserValidateComponent(percentEncodedHost, componentRange, kURLHostAllowed, true) ) {
-            // invalid characters in percentEncodedHost
-            return false;
+    // Hosts must be encoded via unicode (UIDNA) as opposed to percent encoding,
+    // unless the host is an IPv6 literal. IPv6 literals need to be percent-encoded
+    // because they may contain a Zone ID separated by a special character `%`.
+    CFStringRef decoded = NULL;
+    if (percentEncodedHost) {
+        if (__CFURLComponentsIsHostIPv6Literal(percentEncodedHost)) {
+            decoded = CFStringCreateCopy(kCFAllocatorSystemDefault, percentEncodedHost);
+        } else {
+            decoded = _CFStringCreateByRemovingPercentEncoding(kCFAllocatorSystemDefault, percentEncodedHost);
         }
     }
-    __CFLock(&components->_lock);
-    if (components->_hostComponent) CFRelease(components->_hostComponent);
-    components->_hostComponent = percentEncodedHost ? CFStringCreateCopy(kCFAllocatorSystemDefault, percentEncodedHost) : NULL;
-    components->_hostComponentValid = true;
-    __CFUnlock(&components->_lock);
-    return true;
+    Boolean result = _CFURLComponentsSetEncodedHost(components, decoded);
+    if (decoded) {
+        CFRelease(decoded);
+    }
+    return result;
 }
 
 CF_EXPORT Boolean _CFURLComponentsSetPercentEncodedPath(CFURLComponentsRef components, CFStringRef percentEncodedPath) {
@@ -1002,11 +1441,11 @@ CF_EXPORT Boolean _CFURLComponentsSetPercentEncodedPath(CFURLComponentsRef compo
             return false;
         }
     }
-    __CFLock(&components->_lock);
+    os_unfair_lock_lock_with_options(&components->_lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
     if (components->_pathComponent) CFRelease(components->_pathComponent);
     components->_pathComponent = percentEncodedPath ? CFStringCreateCopy(kCFAllocatorSystemDefault, percentEncodedPath) : NULL;
     components->_pathComponentValid = true;
-    __CFUnlock(&components->_lock);
+    os_unfair_lock_unlock(&components->_lock);
     return true;
 }
 
@@ -1017,11 +1456,11 @@ CF_EXPORT Boolean _CFURLComponentsSetPercentEncodedQuery(CFURLComponentsRef comp
             return false;
         }
     }
-    __CFLock(&components->_lock);
+    os_unfair_lock_lock_with_options(&components->_lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
     if (components->_queryComponent) CFRelease(components->_queryComponent);
     components->_queryComponent = percentEncodedQuery ? CFStringCreateCopy(kCFAllocatorSystemDefault, percentEncodedQuery) : NULL;
     components->_queryComponentValid = true;
-    __CFUnlock(&components->_lock);
+    os_unfair_lock_unlock(&components->_lock);
     return true;
 }
 
@@ -1032,11 +1471,11 @@ CF_EXPORT Boolean _CFURLComponentsSetPercentEncodedFragment(CFURLComponentsRef c
             return false;
         }
     }
-    __CFLock(&components->_lock);
+    os_unfair_lock_lock_with_options(&components->_lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
     if (components->_fragmentComponent) CFRelease(components->_fragmentComponent);
     components->_fragmentComponent = percentEncodedFragment ? CFStringCreateCopy(kCFAllocatorSystemDefault, percentEncodedFragment) : NULL;
     components->_fragmentComponentValid = true;
-    __CFUnlock(&components->_lock);
+    os_unfair_lock_unlock(&components->_lock);
     return true;
 }
 
@@ -1470,4 +1909,172 @@ CF_EXPORT void _CFURLComponentsSetQueryItems(CFURLComponentsRef components, CFAr
 
 CF_EXPORT Boolean _CFURLComponentsSetPercentEncodedQueryItems(CFURLComponentsRef components, CFArrayRef names, CFArrayRef values ) {
     return ( _CFURLComponentsSetQueryItemsInternal(components, names, values, false) );
+}
+
+/// `implication` is used to validate an URL in `lenient` parsing mode with the requirements on the left side and whether
+/// a component exists on the right side. It produces the following truth table:
+/// Requirement     Exists      Result
+/// true                    true        true
+/// true                    false       false
+/// false                   true        true
+/// false                   false       true
+/// This means it will only return false if a component is required but it does not exist.
+static inline Boolean implication(Boolean left, Boolean right) {
+    return !left || right;
+}
+
+/// Validate whether the parsed URL contains the required components.
+/// In `lenient` mode, URLs must have all the required components while optionally having all other components;
+/// In `strict` mode, URLs must contains exactly the required components.
+static Boolean __CFURLComponentsValidateRequiredComponents(const struct _URIParseInfo *parseInfo, _CFURLRequiredComponents requiredComponents) {
+    CFRange pathRange = _CFURIParserGetPathRange(parseInfo, false);
+    Boolean pathExists = pathRange.location != kCFNotFound && pathRange.length > 0;
+
+    return implication(requiredComponents & kCFURLRequiredComponentScheme, parseInfo->schemeExists) &&
+        implication(requiredComponents & kCFURLRequiredComponentUser, parseInfo->userinfoNameExists) &&
+        implication(requiredComponents & kCFURLRequiredComponentPassword, parseInfo->userinfoPasswordExists) &&
+        implication(requiredComponents & kCFURLRequiredComponentHost, parseInfo->hostExists) &&
+        implication(requiredComponents & kCFURLRequiredComponentPort, parseInfo->portExists) &&
+        implication(requiredComponents & kCFURLRequiredComponentPath, pathExists) &&
+        implication(requiredComponents & kCFURLRequiredComponentQuery, parseInfo->queryExists) &&
+        implication(requiredComponents & kCFURLRequiredComponentFragment, parseInfo->fragmentExists);
+}
+
+static void __CFURLComponentsFillInDefaultValues(CFURLComponentsRef components, CFDictionaryRef defaultValues) {
+    if (defaultValues == NULL || CFDictionaryGetCount(defaultValues) == 0) {
+        return;
+    }
+#define FILL_IN(GETTER, SETTER, REQUIREMENT) ({ \
+    CFStringRef value = GETTER(components); \
+    if (value == NULL || CFStringGetLength(value) == 0) { \
+        CFOptionFlags keyValue = REQUIREMENT; \
+        CFNumberRef key = CFNumberCreate(kCFAllocatorSystemDefault, kCFNumberLongType, &keyValue); \
+        SETTER(components, CFDictionaryGetValue(defaultValues, (void *)key)); \
+        if (key) { \
+            CFRelease(key); \
+        } \
+    } \
+    if (value) { \
+        CFRelease(value); \
+    } \
+})
+
+    // Fill in scheme
+    FILL_IN(_CFURLComponentsCopyScheme,
+            _CFURLComponentsSetScheme,
+            kCFURLRequiredComponentScheme);
+
+    // Fill in username
+    FILL_IN(_CFURLComponentsCopyUser,
+            _CFURLComponentsSetUser,
+            kCFURLRequiredComponentUser);
+    // Fill in password
+    FILL_IN(_CFURLComponentsCopyPassword,
+            _CFURLComponentsSetPassword,
+            kCFURLRequiredComponentPassword);
+    // Fill in host
+    FILL_IN(_CFURLComponentsCopyHost,
+            _CFURLComponentsSetHost,
+            kCFURLRequiredComponentHost);
+    // Fill in port, which is a special case because it accepts `CFNumber` instead
+    // of `CFStringRef`.
+    CFNumberRef currentPort = _CFURLComponentsCopyPort(components);
+    if (currentPort == NULL) {
+        CFOptionFlags port = kCFURLRequiredComponentPort;
+        CFNumberRef key = CFNumberCreate(kCFAllocatorSystemDefault, kCFNumberLongType, &port);
+        const void *value = CFDictionaryGetValue(defaultValues, (void *)key);
+        if (key) {
+            CFRelease(key);
+        }
+        if (value) {
+            CFTypeID type = CFGetTypeID(value);
+            if (type == CFNumberGetTypeID()) {
+                _CFURLComponentsSetPort(components, (CFNumberRef)value);
+            } else if (type == CFStringGetTypeID()) {
+                // We need to convert CFStringRef to CFNumberRef
+                CFLocaleRef locale = CFLocaleCopyCurrent();
+                CFNumberFormatterRef formatter = CFNumberFormatterCreate(kCFAllocatorSystemDefault, locale, kCFNumberFormatterDecimalStyle);
+                if (formatter) {
+                    CFNumberRef portValue = CFNumberFormatterCreateNumberFromString(kCFAllocatorSystemDefault, formatter, (CFStringRef)value, NULL, kCFNumberFormatterParseIntegersOnly);
+                    _CFURLComponentsSetPort(components, portValue);
+
+                    if (portValue) {
+                        CFRelease(portValue);
+                    }
+                    CFRelease(formatter);
+                }
+
+                if (locale) {
+                    CFRelease(locale);
+                }
+            }
+        }
+    } else {
+        CFRelease(currentPort);
+    }
+    // Fill in path
+    FILL_IN(_CFURLComponentsCopyPath,
+            _CFURLComponentsSetPath,
+            kCFURLRequiredComponentPath);
+    // Fill in query
+    FILL_IN(_CFURLComponentsCopyQuery,
+            _CFURLComponentsSetQuery,
+            kCFURLRequiredComponentQuery);
+    // Fill in fragment
+    FILL_IN(_CFURLComponentsCopyFragment,
+            _CFURLComponentsSetFragment,
+            kCFURLRequiredComponentFragment);
+
+#undef FILL_IN
+}
+
+CF_EXPORT CFRange _CFURLComponentsMatchURLInString(CFStringRef string, _CFURLRequiredComponents requiredComponents, CFDictionaryRef defaultValues, CFURLRef *outURL) {
+    // First split the string by whitespaces newlines. Whitespaces will mark the end of the URL
+    CFRange whitespaceRange;
+    Boolean containsWhitespace = CFStringFindCharacterFromSet(string, CFCharacterSetGetPredefined(kCFCharacterSetWhitespaceAndNewline), CFRangeMake(0, CFStringGetLength(string)), 0, &whitespaceRange);
+    CFStringRef urlString;
+    if (containsWhitespace) {
+        urlString = CFStringCreateWithSubstring(kCFAllocatorDefault, string, CFRangeMake(0, whitespaceRange.location));
+    } else {
+        urlString = CFStringCreateCopy(kCFAllocatorDefault, string);
+    }
+
+    CFRange notFound = CFRangeMake(kCFNotFound, 0);
+    struct _URIParseInfo parseInfo;
+    _CFURIParserParseURIReference(urlString, &parseInfo);
+    if (!__CFURLComponentsValidateRequiredComponents(&parseInfo, requiredComponents)) {
+        if (outURL) {
+            *outURL = NULL;
+        }
+        if (urlString) {
+            CFRelease(urlString);
+        }
+        return notFound;
+    }
+
+    CFURLRef url = NULL;
+    CFURLComponentsRef components = _CFURLComponentsCreateWithString(kCFAllocatorDefault, urlString);
+    if (components) {
+        // Fill in the defaultValues
+        __CFURLComponentsFillInDefaultValues(components, defaultValues);
+
+        url = _CFURLComponentsCopyURL(components);
+        CFRelease(components);
+    }
+    if (urlString) {
+        CFRelease(urlString);
+    }
+
+    if (url == NULL) {
+        if (outURL) {
+            *outURL = NULL;
+        }
+        return notFound;
+    }
+    if (outURL) {
+        *outURL = url;
+    } else {
+        CFRelease(url);
+    }
+    return containsWhitespace ? CFRangeMake(0, whitespaceRange.location) : CFRangeMake(0, CFStringGetLength(string));
 }

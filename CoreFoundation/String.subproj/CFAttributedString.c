@@ -17,7 +17,7 @@
 #include "CFRuntime_Internal.h"
 
 #if (TARGET_OS_MAC || TARGET_OS_WIN32) && DEPLOYMENT_RUNTIME_OBJC
-#include <Foundation/NSAttributedString.h>
+#import <Foundation/NSAttributedString.h>
 @interface NSAttributedString (NSPrivate)
 - (NSAttributedString *)_createAttributedSubstringWithRange:(NSRange)range NS_RETURNS_RETAINED;
 @end

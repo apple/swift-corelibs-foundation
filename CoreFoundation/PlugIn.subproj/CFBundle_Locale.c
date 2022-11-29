@@ -12,6 +12,7 @@
 
 
 
+
 #include <CoreFoundation/CFPreferences.h>
 
 #if __HAS_APPLE_ICU__
@@ -19,6 +20,10 @@
 #endif
 #include <unicode/uloc.h>
 #include <ctype.h>
+
+#if TARGET_OS_MAC
+#include <crt_externs.h>
+#endif
 
 static CFStringRef _CFBundleCopyLanguageFoundInLocalizations(CFArrayRef localizations, CFStringRef language);
 
@@ -66,7 +71,9 @@ static Boolean CFBundleFollowParentLocalization(void) {
     static dispatch_once_t once = 0;
     dispatch_once(&once, ^{
         // Info.plists with the CFBundleFollowParentLocalization key or any extension are allowed to use this
-        followParent = _CFBundleGetInfoDictionaryBoolean(CFSTR("CFBundleFollowParentLocalization")) || _CFBundleIsExtension();
+        if (_CFBundleGetInfoDictionaryBoolean(CFSTR("CFBundleFollowParentLocalization")) || _CFBundleIsExtension()) {
+            followParent = true;
+        }
     });
     return followParent;
 
@@ -150,7 +157,7 @@ static CFStringRef _CFBundleGetAlternateNameForLanguage(CFStringRef language) {
     // These are used to provide a fast path for it (other localizations usually use the abbreviation, which is even faster).
     static CFStringRef const __CFBundleCommonLanguageNamesArray[] = {CFSTR("English"), CFSTR("French"), CFSTR("German"), CFSTR("Italian"), CFSTR("Dutch"), CFSTR("Spanish"), CFSTR("Japanese")};
     static CFStringRef const __CFBundleCommonLanguageAbbreviationsArray[] = {CFSTR("en"), CFSTR("fr"), CFSTR("de"), CFSTR("it"), CFSTR("nl"), CFSTR("es"), CFSTR("ja")};
-    
+
     for (CFIndex idx = 0; idx < sizeof(__CFBundleCommonLanguageNamesArray) / sizeof(CFStringRef); idx++) {
         if (CFEqual(language, __CFBundleCommonLanguageAbbreviationsArray[idx])) {
             return __CFBundleCommonLanguageNamesArray[idx];
@@ -159,6 +166,88 @@ static CFStringRef _CFBundleGetAlternateNameForLanguage(CFStringRef language) {
         }
     }
 
+    return NULL;
+}
+
+static CFStringRef _CFBundleCopyDefaultLanguageForLanguage(CFStringRef language) {
+    // Wraps a call to add likely subtags to the provided language and caches the results.
+
+    if (language == NULL) {
+        return NULL;
+    }
+
+    static CFMutableDictionaryRef cache = NULL;
+    static os_unfair_lock defaultLanguageLock = OS_UNFAIR_LOCK_INIT;
+    os_unfair_lock_lock_with_options(&defaultLanguageLock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
+    if (!cache) {
+        cache = CFDictionaryCreateMutable(kCFAllocatorSystemDefault, 0, &kCFCopyStringDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+    }
+
+    CFStringRef cachedLanguage = CFDictionaryGetValue(cache, language);
+    if (cachedLanguage) {
+        CFStringRef result = CFStringCreateCopy(kCFAllocatorDefault, cachedLanguage);
+        os_unfair_lock_unlock(&defaultLanguageLock);
+        return result;
+    }
+    os_unfair_lock_unlock(&defaultLanguageLock);
+
+    CFStringRef languageWithLikelySubtags = _CFLocaleCopyLocaleIdentifierByAddingLikelySubtags(language);
+
+    if (languageWithLikelySubtags) {
+        os_unfair_lock_lock_with_options(&defaultLanguageLock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
+        CFDictionarySetValue(cache, language, languageWithLikelySubtags);
+        os_unfair_lock_unlock(&defaultLanguageLock);
+    }
+    return languageWithLikelySubtags;
+}
+
+static bool _CFBundleIsLanguageDefaultLanguageOfOther(CFStringRef language1, CFStringRef language2) {
+    // Expands both languages to their maximum (de -> de_Latn_DE) by adding likely subtags, then compares both.
+
+    if (language1 == NULL || language2 == NULL) {
+        return false;
+    }
+
+    CFStringRef language1WithLikelySubtags = _CFBundleCopyDefaultLanguageForLanguage(language1);
+    if (!language1WithLikelySubtags) {
+        return false;
+    }
+
+    CFStringRef language2WithLikelySubtags = _CFBundleCopyDefaultLanguageForLanguage(language2);
+    if (!language2WithLikelySubtags) {
+        CFRelease(language1WithLikelySubtags);
+        return false;
+    }
+
+    bool result = false;
+    if (CFStringCompare(language1WithLikelySubtags, language2WithLikelySubtags, kCFCompareCaseInsensitive) == kCFCompareEqualTo) {
+        result = true;
+    }
+
+    CFRelease(language1WithLikelySubtags);
+    CFRelease(language2WithLikelySubtags);
+
+    return result;
+}
+
+static CFStringRef _CFBundleGetDefaultLanguageInLocalizations(CFStringRef language, CFArrayRef localizations) {
+    // If the provided language is equivalent to any other language contained in the list of known localizations, the known equivalent is returned.
+    // This applies to "de_DE", which can be shortened to "de", or "pt_BR", which is equivalent to saying "pt".
+
+    // 1. Expand the input language to its maximum (de -> de_Latn_DE)
+    // 2. Compare that with the maximized versions of all other known languages to find a match (de_Latn_DE == (de_DE -> de_Latn_DE))
+    // 3. If the language has an alternate name (German -> de), compare that with the expanded version of the known languages (and vice versa)
+    for (CFIndex idx = 0; idx < CFArrayGetCount(localizations); idx++) {
+        CFStringRef knownLocalization = CFArrayGetValueAtIndex(localizations, idx);
+        CFStringRef languageAlt = _CFBundleGetAlternateNameForLanguage(language);
+        CFStringRef knownLocalizationAlt = _CFBundleGetAlternateNameForLanguage(knownLocalization);
+
+        if (_CFBundleIsLanguageDefaultLanguageOfOther(language, knownLocalization)
+            || _CFBundleIsLanguageDefaultLanguageOfOther(languageAlt, knownLocalization)
+            || _CFBundleIsLanguageDefaultLanguageOfOther(language, knownLocalizationAlt)) {
+            return knownLocalization;
+        }
+    }
     return NULL;
 }
 
@@ -374,7 +463,7 @@ CFStringRef CFBundleCopyLocalizationForLocalizationInfo(SInt32 languageCode, SIn
 
 #pragma mark -
 
-static CFArrayRef _copyBundleLocalizationsFromResources(CFBundleRef bundle);
+static CFArrayRef _copyBundleLocalizationsFromResources(CFBundleRef bundle, _CFBundleAddingDevelopmentLocalizationBehavior addingDevelopmentLocalization);
 
 static CFArrayRef _copyAppleLocalizations(CFDictionaryRef infoDict) {
     CFArrayRef result = NULL;
@@ -384,7 +473,7 @@ static CFArrayRef _copyAppleLocalizations(CFDictionaryRef infoDict) {
     if (useAppleLocalizations == kCFBooleanTrue) {
         CFURLRef cfURL = CFURLCreateWithFileSystemPath(kCFAllocatorSystemDefault, CFSTR("/System/Library/Frameworks/CoreFoundation.framework"), kCFURLPOSIXPathStyle, true);
         CFBundleRef cf = CFBundleCreate(kCFAllocatorSystemDefault, cfURL);
-        result = _copyBundleLocalizationsFromResources(cf);
+        result = _copyBundleLocalizationsFromResources(cf, _CFBundleAddingDevelopmentLocalizationBehaviorDefault);
         CFRelease(cfURL);
         CFRelease(cf);
     }
@@ -421,7 +510,7 @@ static CFArrayRef _CFBundleCopyLProjDirectoriesForURL(CFAllocatorRef allocator, 
 }
 
 // Only called from CFBundleCopyBundleLocalizations below
-static CFArrayRef _copyBundleLocalizationsFromResources(CFBundleRef bundle) {
+static CFArrayRef _copyBundleLocalizationsFromResources(CFBundleRef bundle, _CFBundleAddingDevelopmentLocalizationBehavior addingDevelopmentLocalization) {
     CFArrayRef result = NULL;
     CFDictionaryRef infoDict = CFBundleGetInfoDictionary(bundle);
     if (infoDict) {
@@ -463,9 +552,9 @@ static CFArrayRef _copyBundleLocalizationsFromResources(CFBundleRef bundle) {
     CFStringRef developmentLocalization = CFBundleGetDevelopmentRegion(bundle);
     if (result) {
         if (developmentLocalization) {
-            CFRange entireRange = CFRangeMake(0, CFArrayGetCount(result));
-            if (CFArrayContainsValue(result, entireRange, _CFBundleBaseDirectory)) {
-                // Base.lproj contains localizations for the development region. Insert the development region into the existing array if there isn't already a match so that resource lookup doesn't default to another language.
+            Boolean addDevLocalization = true;
+            if (addDevLocalization) {
+                // Base.lproj and strings in code contain localizations for the development region. Insert the development region into the existing array if there isn't already a match so that resource lookup doesn't default to another language. (51825775)
                 // We need to make sure that we don't add "en" if "English" exists. (14006652)
                 CFStringRef foundInLocalizations = _CFBundleCopyLanguageFoundInLocalizations(result, developmentLocalization);
                 if (!foundInLocalizations) {
@@ -499,25 +588,25 @@ static CFArrayRef _copyBundleLocalizationsFromResources(CFBundleRef bundle) {
 
  Since the result of this is "typically passed as a parameter to either the CFBundleCopyPreferredLocalizationsFromArray or CFBundleCopyLocalizationsForPreferences function", those other functions will take into account the user prefs and pick the right lproj.
 */
-CF_EXPORT CFArrayRef CFBundleCopyBundleLocalizations(CFBundleRef bundle) {
+static CFArrayRef _CFBundleCopyBundleLocalizations(CFBundleRef bundle, _CFBundleAddingDevelopmentLocalizationBehavior addingDevelopmentLocalization) {
     CF_ASSERT_TYPE(_kCFRuntimeIDCFBundle, bundle);
     CFArrayRef result = NULL;
-    
-    __CFLock(&bundle->_lock);
+
+    os_unfair_lock_lock_with_options(&bundle->_lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
     if (bundle->_lookedForLocalizations) {
         result = (CFArrayRef)CFRetain(bundle->_localizations);
-        __CFUnlock(&bundle->_lock);
+        os_unfair_lock_unlock(&bundle->_lock);
         return result;
     }
-    __CFUnlock(&bundle->_lock);
-    
+    os_unfair_lock_unlock(&bundle->_lock);
+
 
     if (!result) {
-        result = _copyBundleLocalizationsFromResources(bundle);
+        result = _copyBundleLocalizationsFromResources(bundle, addingDevelopmentLocalization);
     }
-    
+
     // Cache the result.
-    __CFLock(&bundle->_lock);
+    os_unfair_lock_lock_with_options(&bundle->_lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
     if (bundle->_lookedForLocalizations) {
         // Another thread beat us to it. Release our result and return the existing answer.
         CFRelease(result);
@@ -526,9 +615,18 @@ CF_EXPORT CFArrayRef CFBundleCopyBundleLocalizations(CFBundleRef bundle) {
         bundle->_localizations = (CFArrayRef)CFRetain(result);
         bundle->_lookedForLocalizations = true;
     }
-    __CFUnlock(&bundle->_lock);
-    
+    os_unfair_lock_unlock(&bundle->_lock);
+
     return result;
+}
+
+CF_EXPORT CFArrayRef CFBundleCopyBundleLocalizations(CFBundleRef bundle) {
+    return _CFBundleCopyBundleLocalizations(bundle, _CFBundleAddingDevelopmentLocalizationBehaviorDefault);
+}
+
+// SPI for launch services
+CF_EXPORT CFArrayRef _CFBundleCopyBundleLocalizationsAddingDevelopmentLocalization(CFBundleRef bundle, _CFBundleAddingDevelopmentLocalizationBehavior addingDevelopmentLocalization) {
+    return _CFBundleCopyBundleLocalizations(bundle, addingDevelopmentLocalization);
 }
 
 CF_EXPORT CFArrayRef CFBundleCopyLocalizationsForURL(CFURLRef url) {
@@ -583,17 +681,30 @@ CF_PRIVATE CFArrayRef _CFBundleCopyUserLanguages() {
     
     if (_CFBundleUserLanguages == NULL) {
         CFArrayRef preferencesArray = NULL;
-        if (__CFAppleLanguages) {
-            CFDataRef data;
-            CFIndex length = strlen((const char *)__CFAppleLanguages);
-            if (length > 0) {
-                data = CFDataCreateWithBytesNoCopy(kCFAllocatorSystemDefault, (const UInt8 *)__CFAppleLanguages, length, kCFAllocatorNull);
-                if (data) {
-                    _CFBundleUserLanguages = (CFArrayRef)CFPropertyListCreateWithData(kCFAllocatorSystemDefault, data, kCFPropertyListImmutable, NULL, NULL);
-                    CFRelease(data);
+
+#if TARGET_OS_MAC
+        {
+            CFIndex idx, cnt;
+            char **args = *_NSGetArgv();
+            cnt = *_NSGetArgc();
+            for (idx = 1; idx < cnt - 1; idx++) {
+                if (NULL == args[idx]) continue;
+                const char *langArg = args[idx + 1];
+                if (0 == strcmp(args[idx], "-AppleLanguages") && langArg != NULL) {
+                    CFIndex length = strlen(langArg);
+                    if (length > 0) {
+                        CFDataRef data = CFDataCreateWithBytesNoCopy(kCFAllocatorSystemDefault, (const UInt8 *)langArg, length, kCFAllocatorNull);
+                        if (data) {
+                            _CFBundleUserLanguages = (CFArrayRef)CFPropertyListCreateWithData(kCFAllocatorSystemDefault, data, kCFPropertyListImmutable, NULL, NULL);
+                            CFRelease(data);
+                        }
+                    }
+                    break;
                 }
             }
         }
+#endif
+
         if (!_CFBundleUserLanguages && preferencesArray) _CFBundleUserLanguages = (CFArrayRef)CFRetain(preferencesArray);
         Boolean useEnglishAsBackstop = true;
         // could perhaps read out of LANG environment variable
@@ -618,10 +729,6 @@ CF_PRIVATE CFArrayRef _CFBundleCopyUserLanguages() {
     return result;
 }
 
-CF_EXPORT void _CFBundleFlushLanguageCachesAfterEUIDChange() {
-    _CFBundleFlushBundleCaches(CFBundleGetMainBundle());
-    _CFBundleFlushUserLanguagesCache();
-}
 
 CF_EXPORT void _CFBundleGetLanguageAndRegionCodes(SInt32 *languageCode, SInt32 *regionCode) {
     // an attempt to answer the question, "what language are we running in?"
@@ -680,7 +787,7 @@ static CFStringRef _CFBundleCopyLanguageFoundInLocalizations(CFArrayRef localiza
     if (altLangStr && CFArrayContainsValue(localizations, localizationsRange, altLangStr)) {
         return CFRetain(altLangStr);
     }
-    
+
     // Does the array contain a modified form of this language? (en-US -> en_US, or vice versa)
     CFStringRef modifiedLangStr = _CFBundleCopyModifiedLocalization(language);
     if (modifiedLangStr) {
@@ -690,13 +797,19 @@ static CFStringRef _CFBundleCopyLanguageFoundInLocalizations(CFArrayRef localiza
         CFRelease(modifiedLangStr);
     }
 
+    // Does this array contain a default form of this language? (de_DE -> de, pt_BR -> pt)
+    CFStringRef defaultLanguageInList = _CFBundleGetDefaultLanguageInLocalizations(language, localizations);
+    if (defaultLanguageInList && CFArrayContainsValue(localizations, localizationsRange, defaultLanguageInList)) {
+        return CFRetain(defaultLanguageInList);
+    }
+
     // Does the array contain a canonical form of this language?
     CFStringRef canonicalLanguage = CFLocaleCreateCanonicalLanguageIdentifierFromString(kCFAllocatorSystemDefault, language);
     if (canonicalLanguage) {
         if (CFArrayContainsValue(localizations, localizationsRange, canonicalLanguage)) {
             return canonicalLanguage;
         }
-        
+
         // Does the array converted to canonical forms match the canonical form of this language?
         for (CFIndex i = 0; i < localizationsRange.length; i++) {
             CFStringRef oneLanguage = (CFStringRef)CFArrayGetValueAtIndex(localizations, i);
@@ -762,7 +875,7 @@ static CFMutableArrayRef _CFBundleCreateMutableArrayOfFallbackLanguages(CFArrayR
         return stringBuffer;
 #endif
     };
-    
+
     
     CFIndex availableCount = CFArrayGetCount(availableLocalizations);
     char **availableCStrings = malloc(sizeof(char *) * availableCount);
@@ -944,9 +1057,9 @@ CF_EXPORT void _CFBundleSetDefaultLocalization(CFStringRef localizationName) {
 
 // This is the funnel point for looking up languages for a particular bundle. The returned order reflects the user preferences.
 CF_PRIVATE CFArrayRef _CFBundleCopyLanguageSearchListInBundle(CFBundleRef bundle) {
-    __CFLock(&bundle->_lock);
+    os_unfair_lock_lock(&bundle->_lock);
     if (!bundle->_searchLanguages) {
-        __CFUnlock(&bundle->_lock);
+        os_unfair_lock_unlock(&bundle->_lock);
         // includes predefined localizations
         CFArrayRef localizationsForBundle = CFBundleCopyBundleLocalizations(bundle);
         CFArrayRef userLanguages = _CFBundleCopyUserLanguages();
@@ -997,7 +1110,7 @@ CF_PRIVATE CFArrayRef _CFBundleCopyLanguageSearchListInBundle(CFBundleRef bundle
             }
         }
         
-        __CFLock(&bundle->_lock);
+        os_unfair_lock_lock_with_options(&bundle->_lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
         if (bundle->_searchLanguages) {
             // Lost the race
             CFRelease(result);
@@ -1006,7 +1119,7 @@ CF_PRIVATE CFArrayRef _CFBundleCopyLanguageSearchListInBundle(CFBundleRef bundle
         }
     }
     CFArrayRef result = (CFArrayRef)CFRetain(bundle->_searchLanguages);
-    __CFUnlock(&bundle->_lock);
+    os_unfair_lock_unlock(&bundle->_lock);
     return result;
 }
 

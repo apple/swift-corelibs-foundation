@@ -16,6 +16,7 @@
 #include <CoreFoundation/CFDictionary.h>
 #include <CoreFoundation/CFCharacterSet.h>
 #include <CoreFoundation/CFLocale.h>
+#include <CoreFoundation/CFError.h>
 #include <stdarg.h>
 
 CF_IMPLICIT_BRIDGING_ENABLED
@@ -211,10 +212,10 @@ struct __CFConstStr {
 
 /* The following four functions copy the provided buffer into CFString's internal storage. */
 CF_EXPORT
-CFStringRef CFStringCreateWithPascalString(CFAllocatorRef alloc, ConstStr255Param pStr, CFStringEncoding encoding);
+CFStringRef CFStringCreateWithPascalString(CFAllocatorRef alloc, ConstStr255Param pStr, CFStringEncoding encoding) CF_FORMAT_ARGUMENT(2);
 
 CF_EXPORT
-CFStringRef CFStringCreateWithCString(CFAllocatorRef alloc, const char *cStr, CFStringEncoding encoding);
+CFStringRef CFStringCreateWithCString(CFAllocatorRef alloc, const char *cStr, CFStringEncoding encoding) CF_FORMAT_ARGUMENT(2);
 
 /* The following takes an explicit length, and allows you to specify whether the data is an external format --- that is, whether to pay attention to the BOM character (if any) and do byte swapping if necessary
 */
@@ -242,10 +243,10 @@ guarantee, you need to be extremely careful --- do not hand it out to any
 APIs which might retain or copy the strings.
 */
 CF_EXPORT
-CFStringRef CFStringCreateWithPascalStringNoCopy(CFAllocatorRef alloc, ConstStr255Param pStr, CFStringEncoding encoding, CFAllocatorRef contentsDeallocator);
+CFStringRef CFStringCreateWithPascalStringNoCopy(CFAllocatorRef alloc, ConstStr255Param pStr, CFStringEncoding encoding, CFAllocatorRef contentsDeallocator) CF_FORMAT_ARGUMENT(2);
 
 CF_EXPORT
-CFStringRef CFStringCreateWithCStringNoCopy(CFAllocatorRef alloc, const char *cStr, CFStringEncoding encoding, CFAllocatorRef contentsDeallocator);
+CFStringRef CFStringCreateWithCStringNoCopy(CFAllocatorRef alloc, const char *cStr, CFStringEncoding encoding, CFAllocatorRef contentsDeallocator) CF_FORMAT_ARGUMENT(2);
 
 /* The following takes an explicit length, and allows you to specify whether the data is an external format --- that is, whether to pay attention to the BOM character (if any) and do byte swapping if necessary
 */
@@ -261,7 +262,7 @@ CF_EXPORT
 CFStringRef CFStringCreateWithSubstring(CFAllocatorRef alloc, CFStringRef str, CFRange range);
 
 CF_EXPORT
-CFStringRef CFStringCreateCopy(CFAllocatorRef alloc, CFStringRef theString);
+CFStringRef CFStringCreateCopy(CFAllocatorRef alloc, CFStringRef theString) CF_FORMAT_ARGUMENT(2);
 
 /* These functions create a CFString from the provided printf-like format string and arguments.
 */
@@ -270,6 +271,12 @@ CFStringRef CFStringCreateWithFormat(CFAllocatorRef alloc, CFDictionaryRef forma
 
 CF_EXPORT
 CFStringRef CFStringCreateWithFormatAndArguments(CFAllocatorRef alloc, CFDictionaryRef formatOptions, CFStringRef format, va_list arguments) CF_FORMAT_FUNCTION(3,0);
+
+CF_EXPORT
+CFStringRef CFStringCreateStringWithValidatedFormat(CFAllocatorRef alloc, CFDictionaryRef formatOptions, CFStringRef validFormatSpecifiers, CFStringRef format, CFErrorRef *errorPtr, ...) API_AVAILABLE(macos(13.0), ios(16.0), watchos(8.0), tvos(8.0)) CF_FORMAT_FUNCTION(3, 6) CF_SWIFT_UNAVAILABLE("Use string interpolations instead");
+
+CF_EXPORT
+CFStringRef CFStringCreateStringWithValidatedFormatAndArguments(CFAllocatorRef alloc, CFDictionaryRef formatOptions, CFStringRef validFormatSpecifiers, CFStringRef format, va_list arguments, CFErrorRef *errorPtr) API_AVAILABLE(macos(13.0), ios(16.0), watchos(8.0), tvos(8.0)) CF_FORMAT_FUNCTION(3, 0) CF_SWIFT_UNAVAILABLE("Use string interpolations instead");
 
 /* Functions to create mutable strings. "maxLength", if not 0, is a hard bound on the length of the string. If 0, there is no limit on the length.
 */

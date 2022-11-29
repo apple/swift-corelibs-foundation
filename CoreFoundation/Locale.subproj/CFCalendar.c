@@ -42,8 +42,6 @@ enum {
     } \
 } while (0)
 
-extern CFDictionaryRef __CFLocaleGetPrefs(CFLocaleRef locale);
-
 #define MIN_TIMEZONE_UDATE -2177452800000.0  // 1901-01-01 00:00:00 +0000
 #define MAX_TIMEZONE_UDATE  4133980800000.0  // 2101-01-01 00:00:00 +0000
 
@@ -136,8 +134,9 @@ static void __CFCalendarSetToFirstInstant(CFCalendarRef calendar, CFCalendarUnit
         }
         case kCFCalendarUnitYearForWeekOfYear:;
             __cficu_ucal_set(calendar->_cal, UCAL_WEEK_OF_YEAR, __cficu_ucal_getLimit(calendar->_cal, UCAL_WEEK_OF_YEAR, UCAL_ACTUAL_MINIMUM, &status));
-        case kCFCalendarUnitWeek_Deprecated:;
-        case kCFCalendarUnitWeekOfMonth:;
+            CF_FALLTHROUGH;
+        case kCFCalendarUnitWeek_Deprecated: CF_FALLTHROUGH;
+        case kCFCalendarUnitWeekOfMonth: CF_FALLTHROUGH;
         case kCFCalendarUnitWeekOfYear:;
             // reduce to first day of week, then reduce the rest of the day
             int32_t goal; goal = calendar->_firstWeekday;
@@ -153,23 +152,37 @@ static void __CFCalendarSetToFirstInstant(CFCalendarRef calendar, CFCalendarUnit
         case kCFCalendarUnitEra:
             target_era = __cficu_ucal_get(calendar->_cal, UCAL_ERA, &status);
             __cficu_ucal_set(calendar->_cal, UCAL_YEAR, __cficu_ucal_getLimit(calendar->_cal, UCAL_YEAR, UCAL_ACTUAL_MINIMUM, &status));
+            CF_FALLTHROUGH;
         case kCFCalendarUnitYear:
             __cficu_ucal_set(calendar->_cal, UCAL_MONTH, __cficu_ucal_getLimit(calendar->_cal, UCAL_MONTH, UCAL_ACTUAL_MINIMUM, &status));
             // #warning if there is a lunar leap month of the same number *preceeding* month N,
             // then we should set the calendar to the leap month, not the regular month.
             __cficu_ucal_set(calendar->_cal, UCAL_IS_LEAP_MONTH, 0);
+            CF_FALLTHROUGH;
         case kCFCalendarUnitMonth:
         month:;
             __cficu_ucal_set(calendar->_cal, UCAL_DAY_OF_MONTH, __cficu_ucal_getLimit(calendar->_cal, UCAL_DAY_OF_MONTH, UCAL_ACTUAL_MINIMUM, &status));
+            CF_FALLTHROUGH;
+
         case kCFCalendarUnitWeekdayOrdinal:
+            CF_FALLTHROUGH;
+
         case kCFCalendarUnitWeekday:
+            CF_FALLTHROUGH;
+
         case kCFCalendarUnitDay:
         day:;
             __cficu_ucal_set(calendar->_cal, UCAL_HOUR_OF_DAY, __cficu_ucal_getLimit(calendar->_cal, UCAL_HOUR_OF_DAY, UCAL_ACTUAL_MINIMUM, &status));
+            CF_FALLTHROUGH;
+
         case kCFCalendarUnitHour:
             __cficu_ucal_set(calendar->_cal, UCAL_MINUTE, __cficu_ucal_getLimit(calendar->_cal, UCAL_MINUTE, UCAL_ACTUAL_MINIMUM, &status));
+            CF_FALLTHROUGH;
+
         case kCFCalendarUnitMinute:
             __cficu_ucal_set(calendar->_cal, UCAL_SECOND, __cficu_ucal_getLimit(calendar->_cal, UCAL_SECOND, UCAL_ACTUAL_MINIMUM, &status));
+            CF_FALLTHROUGH;
+
         case kCFCalendarUnitSecond:
             __cficu_ucal_set(calendar->_cal, UCAL_MILLISECOND, 0);
     }
@@ -580,9 +593,8 @@ CF_PRIVATE void __CFCalendarZapCal(CFCalendarRef calendar) {
 
 // Applies user-editable settings (first weekday, minimum days in first week) from the given locale onto the given calendar without applying the locale onto the calendar.
 static void __CFCalendarApplyUserSettingsFromLocale(CFCalendarRef calendar, CFLocaleRef locale) {
-    CFDictionaryRef prefs = __CFLocaleGetPrefs(locale);
-    if (prefs && !calendar->_userSet_firstWeekday) {
-        CFPropertyListRef metapref = (CFPropertyListRef)CFDictionaryGetValue(prefs, CFSTR("AppleFirstWeekday"));
+    CFPropertyListRef metapref = __CFLocaleGetPref(locale, AppleFirstWeekday);
+    if (metapref && !calendar->_userSet_firstWeekday) {
         if (NULL != metapref && CFGetTypeID(metapref) == CFDictionaryGetTypeID()) {
             metapref = (CFNumberRef)CFDictionaryGetValue((CFDictionaryRef)metapref, calendar->_identifier);
         }
@@ -597,9 +609,9 @@ static void __CFCalendarApplyUserSettingsFromLocale(CFCalendarRef calendar, CFLo
             }
         }
     }
-    
-    if (prefs && !calendar->_userSet_minDaysInFirstWeek) {
-        CFPropertyListRef metapref = (CFPropertyListRef)CFDictionaryGetValue(prefs, CFSTR("AppleMinDaysInFirstWeek"));
+
+    metapref = __CFLocaleGetPref(locale, AppleMinDaysInFirstWeek);
+    if (!calendar->_userSet_minDaysInFirstWeek) {
         if (NULL != metapref && CFGetTypeID(metapref) == CFDictionaryGetTypeID()) {
             metapref = (CFNumberRef)CFDictionaryGetValue((CFDictionaryRef)metapref, calendar->_identifier);
         }
@@ -722,7 +734,7 @@ CFCalendarRef CFCalendarCreateWithIdentifier(CFAllocatorRef allocator, CFStringR
     return _CFCalendarCreate(allocator, identifier, NULL, NULL, kCFNotFound, kCFNotFound, NULL);
 }
 
-CF_CROSS_PLATFORM_EXPORT Boolean _CFCalendarInitWithIdentifier(CFCalendarRef calendar, CFStringRef identifier) {
+CF_EXPORT_NONOBJC_ONLY Boolean _CFCalendarInitWithIdentifier(CFCalendarRef calendar, CFStringRef identifier) {
     return _CFCalendarInitialize(calendar, kCFAllocatorSystemDefault, identifier, NULL, NULL, kCFNotFound, kCFNotFound, NULL) ? true : false;
 }
 

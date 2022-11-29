@@ -87,8 +87,7 @@ static Boolean _CFReadBytesFromPathAndGetFD(CFAllocatorRef alloc, const char *pa
     struct statinfo statBuf;
     
     *bytes = NULL;
-    
-    
+        
     int no_hang_fd = openAutoFSNoWait();
     *fd = open(path, O_RDONLY|extraOpenFlags|CF_OPENFLGS, 0666);
     
@@ -123,7 +122,7 @@ static Boolean _CFReadBytesFromPathAndGetFD(CFAllocatorRef alloc, const char *pa
             desiredLength = maxLength;
         }
         *bytes = CFAllocatorAllocate(alloc, desiredLength, 0);
-        if (!bytes) {
+        if (*bytes == NULL) {
             close(*fd);
             *fd = -1;
             closeAutoFSNoWait(no_hang_fd);
@@ -504,7 +503,13 @@ CF_PRIVATE CFMutableArrayRef _CFCreateContentsOfDirectory(CFAllocatorRef alloc, 
     return files;
 }
 
-CF_PRIVATE SInt32 _CFGetPathProperties(CFAllocatorRef alloc, char *path, Boolean *exists, SInt32 *posixMode, int64_t *size, CFDateRef *modTime, SInt32 *ownerID, CFArrayRef *dirContents) {
+CF_PRIVATE SInt32 _CFGetFileProperties(CFAllocatorRef alloc, CFURLRef pathURL, Boolean *exists, SInt32 *posixMode, int64_t *size, CFDateRef *modTime, SInt32 *ownerID, CFArrayRef *dirContents) {
+    char path[CFMaxPathSize];
+
+    if (!CFURLGetFileSystemRepresentation(pathURL, true, (uint8_t *)path, CFMaxPathLength)) {
+        return -1;
+    }
+
     Boolean fileExists;
     Boolean isDirectory = false;
     
@@ -590,17 +595,6 @@ CF_PRIVATE SInt32 _CFGetPathProperties(CFAllocatorRef alloc, char *path, Boolean
         }
     }
     return 0;
-}
-
-CF_PRIVATE SInt32 _CFGetFileProperties(CFAllocatorRef alloc, CFURLRef pathURL, Boolean *exists, SInt32 *posixMode, int64_t *size, CFDateRef *modTime, SInt32 *ownerID, CFArrayRef *dirContents) {
-    
-    char path[CFMaxPathSize];
-
-    if (!CFURLGetFileSystemRepresentation(pathURL, true, (uint8_t *)path, CFMaxPathLength)) {
-        return -1;
-    }
-
-    return _CFGetPathProperties(alloc, path, exists, posixMode, size, modTime, ownerID, dirContents);
 }
 
 CF_PRIVATE bool _CFURLExists(CFURLRef url) {
@@ -1240,7 +1234,7 @@ static CFStringRef _CFXDGCreateHome(void) {
 }
 
 /// a single base directory relative to which user-specific data files should be written. This directory is defined by the environment variable $XDG_DATA_HOME.
-CF_CROSS_PLATFORM_EXPORT
+CF_EXPORT_NONOBJC_ONLY
 CFStringRef _CFXDGCreateDataHomePath(void) {
     // $XDG_DATA_HOME defines the base directory relative to which user specific data files should be stored. If $XDG_DATA_HOME is either not set or empty, a default equal to $HOME/.local/share should be used.
     const char *dataHome = __CFgetenv("XDG_DATA_HOME");
@@ -1255,7 +1249,7 @@ CFStringRef _CFXDGCreateDataHomePath(void) {
 }
 
 /// a single base directory relative to which user-specific configuration files should be written. This directory is defined by the environment variable $XDG_CONFIG_HOME.
-CF_CROSS_PLATFORM_EXPORT
+CF_EXPORT_NONOBJC_ONLY
 CFStringRef _CFXDGCreateConfigHomePath(void) {
     // $XDG_CONFIG_HOME defines the base directory relative to which user specific configuration files should be stored. If $XDG_CONFIG_HOME is either not set or empty, a default equal to $HOME/.config should be used.
     const char *configHome = __CFgetenv("XDG_CONFIG_HOME");
@@ -1270,7 +1264,7 @@ CFStringRef _CFXDGCreateConfigHomePath(void) {
 }
 
 /// a set of preference ordered base directories relative to which data files should be searched. This set of directories is defined by the environment variable $XDG_DATA_DIRS.
-CF_CROSS_PLATFORM_EXPORT
+CF_EXPORT_NONOBJC_ONLY
 CFArrayRef _CFXDGCreateDataDirectoriesPaths(void) {
     // $XDG_DATA_DIRS defines the preference-ordered set of base directories to search for data files in addition to the $XDG_DATA_HOME base directory. The directories in $XDG_DATA_DIRS should be separated with a colon ':'.
     // If $XDG_DATA_DIRS is either not set or empty, a value equal to /usr/local/share/:/usr/share/ should be used.
@@ -1294,7 +1288,7 @@ CFArrayRef _CFXDGCreateDataDirectoriesPaths(void) {
 
 
 /// a set of preference ordered base directories relative to which configuration files should be searched. This set of directories is defined by the environment variable $XDG_CONFIG_DIRS.
-CF_CROSS_PLATFORM_EXPORT
+CF_EXPORT_NONOBJC_ONLY
 CFArrayRef _CFXDGCreateConfigDirectoriesPaths(void) {
     // $XDG_CONFIG_DIRS defines the preference-ordered set of base directories to search for configuration files in addition to the $XDG_CONFIG_HOME base directory. The directories in $XDG_CONFIG_DIRS should be separated with a colon ':'.
     // If $XDG_CONFIG_DIRS is either not set or empty, a value equal to /etc/xdg should be used.
@@ -1316,7 +1310,7 @@ CFArrayRef _CFXDGCreateConfigDirectoriesPaths(void) {
 }
 
 /// a single base directory relative to which user-specific non-essential (cached) data should be written. This directory is defined by the environment variable $XDG_CACHE_HOME.
-CF_CROSS_PLATFORM_EXPORT
+CF_EXPORT_NONOBJC_ONLY
 CFStringRef _CFXDGCreateCacheDirectoryPath(void) {
     //$XDG_CACHE_HOME defines the base directory relative to which user specific non-essential data files should be stored. If $XDG_CACHE_HOME is either not set or empty, a default equal to $HOME/.cache should be used.
     const char *cacheHome = __CFgetenv("XDG_CACHE_HOME");
@@ -1332,7 +1326,7 @@ CFStringRef _CFXDGCreateCacheDirectoryPath(void) {
 }
 
 /// a single base directory relative to which user-specific runtime files and other file objects should be placed. This directory is defined by the environment variable $XDG_RUNTIME_DIR.
-CF_CROSS_PLATFORM_EXPORT
+CF_EXPORT_NONOBJC_ONLY
 CFStringRef _CFXDGCreateRuntimeDirectoryPath(void) {
     const char *runtimeDir = __CFgetenv("XDG_RUNTIME_DIR");
     if (runtimeDir && strnlen(runtimeDir, CFMaxPathSize) > 1 && runtimeDir[0] == '/') {

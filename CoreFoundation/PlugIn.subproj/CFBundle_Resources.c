@@ -32,12 +32,13 @@
 
 #if TARGET_OS_MAC || TARGET_OS_LINUX || TARGET_OS_BSD
 #include <unistd.h>
-#if TARGET_OS_MAC || TARGET_OS_BSD
+#if !TARGET_OS_ANDROID
 #include <sys/sysctl.h>
 #endif
 #include <sys/stat.h>
 #include <dirent.h>
 #endif
+
 
 #if TARGET_OS_WIN32
 #include <io.h>
@@ -66,40 +67,25 @@ CF_EXPORT void _CFBundleFlushCachesForURL(CFURLRef url) { }
 CF_EXPORT void _CFBundleFlushCaches(void) { }
 
 CF_PRIVATE void _CFBundleFlushQueryTableCache(CFBundleRef bundle) {
-    __CFLock(&bundle->_queryLock);
+    os_unfair_lock_lock_with_options(&bundle->_queryLock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
     if (bundle->_queryTable) {
         CFDictionaryRemoveAllValues(bundle->_queryTable);
     }
-    __CFUnlock(&bundle->_queryLock);
+    os_unfair_lock_unlock(&bundle->_queryLock);
 }
 
 #pragma mark -
 #pragma mark Resource URL Lookup
 
-static Boolean _CFIsResourceCommon(char *path, Boolean *isDir) {
+CF_PRIVATE Boolean _CFIsResourceAtURL(CFURLRef url, Boolean *isDir) {
     Boolean exists;
     SInt32 mode;
-    if (_CFGetPathProperties(kCFAllocatorSystemDefault, path, &exists, &mode, NULL, NULL, NULL, NULL) == 0) {
+    if (_CFGetFileProperties(kCFAllocatorSystemDefault, url, &exists, &mode, NULL, NULL, NULL, NULL) == 0) {
         if (isDir) *isDir = ((exists && ((mode & S_IFMT) == S_IFDIR)) ? true : false);
         return (exists && (mode & 0444));
     }
     return false;
 }
-
-CF_PRIVATE Boolean _CFIsResourceAtURL(CFURLRef url, Boolean *isDir) {
-    char path[CFMaxPathSize];
-    if (!CFURLGetFileSystemRepresentation(url, true, (uint8_t *)path, CFMaxPathLength)) return false;
-    
-    return _CFIsResourceCommon(path, isDir);
-}
-
-CF_PRIVATE Boolean _CFIsResourceAtPath(CFStringRef path, Boolean *isDir) {
-    char pathBuf[CFMaxPathSize];
-    if (!CFStringGetFileSystemRepresentation(path, pathBuf, CFMaxPathSize)) return false;
-    
-    return _CFIsResourceCommon(pathBuf, isDir);
-}
-
 
 static CFStringRef _CFBundleGetResourceDirForVersion(_CFBundleVersion version) {
     if (_CFBundleVersionOldStyleSupportFiles == version) {
@@ -243,6 +229,7 @@ out:
 }
 #endif
 
+
 CF_PRIVATE _CFBundleVersion _CFBundleGetBundleVersionForURL(CFURLRef url) {
     // check for existence of "Resources" or "Contents" or "Support Files"
     // but check for the most likely one first
@@ -359,7 +346,7 @@ CF_PRIVATE _CFBundleVersion _CFBundleGetBundleVersionForURL(CFURLRef url) {
         if (CFStringGetFileSystemRepresentation(linkPath, linkPathCString, PATH_MAX) &&
             CFStringGetFileSystemRepresentation(bundlePath, bundlePathCString, PATH_MAX)) {
             // Leave room for a null terminator
-            ssize_t len = readlink(linkPathCString, linkContentsCString, CFMaxPathLength);
+            ssize_t len = readlink(linkPathCString, linkContentsCString, PATH_MAX - 1);
             // Make sure this is not an absolute link but a relative one
             if (len < 2 || (len > 1 && linkContentsCString[0] == '/')) {
                 os_log_error(_CFBundleResourceLogger(), "`WrappedBundle` link too short or pointed outside bundle at %{public}@", url);
@@ -546,6 +533,46 @@ CFArrayRef CFBundleCopyExecutableArchitecturesForURL(CFURLRef url) {
     return result;
 }
 
+#if TARGET_OS_OSX
+static cpu_type_t _CFBundleGetPreferredExecutableArchitectureForArchitectures(CFArrayRef architectureArray) {
+    cpu_type_t result = 0;
+    CFIndex numberOfArchitectures = CFArrayGetCount(architectureArray);
+    if (numberOfArchitectures > 0) {
+        cpu_type_t* architectures = (cpu_type_t *)malloc(sizeof(cpu_type_t) * numberOfArchitectures);
+        for (CFIndex i = 0; i < numberOfArchitectures; ++i) {
+            CFNumberRef architectureAtIndex = (CFNumberRef)CFArrayGetValueAtIndex(architectureArray, i);
+            cpu_type_t architecture = 0;
+            CFNumberGetValue(architectureAtIndex, kCFNumberSInt32Type, &architecture);
+            architectures[i] = architecture;
+        }
+        result = oah_get_preferred_architecture_from_architectures(architectures, numberOfArchitectures);
+        free(architectures);
+    }
+    return result;
+}
+
+CF_EXPORT cpu_type_t _CFBundleGetPreferredExecutableArchitecture(CFBundleRef bundle) {
+    cpu_type_t result = 0;
+    CFArrayRef architectureArray = CFBundleCopyExecutableArchitectures(bundle);
+    if (architectureArray) {
+        result = _CFBundleGetPreferredExecutableArchitectureForArchitectures(architectureArray);
+        CFRelease(architectureArray);
+    }
+    return result;
+}
+
+CF_EXPORT cpu_type_t _CFBundleGetPreferredExecutableArchitectureForURL(CFURLRef url) {
+    cpu_type_t result = 0;
+    CFArrayRef architectureArray = CFBundleCopyExecutableArchitecturesForURL(url);
+    if (architectureArray) {
+        result = _CFBundleGetPreferredExecutableArchitectureForArchitectures(architectureArray);
+        CFRelease(architectureArray);
+    }
+    return result;
+}
+
+#endif // TARGET_OS_OSX
+
 #pragma mark -
 #pragma mark Resource Lookup - Query Table
 
@@ -627,13 +654,11 @@ static Boolean _CFBundleReadDirectory(CFStringRef pathOfDir, CFStringRef subdire
         stuffToPrefix = CFArrayCreate(kCFAllocatorSystemDefault, (const void **)&subdirectory, 1, &kCFTypeArrayCallBacks);
     }
 
-    Boolean searchForFallbackProduct = false;
-
     // If this file is a directory, the path needs to include a trailing slash so we can later create the right kind of CFURL object
     _CFIterateDirectory(pathOfDir, true, stuffToPrefix, ^Boolean(CFStringRef fileName, CFStringRef pathToFile, uint8_t fileType) {
         CFStringRef startType = NULL, endType = NULL, noProductOrPlatform = NULL;
         _CFBundleFileVersion fileVersion;
-        _CFBundleSplitFileName(fileName, &noProductOrPlatform, &endType, &startType, product, platform, searchForFallbackProduct, &fileVersion);
+        _CFBundleSplitFileName(fileName, &noProductOrPlatform, &endType, &startType, product, platform, _CFBundleSplitFileNameAutomaticFallbackProductSearch, &fileVersion);
         
         // put it into all file array
         if (!hasFileAdded) {
@@ -830,7 +855,7 @@ static CFDictionaryRef _copyQueryTable(CFBundleRef bundle, CFURLRef bundleURL, C
             argDirStr = (CFMutableStringRef)CFRetain(resourcesDirectory);
         }
         
-        __CFLock(&bundle->_queryLock);
+        os_unfair_lock_lock(&bundle->_queryLock);
         
         // Check if the query table for the given sub dir has been created. The query table itself is initialized lazily.
         if (!bundle->_queryTable) {
@@ -847,7 +872,7 @@ static CFDictionaryRef _copyQueryTable(CFBundleRef bundle, CFURLRef bundleURL, C
         } else {
             CFRetain(subTable);
         }
-        __CFUnlock(&bundle->_queryLock);
+        os_unfair_lock_unlock(&bundle->_queryLock);
         CFRelease(argDirStr);
     } else {
         CFURLRef url = CFURLCopyAbsoluteURL(bundleURL);
@@ -1264,7 +1289,7 @@ CF_EXPORT CFTypeRef _Nullable _CFBundleCopyFindResources(CFBundleRef _Nullable b
     // Each bundle can have a list of other CFBundleRef objects that it will do resource lookup in. That means this function is invoked recursively. It should really only be the case that there is one level of recursion, but we do nothing to enforce that.
     // We lock around the entire lookup.
     if (bundle) {
-        __CFLock(&bundle->_additionalResourceLock);
+        os_unfair_lock_lock(&bundle->_additionalResourceLock);
         if (bundle->_additionalResourceBundles) {
             // If we haven't found a value in the main bundle, or if we're looking for an array of values, then look up resources in all additional resource bundles and join them with our result
             if (!returnValue || returnArray) {
@@ -1307,7 +1332,7 @@ CF_EXPORT CFTypeRef _Nullable _CFBundleCopyFindResources(CFBundleRef _Nullable b
                 free(values);
             }
         }
-        __CFUnlock(&bundle->_additionalResourceLock);
+        os_unfair_lock_unlock(&bundle->_additionalResourceLock);
     }
     
     if (realResourceName) CFRelease(realResourceName);
@@ -1330,24 +1355,26 @@ CF_EXPORT Boolean _CFBundleAddResourceURL(CFBundleRef bundle, CFURLRef url) {
         HALT;
     }
     
-    __CFLock(&bundle->_additionalResourceLock);
+    os_unfair_lock_lock_with_options(&bundle->_additionalResourceLock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
     if (!bundle->_additionalResourceBundles) {
         bundle->_additionalResourceBundles = CFDictionaryCreateMutable(kCFAllocatorSystemDefault, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
     }
     CFDictionarySetValue(bundle->_additionalResourceBundles, url, resourceBundle);
-    __CFUnlock(&bundle->_additionalResourceLock);
+    os_unfair_lock_unlock(&bundle->_additionalResourceLock);
     CFRelease(resourceBundle);
+    _CFBundleFlushStringSourceCache(bundle);
     return true;
 }
 
 // Note: Content must not be unpinned until this method returns
 CF_EXPORT Boolean _CFBundleRemoveResourceURL(CFBundleRef bundle, CFURLRef url) {
     Boolean result = false;
-    __CFLock(&bundle->_additionalResourceLock);
+    os_unfair_lock_lock_with_options(&bundle->_additionalResourceLock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
     if (bundle->_additionalResourceBundles) {
         CFDictionaryRemoveValue(bundle->_additionalResourceBundles, url);
         result = true;
     }
-    __CFUnlock(&bundle->_additionalResourceLock);
+    os_unfair_lock_unlock(&bundle->_additionalResourceLock);
+    _CFBundleFlushStringSourceCache(bundle);
     return result;
 }

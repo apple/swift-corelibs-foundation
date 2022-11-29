@@ -413,10 +413,10 @@ CF_PRIVATE CFStringEncoding __CFStringEncodingGetFromWindowsCodePage(uint16_t co
         return (codepage - ISO8859CODEPAGE_BASE) + 0x0200;
     } else {
         static CFMutableDictionaryRef mappingTable = NULL;
-        static CFLock_t lock = CFLockInit;
+        static os_unfair_lock lock = OS_UNFAIR_LOCK_INIT;
         uintptr_t value;
 
-        __CFLock(&lock);
+        os_unfair_lock_lock_with_options(&lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
         if (NULL == mappingTable) {
             CFIndex index, count = sizeof(__CFKnownEncodingList) / sizeof(*__CFKnownEncodingList);
             
@@ -426,7 +426,7 @@ CF_PRIVATE CFStringEncoding __CFStringEncodingGetFromWindowsCodePage(uint16_t co
                 if (0 != __CFWindowsCPList[index]) CFDictionarySetValue(mappingTable, (const void *)(uintptr_t)__CFWindowsCPList[index], (const void *)(uintptr_t)__CFKnownEncodingList[index]);
             }
         }
-        __CFUnlock(&lock);
+        os_unfair_lock_unlock(&lock);
 
         if (CFDictionaryGetValueIfPresent(mappingTable, (const void *)(uintptr_t)codepage, (const void **)&value)) return (CFStringEncoding)value;
     }
@@ -436,9 +436,7 @@ CF_PRIVATE CFStringEncoding __CFStringEncodingGetFromWindowsCodePage(uint16_t co
 }
 
 CF_PRIVATE bool __CFStringEncodingGetCanonicalName(CFStringEncoding encoding, char *buffer, CFIndex bufferSize) {
-    const char *format = "%s";
     const char *name = NULL;
-    uint32_t value = 0;
     CFIndex index;
 
     switch (encoding & 0x0F00) {
@@ -453,20 +451,21 @@ CF_PRIVATE bool __CFStringEncodingGetCanonicalName(CFStringEncoding encoding, ch
                 case kCFStringEncodingUTF32BE: name = "utf-32be"; break;
                 case kCFStringEncodingUTF32LE: name = "utf-32le"; break;
             }
+            if (name) return ((snprintf(buffer, bufferSize, "%s", name) < bufferSize) ? true : false);
             break;
 
         case 0x0200: // ISO 8859 range
-            format = "iso-8859-%d";
-            value = (encoding & 0xFF);
-            break;
+            return ((snprintf(buffer, bufferSize, "iso-8859-%u", (unsigned int)(encoding & 0xFF)) < bufferSize) ? true : false);
 
         case 0x0400: // DOS code page range
         case 0x0500: // Windows code page range
             index = __CFGetEncodingIndex(encoding);
             
             if (kCFNotFound != index) {
-                value = __CFWindowsCPList[index];
-                if (0 != value) format = ((0x0400 == (encoding & 0x0F00)) ? "cp%d" : "windows-%d");
+                uint32_t value = __CFWindowsCPList[index];
+                if (0 != value) {
+                    return ((snprintf(buffer, bufferSize, (0x0400 == (encoding & 0x0F00)) ? "cp%d" : "windows-%d", value) < bufferSize) ? true : false);
+                }
             }
             break;
 
@@ -474,19 +473,19 @@ CF_PRIVATE bool __CFStringEncodingGetCanonicalName(CFStringEncoding encoding, ch
             index = __CFGetEncodingIndex(encoding);
 
             if (kCFNotFound != index) {
-                if (((0 == (encoding & 0x0F00)) && (kCFStringEncodingMacRoman != encoding)) || (kCFStringEncodingMacRomanLatin1 == encoding)) format = "x-mac-%s";
-                name = (const char *)__CFCanonicalNameList[index];
+                const char* prefix = "";
+                if (((0 == (encoding & 0x0F00)) && (kCFStringEncodingMacRoman != encoding)) || (kCFStringEncodingMacRomanLatin1 == encoding)) {
+                    prefix = "x-mac-";
+                }
+                const char* name = __CFCanonicalNameList[index];
+                if (name) {
+                    return ((snprintf(buffer, bufferSize, "%s%s", prefix, name) < bufferSize) ? true : false);
+                }
             }
             break;
     }
 
-    if ((0 == value) && (NULL == name)) {
-        return false;
-    } else if (0 != value) {
-        return ((snprintf(buffer, bufferSize, format, value) < bufferSize) ? true : false);
-    } else {
-        return ((snprintf(buffer, bufferSize, format, name) < bufferSize) ? true : false);
-    }
+    return false;
 }
 
 #define LENGTH_LIMIT (256)
@@ -509,7 +508,7 @@ CF_PRIVATE CFStringEncoding __CFStringEncodingGetFromCanonicalName(const char *c
     CFStringEncoding encoding;
     CFIndex prefixLength;
     static CFMutableDictionaryRef mappingTable = NULL;
-    static CFLock_t lock = CFLockInit;
+    static os_unfair_lock lock = OS_UNFAIR_LOCK_INIT;
 
     prefixLength = strlen("iso-8859-");
     if (0 == strncasecmp_l(canonicalName, "iso-8859-", prefixLength, NULL)) {// do ISO
@@ -532,7 +531,7 @@ CF_PRIVATE CFStringEncoding __CFStringEncodingGetFromCanonicalName(const char *c
         return __CFStringEncodingGetFromWindowsCodePage(encoding);
     }
     
-    __CFLock(&lock);
+    os_unfair_lock_lock_with_options(&lock, OS_UNFAIR_LOCK_DATA_SYNCHRONIZATION);
     if (NULL == mappingTable) {
         CFIndex index, count = sizeof(__CFKnownEncodingList) / sizeof(*__CFKnownEncodingList);
 
@@ -556,7 +555,7 @@ CF_PRIVATE CFStringEncoding __CFStringEncodingGetFromCanonicalName(const char *c
             if (NULL != __CFCanonicalNameList[index]) CFDictionarySetValue(mappingTable, (const void *)(uintptr_t)__CFCanonicalNameList[index], (const void *)(uintptr_t)__CFKnownEncodingList[index]);
         }
     }
-    __CFUnlock(&lock);
+    os_unfair_lock_unlock(&lock);
 
     if (0 == strncasecmp_l(canonicalName, "macintosh", sizeof("macintosh") - 1, NULL)) return kCFStringEncodingMacRoman;
 
@@ -568,7 +567,7 @@ CF_PRIVATE CFStringEncoding __CFStringEncodingGetFromCanonicalName(const char *c
 }
 #undef LENGTH_LIMIT
 
-#if TARGET_OS_OSX || TARGET_OS_LINUX || TARGET_OS_WIN32 || TARGET_OS_BSD
+#if TARGET_OS_OSX || TARGET_OS_LINUX || (TARGET_OS_WIN32 && defined(CF_OPEN_SOURCE))
 // This list indexes from DOS range
 static uint16_t const __CFISO8859SimilarScriptList[] = {
     kCFStringEncodingMacRoman,
@@ -777,7 +776,7 @@ static const char * const __CFOtherNameList[] = {
     "Western (NextStep)",
     "Western (EBCDIC Latin 1)",
 };
-#endif /* TARGET_OS_OSX || TARGET_OS_LINUX || TARGET_OS_WIN32 || TARGET_OS_BSD */
+#endif /* TARGET_OS_OSX || TARGET_OS_LINUX || TARGET_OS_WIN32 */
 
 CF_PRIVATE CFStringEncoding __CFStringEncodingGetMostCompatibleMacScript(CFStringEncoding encoding) {
 #if TARGET_OS_OSX || TARGET_OS_LINUX
@@ -817,17 +816,17 @@ CF_PRIVATE const char *__CFStringEncodingGetName(CFStringEncoding encoding) {
         case kCFStringEncodingUTF7: return "Unicode (UTF-7)"; break;
     }
 
-#if TARGET_OS_OSX || TARGET_OS_LINUX || TARGET_OS_WIN32 || TARGET_OS_BSD
+#if TARGET_OS_OSX || TARGET_OS_LINUX || (TARGET_OS_WIN32 && defined(CF_OPEN_SOURCE))
     if (0x0200 == (encoding & 0x0F00)) {
         encoding &= 0x00FF;
 
-        if (encoding <= (sizeof(__CFISONameList) / sizeof(*__CFISONameList))) return __CFISONameList[encoding - 1];
+        if (encoding > 0 && encoding <= (sizeof(__CFISONameList) / sizeof(*__CFISONameList))) return __CFISONameList[encoding - 1];
     } else {
         CFIndex index = __CFGetEncodingIndex(encoding);
 
         if (kCFNotFound != index) return __CFOtherNameList[index];
     }
-#endif /* TARGET_OS_OSX || TARGET_OS_LINUX || TARGET_OS_WIN32 || TARGET_OS_BSD */
+#endif /* TARGET_OS_OSX || TARGET_OS_LINUX || (TARGET_OS_WIN32 && defined(CF_OPEN_SOURCE)) */
     
     return NULL;
 }

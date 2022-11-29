@@ -337,47 +337,55 @@ struct __CFBasicHash {
     void *pointers[1];
 };
 
-#define CFBasicHashSmallSize  (1<<8)
-#define CFBasicHashMaxSize    (1<<10)
-static void **CFBasicHashCallBackPtrs;
+#define CFBasicHashCallbackSubtableSize  (1<<5)
+#define CFBasicHashMaxCallbacks (1<<10)
+#define CFBasicHashSubtableCount (CFBasicHashMaxCallbacks  / CFBasicHashCallbackSubtableSize)
+typedef void **CFBasicHashCallBackPtrsSubtable;
+static CFBasicHashCallBackPtrsSubtable CFBasicHashCallBackPtrs[CFBasicHashSubtableCount];
 static _Atomic(int32_t) CFBasicHashCallBackPtrsCount = 0;
+static _Atomic(int32_t) CFBasicHashCallBackPtrsCapacity = CFBasicHashCallbackSubtableSize;
+
+#define CFBasicHashCallBackPtr(idx) CFBasicHashCallBackPtrs[idx / CFBasicHashCallbackSubtableSize][idx % CFBasicHashCallbackSubtableSize]
 
 static int32_t CFBasicHashGetPtrIndex(void *ptr) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        CFBasicHashCallBackPtrs = malloc(sizeof(void *) * CFBasicHashSmallSize);
-        if (CFBasicHashCallBackPtrs == NULL) {
+        CFBasicHashCallBackPtrs[0] = malloc(sizeof(void *) * CFBasicHashCallbackSubtableSize);
+        if (CFBasicHashCallBackPtrs[0] == NULL) {
             HALT;
         }
-        CFBasicHashCallBackPtrs[0] = NULL;
-        CFBasicHashCallBackPtrs[1] = (void *)CFCopyDescription;
-        CFBasicHashCallBackPtrs[2] = (void *)__CFTypeCollectionRelease;
-        CFBasicHashCallBackPtrs[3] = (void *)__CFTypeCollectionRetain;
-        CFBasicHashCallBackPtrs[4] = (void *)CFEqual;
-        CFBasicHashCallBackPtrs[5] = (void *)CFHash;
-        CFBasicHashCallBackPtrs[6] = (void *)__CFStringCollectionCopy;
-        CFBasicHashCallBackPtrs[7] = NULL;
+        CFBasicHashCallBackPtr(0) = NULL;
+        CFBasicHashCallBackPtr(1) = (void *)CFCopyDescription;
+        CFBasicHashCallBackPtr(2) = (void *)__CFTypeCollectionRelease;
+        CFBasicHashCallBackPtr(3) = (void *)__CFTypeCollectionRetain;
+        CFBasicHashCallBackPtr(4) = (void *)CFEqual;
+        CFBasicHashCallBackPtr(5) = (void *)CFHash;
+        CFBasicHashCallBackPtr(6) = (void *)__CFStringCollectionCopy;
+        CFBasicHashCallBackPtr(7) = NULL;
         CFBasicHashCallBackPtrsCount = 8;
     });
     int32_t idx;
     for (idx = 0; idx < CFBasicHashCallBackPtrsCount; idx++) {
-        if (CFBasicHashCallBackPtrs[idx] == ptr) {
+        if (CFBasicHashCallBackPtr(idx) == ptr) {
             return idx;
         }
     }
+
+    if (CFBasicHashMaxCallbacks <= CFBasicHashCallBackPtrsCount) {
+        HALT;
+    } else if (CFBasicHashCallBackPtrsCount == CFBasicHashCallBackPtrsCapacity) {
+        CFBasicHashCallBackPtrs[CFBasicHashCallBackPtrsCount/CFBasicHashCallbackSubtableSize] = malloc(sizeof(void *) * CFBasicHashCallbackSubtableSize);
+        CFBasicHashCallBackPtrsCapacity += CFBasicHashCallbackSubtableSize;
+    }
     
-    if (CFBasicHashCallBackPtrsCount == CFBasicHashSmallSize) {
-        CFBasicHashCallBackPtrs = __CFSafelyReallocate(CFBasicHashCallBackPtrs, sizeof(id) * CFBasicHashMaxSize, NULL);
-    } else if (1000 < CFBasicHashCallBackPtrsCount) HALT;
-    
-    idx = ++CFBasicHashCallBackPtrsCount;
-    CFBasicHashCallBackPtrs[idx - 1] = ptr;
-    return idx - 1;
+    idx = CFBasicHashCallBackPtrsCount++;
+    CFBasicHashCallBackPtr(idx) = ptr;
+    return idx;
 }
 
 // Tell TSAN to ignore this function for sanitization - it races intentionally
 static inline void *CFBasicHashGetPtrAtIndex(int32_t i) __attribute__((no_sanitize("thread"))) {
-    return CFBasicHashCallBackPtrs[i];
+    return CFBasicHashCallBackPtr(i);
 }
 
 CF_PRIVATE CFBasicHashCallbacks __CFBasicHashGetCallbacks(CFTypeRef cf) {
@@ -1473,8 +1481,8 @@ CF_PRIVATE size_t CFBasicHashGetSize(CFConstBasicHashRef ht, Boolean total) {
     if (ht->bits.keys_offset) size += sizeof(CFBasicHashValue *);
     if (ht->bits.counts_offset) size += sizeof(void *);
     if (__CFBasicHashHasHashCache(ht)) size += sizeof(uintptr_t *);
-    if (total) {
 #if ENABLE_MEMORY_COUNTERS || ENABLE_DTRACE_PROBES
+    if (total) {
         CFIndex num_buckets = __CFBasicHashTableSizes[ht->bits.num_buckets_idx];
         if (0 < num_buckets) {
             size += malloc_size(__CFBasicHashGetValues(ht));
@@ -1482,10 +1490,10 @@ CF_PRIVATE size_t CFBasicHashGetSize(CFConstBasicHashRef ht, Boolean total) {
             if (ht->bits.counts_offset) size += malloc_size(__CFBasicHashGetCounts(ht));
             if (__CFBasicHashHasHashCache(ht)) size += malloc_size(__CFBasicHashGetHashes(ht));
         }
-#else
-        (void)total;
-#endif
     }
+#else
+    (void)total;
+#endif
     return size;
 }
 

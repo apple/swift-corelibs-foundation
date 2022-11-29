@@ -16,6 +16,11 @@
 CF_IMPLICIT_BRIDGING_ENABLED
 CF_EXTERN_C_BEGIN
 
+typedef CF_OPTIONS(CFOptionFlags, CFDateFormatterTemplateOptions) {
+    kCFDateFormatterTemplateForce24HourTime = 1 << 0,
+    kCFDateFormatterTemplateForce12HourTime = 1 << 1,
+};
+
 CF_EXPORT
 CFAttributedStringRef _CFDateFormatterCreateAttributedStringAndFieldsWithAbsoluteTime(CFAllocatorRef allocator, CFDateFormatterRef formatter, CFAbsoluteTime at) API_AVAILABLE(macos(10.11), ios(9.0), watchos(2.0), tvos(9.0));
 

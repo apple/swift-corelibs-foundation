@@ -26,7 +26,88 @@
 #include <CoreFoundation/CFSet.h>
 #include <math.h>
 
-#define CF_CROSS_PLATFORM_EXPORT extern
+// Darwin may or may not define these macros, but we rely on them for building in Swift; define them privately.
+// If you need to use macros not in Darwin's TargetConditionals.h in public headers, use e.g.:
+//      #if !defined(TARGET_OS_SOMETHING) || !TARGET_OS_SOMETHING
+//      #if defined(TARGET_OS_SOMETHING) && TARGET_OS_SOMETHING
+
+/*
+ ┌────────────────┐
+ │ TARGET_OS_MAC  │
+ └────────────────┘
+  Apple OSes. See
+  TargetConditionals.h
+  for details.
+                        
+┌─────────────────────┐
+│   TARGET_OS_LINUX   │
+│ ┌─────────────────┐ │
+│ │TARGET_OS_ANDROID│ │
+│ └─────────────────┘ │
+└─────────────────────┘
+                        
+┌─────────────────────┐
+│   TARGET_OS_WIN32   │
+│ ┌─────────────────┐ │
+│ │TARGET_OS_CYGWIN │ │
+│ └─────────────────┘ │
+└─────────────────────┘
+                        
+ ┌────────────────┐
+ │ TARGET_OS_WASI │ WASI is the WebAssembly System Interface (stdcall layer)
+ └────────────────┘ See https://wasi.dev/
+                        
+ ┌─────────────────┐
+ │  TARGET_OS_BSD  │
+ └─────────────────┘
+   Use per-variant
+   macros, e.g.
+   __OpenBSD__, for
+   specific BSD flavors.
+   Note that this is
+   _NOT_ set for Darwin.
+ 
+ */
+
+#ifndef TARGET_OS_LINUX
+#define TARGET_OS_LINUX 0
+#endif
+#ifndef TARGET_OS_BSD
+#define TARGET_OS_BSD 0
+#endif
+#ifndef TARGET_OS_ANDROID
+#define TARGET_OS_ANDROID 0
+#endif
+#ifndef TARGET_OS_CYGWIN
+#define TARGET_OS_CYGWIN 0
+#endif
+#ifndef TARGET_OS_WASI
+#define TARGET_OS_WASI 0
+#endif
+#ifndef TARGET_OS_MAC
+#define TARGET_OS_MAC 0
+#endif
+#ifndef TARGET_OS_IPHONE
+#define TARGET_OS_IPHONE 0
+#endif
+#ifndef TARGET_OS_OSX
+#define TARGET_OS_OSX 0
+#endif
+#ifndef TARGET_OS_IOS
+#define TARGET_OS_IOS 0
+#endif
+#ifndef TARGET_OS_TV
+#define TARGET_OS_TV 0
+#endif
+#ifndef TARGET_OS_WATCH
+#define TARGET_OS_WATCH 0
+#endif
+
+#if !defined(CF_PRIVATE)
+#define CF_PRIVATE __attribute__((__visibility__("hidden"))) extern
+#endif
+
+#define CF_EXPORT_NONOBJC_ONLY CF_EXPORT
 
 #if TARGET_OS_WIN32
   // No C99 support
@@ -180,7 +261,6 @@ CF_EXPORT
 CFURLRef CFCopyHomeDirectoryURLForUser(CFStringRef uName);	/* Pass NULL for the current user's home directory */
 #endif
 
-
 /*
 	CFCopySearchPathForDirectoriesInDomains returns the various
 	standard system directories where apps, resources, etc get
@@ -232,10 +312,6 @@ typedef CF_OPTIONS(CFOptionFlags, CFSearchPathDomainMask) {
     kCFAllDomainsMask = 0x0ffff	/* all domains: all of the above and more, future items */
 };
 
-#if TARGET_OS_MAC || TARGET_OS_EMBEDDED
-CF_EXPORT
-CFArrayRef CFCopySearchPathForDirectoriesInDomains(CFSearchPathDirectory directory, CFSearchPathDomainMask domainMask, Boolean expandTilde);
-#endif
 
 
 /* Obsolete keys */
@@ -256,6 +332,7 @@ CF_EXPORT CFDictionaryRef _CFCopyServerVersionDictionary(void);
 // Returns the 'true' contents of SystemVersion.plist even when running in apps linked before 10.16
 CF_EXPORT CFDictionaryRef _CFCopySystemVersionPlatformDictionary(void) API_AVAILABLE(macos(10.16), ios(14.0), watchos(7.0), tvos(14.0));
 
+
 CF_EXPORT CFStringRef _CFCopySystemVersionDictionaryValue(CFStringRef key) API_AVAILABLE(macos(10.15), ios(13.0), watchos(6.0), tvos(13.0));
 CF_EXPORT const CFStringRef _kCFSystemVersionProductNameKey;
 CF_EXPORT const CFStringRef _kCFSystemVersionProductCopyrightKey;
@@ -266,6 +343,8 @@ CF_EXPORT const CFStringRef _kCFSystemVersionBuildVersionKey;
 CF_EXPORT const CFStringRef _kCFSystemVersionProductVersionStringKey;	// Localized string for the string "Version"
 CF_EXPORT const CFStringRef _kCFSystemVersionBuildStringKey;		// Localized string for the string "Build"
 
+// Human-readable string containing product version and revision letter (if applicable)
+CF_EXPORT const CFStringRef _kCFSystemVersionShortVersionStringKey API_AVAILABLE(macos(13.0), ios(16.0), watchos(9.0), tvos(16.0));
 
 CF_EXPORT void CFMergeSortArray(void *list, CFIndex count, CFIndex elementSize, CFComparatorFunction comparator, void *context);
 CF_EXPORT void CFQSortArray(void *list, CFIndex count, CFIndex elementSize, CFComparatorFunction comparator, void *context);
@@ -575,6 +654,7 @@ CF_EXPORT CFHashCode _CFNonObjCHash(CFTypeRef cf);
 CF_EXPORT
 Boolean CFLocaleGetLanguageRegionEncodingForLocaleIdentifier(CFStringRef localeIdentifier, LangCode *langCode, RegionCode *regCode, ScriptCode *scriptCode, CFStringEncoding *stringEncoding);
 
+CF_EXPORT void _CFLocaleResetCurrent(void);
 CF_EXPORT void _CFCalendarResetCurrent(void);
 
 #if TARGET_OS_WIN32
@@ -629,6 +709,9 @@ CF_EXPORT bool _CFPropertyListCreateSingleValue(CFAllocatorRef allocator, CFData
 
 // Returns a subset of the property list, only including the keyPaths in the CFSet. If the top level object is not a dictionary, you will get back an empty dictionary as the result.
 CF_EXPORT bool _CFPropertyListCreateFiltered(CFAllocatorRef allocator, CFDataRef data, CFOptionFlags option, CFSetRef keyPaths, CFPropertyListRef *value, CFErrorRef *error) API_AVAILABLE(macos(10.8), ios(6.0), watchos(2.0), tvos(9.0));
+
+// Given the result of _CFPropertyListCreateFiltered, returns the value contained therein identified by the given key path.
+CF_EXPORT CFTypeRef _CFPropertyListGetValueWithKeyPath(CFDictionaryRef propertyList, CFTypeRef keyPath) API_AVAILABLE(macos(13.0), ios(16.0), watchos(8.0), tvos(16.0));
 
 // Returns a set of the keys of the top-level dictionary of a plist. Optimized for bplist (though it works with XML too).  Only supports string keys. 
 CF_EXPORT CFSetRef _CFPropertyListCopyTopLevelKeys(CFAllocatorRef allocator, CFDataRef data, CFOptionFlags option, CFErrorRef *outError) API_AVAILABLE(macos(10.13), ios(11.0), watchos(4.0), tvos(11.0));
@@ -720,6 +803,19 @@ CF_EXPORT void * _CFGetHandleForInsertedOrInterposingLibrary(char const *namePre
 
 CF_EXPORT Boolean _CFRunLoopPerCalloutAutoreleasepoolEnabled(void) API_AVAILABLE(macos(10.16), ios(14.0), watchos(7.0), tvos(14.0));
 CF_EXPORT Boolean _CFRunLoopSetPerCalloutAutoreleasepoolEnabled(Boolean enabled) API_AVAILABLE(macos(10.16), ios(14.0), watchos(7.0), tvos(14.0));
+
+#if TARGET_OS_WIN32
+typedef void *_CFThreadRef;
+typedef struct _CFThreadAttributes {
+  unsigned long dwSizeOfAttributes;
+  unsigned long dwThreadStackReservation;
+} _CFThreadAttributes;
+typedef unsigned long _CFThreadSpecificKey;
+#elif _POSIX_THREADS
+typedef pthread_t _CFThreadRef;
+typedef pthread_attr_t _CFThreadAttributes;
+typedef pthread_key_t _CFThreadSpecificKey;
+#endif
 
 CF_EXTERN_C_END
 

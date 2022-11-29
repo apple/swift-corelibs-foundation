@@ -97,6 +97,7 @@
 // Used to reference an old-style plist parser error inside of a more general XML error
 #define CFPropertyListOldStyleParserErrorKey     CFSTR("kCFPropertyListOldStyleParsingError")
 
+CF_FORMAT_FUNCTION(2, 3)
 CF_PRIVATE CFErrorRef __CFPropertyListCreateError(CFIndex code, CFStringRef debugString, ...) {    
     va_list argList;        
     CFErrorRef error = NULL;
@@ -410,6 +411,7 @@ static void _plistAppendString(CFMutableDataRef mData, CFStringRef str) {
 
 // Append CFString-style format + arguments
 //
+CF_FORMAT_FUNCTION(2, 3)
 static void _plistAppendFormat(CFMutableDataRef mData, CFStringRef format, ...) {
     CFStringRef fStr; 
     va_list argList;
@@ -848,7 +850,7 @@ static void skipXMLComment(_CFXMLPlistParseInfo *pInfo) {
         }
         p ++; 
     }
-    pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Unterminated comment started on line %d"), lineNumber(pInfo));
+    pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Unterminated comment started on line %u"), (unsigned int)lineNumber(pInfo));
 }
 
 // pInfo should be set to the first character after "<?"
@@ -862,14 +864,14 @@ static void skipXMLProcessingInstruction(_CFXMLPlistParseInfo *pInfo) {
         pInfo->curr ++; 
     }
     pInfo->curr = begin;
-    pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered unexpected EOF while parsing the processing instruction begun on line %d"), lineNumber(pInfo));
+    pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered unexpected EOF while parsing the processing instruction begun on line %u"), (unsigned int)lineNumber(pInfo));
 }
 
 // first character should be immediately after the "<!"
 static void skipDTD(_CFXMLPlistParseInfo *pInfo) {
     // First pass "DOCTYPE"
     if (pInfo->end - pInfo->curr < DOCTYPE_TAG_LENGTH || memcmp(pInfo->curr, CFXMLPlistTags[DOCTYPE_IX], DOCTYPE_TAG_LENGTH)) {
-        pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Malformed DTD on line %d"), lineNumber(pInfo));
+        pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Malformed DTD on line %u"), (unsigned int)lineNumber(pInfo));
         return;
     }
     pInfo->curr += DOCTYPE_TAG_LENGTH;
@@ -897,7 +899,7 @@ static void skipDTD(_CFXMLPlistParseInfo *pInfo) {
         if (*(pInfo->curr) == '>') {
             pInfo->curr ++;
         } else {
-            pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered unexpected character %c on line %d while parsing DTD"), *(pInfo->curr), lineNumber(pInfo));
+            pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered unexpected character %c on line %u while parsing DTD"), *(pInfo->curr), (unsigned int)lineNumber(pInfo));
         }
     } else {
         pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered unexpected EOF while parsing DTD"));
@@ -913,7 +915,7 @@ static Boolean getContentObject(_CFXMLPlistParseInfo * _Nonnull pInfo, Boolean *
         // In bplist parsing we don't have the ability to set the error message
         // descriptively like we do here, so in bplists we use an `os_log_fault`
         // here we can just set `pInfo->error` see rdar://65835843
-        pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Too many nested arrays or dictionaries, failing on line %d"), lineNumber(pInfo));
+        pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Too many nested arrays or dictionaries, failing on line %u"), (unsigned int)lineNumber(pInfo));
         return false;
     }
     
@@ -925,7 +927,7 @@ static Boolean getContentObject(_CFXMLPlistParseInfo * _Nonnull pInfo, Boolean *
             return false;
         }
         if (*(pInfo->curr) != '<') {
-            pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered unexpected character %c on line %d while looking for open tag"), *(pInfo->curr), lineNumber(pInfo));
+            pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered unexpected character %c on line %u while looking for open tag"), *(pInfo->curr), (unsigned int)lineNumber(pInfo));
             return false;
         }
         pInfo->curr ++;
@@ -973,7 +975,7 @@ static void parseCDSect_pl(_CFXMLPlistParseInfo *pInfo, CFMutableDataRef stringD
         return;
     }
     if (memcmp(pInfo->curr, CFXMLPlistTags[CDSECT_IX], CDSECT_TAG_LENGTH)) {
-        pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered improper CDATA opening at line %d"), lineNumber(pInfo));
+        pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered improper CDATA opening at line %u"), (unsigned int)lineNumber(pInfo));
         return;
     }
     pInfo->curr += CDSECT_TAG_LENGTH;
@@ -990,7 +992,7 @@ static void parseCDSect_pl(_CFXMLPlistParseInfo *pInfo, CFMutableDataRef stringD
     }
     // Never found the end mark
     pInfo->curr = begin;
-    pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Could not find end of CDATA started on line %d"), lineNumber(pInfo));
+    pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Could not find end of CDATA started on line %u"), (unsigned int)lineNumber(pInfo));
 }
 
 // Only legal references are {lt, gt, amp, apos, quote, #ddd, #xAAA}
@@ -1011,7 +1013,7 @@ static void parseEntityReference_pl(_CFXMLPlistParseInfo *pInfo, CFMutableDataRe
                 pInfo->curr += 3;
                 break;
             }
-            pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered unknown ampersand-escape sequence at line %d"), lineNumber(pInfo));
+            pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered unknown ampersand-escape sequence at line %u"), (unsigned int)lineNumber(pInfo));
             return;
         case 'g': // "gt"
             if (len >= 3 && *(pInfo->curr+1) == 't' && *(pInfo->curr+2) == ';') {
@@ -1019,7 +1021,7 @@ static void parseEntityReference_pl(_CFXMLPlistParseInfo *pInfo, CFMutableDataRe
                 pInfo->curr += 3;
                 break;
             }
-            pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered unknown ampersand-escape sequence at line %d"), lineNumber(pInfo));
+            pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered unknown ampersand-escape sequence at line %u"), (unsigned int)lineNumber(pInfo));
             return;
         case 'a': // "apos" or "amp"
             if (len < 4) {   // Not enough characters for either conversion
@@ -1041,7 +1043,7 @@ static void parseEntityReference_pl(_CFXMLPlistParseInfo *pInfo, CFMutableDataRe
                     break;
                 }
             }
-            pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered unknown ampersand-escape sequence at line %d"), lineNumber(pInfo));
+            pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered unknown ampersand-escape sequence at line %u"), (unsigned int)lineNumber(pInfo));
             return;
         case 'q':  // "quote"
             if (len >= 5 && *(pInfo->curr+1) == 'u' && *(pInfo->curr+2) == 'o' && *(pInfo->curr+3) == 't' && *(pInfo->curr+4) == ';') {
@@ -1049,7 +1051,7 @@ static void parseEntityReference_pl(_CFXMLPlistParseInfo *pInfo, CFMutableDataRe
                 pInfo->curr += 5;
                 break;
             }
-            pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered unknown ampersand-escape sequence at line %d"), lineNumber(pInfo));
+            pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered unknown ampersand-escape sequence at line %u"), (unsigned int)lineNumber(pInfo));
             return;
         case '#':
         {
@@ -1074,7 +1076,7 @@ static void parseEntityReference_pl(_CFXMLPlistParseInfo *pInfo, CFMutableDataRe
                     num = CFSwapInt32HostToBig(num);
                     CFStringRef oneChar = CFStringCreateWithBytes(pInfo->allocator, (const uint8_t *)&num, sizeof(num), kCFStringEncodingUTF32BE, NO);
                     if (!oneChar) {
-                        pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered unparseable Unicode sequence at line %d while parsing data (input did not result in a real string)"), lineNumber(pInfo));
+                        pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered unparseable Unicode sequence at line %u while parsing data (input did not result in a real string)"), (unsigned int)lineNumber(pInfo));
                         return;
                     }
                     uint8_t tmpBuf[6]; // max of 6 bytes for UTF8
@@ -1084,7 +1086,7 @@ static void parseEntityReference_pl(_CFXMLPlistParseInfo *pInfo, CFMutableDataRe
                     __CFPListRelease(oneChar, pInfo->allocator);
                     return;
                 } else if (numberOfCharactersSoFar > 8) {
-                    pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered unparseable unicode sequence at line %d while parsing data (too large of a value for a Unicode sequence)"), lineNumber(pInfo));
+                    pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered unparseable unicode sequence at line %u while parsing data (too large of a value for a Unicode sequence)"), (unsigned int)lineNumber(pInfo));
                     return;
                 }
                 if (!isHex) num = num*10;
@@ -1092,14 +1094,14 @@ static void parseEntityReference_pl(_CFXMLPlistParseInfo *pInfo, CFMutableDataRe
                 if (ch <= '9' && ch >= '0') {
                     num += (ch - '0');
                 } else if (!isHex) {
-                    pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered unexpected character %c at line %d while parsing data"), ch, lineNumber(pInfo));
+                    pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered unexpected character %c at line %u while parsing data"), ch, (unsigned int)lineNumber(pInfo));
                     return;
                 } else if (ch >= 'a' && ch <= 'f') {
                     num += 10 + (ch - 'a');
                 } else if (ch >= 'A' && ch <= 'F') {
                     num += 10 + (ch - 'A');
                 } else {
-                    pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered unexpected character %c at line %d while parsing data"), ch, lineNumber(pInfo));
+                    pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered unexpected character %c at line %u while parsing data"), ch, (unsigned int)lineNumber(pInfo));
                     return;                    
                 }
             }
@@ -1107,7 +1109,7 @@ static void parseEntityReference_pl(_CFXMLPlistParseInfo *pInfo, CFMutableDataRe
             return;
         }
         default:
-            pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered unknown ampersand-escape sequence at line %d"), lineNumber(pInfo));
+            pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered unknown ampersand-escape sequence at line %u"), (unsigned int)lineNumber(pInfo));
             return;
     }
     CFDataAppendBytes(stringData, (const UInt8 *)&ch, 1);
@@ -1238,7 +1240,7 @@ static Boolean checkForCloseTag(_CFXMLPlistParseInfo *pInfo, const char *tag, CF
     }
     if (*(pInfo->curr) != '<' || *(++pInfo->curr) != '/') {
         if (!pInfo->error) {
-            pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered unexpected character %c on line %d while looking for close tag"), *(pInfo->curr), lineNumber(pInfo));
+            pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered unexpected character %c on line %u while looking for close tag"), *(pInfo->curr), (unsigned int)lineNumber(pInfo));
         }
         return false;
     }
@@ -1246,7 +1248,7 @@ static Boolean checkForCloseTag(_CFXMLPlistParseInfo *pInfo, const char *tag, CF
     if (memcmp(pInfo->curr, tag, tagLen)) {
         CFStringRef str = CFStringCreateWithBytes(kCFAllocatorSystemDefault, (const UInt8 *)tag, tagLen, kCFStringEncodingUTF8, NO);
         if (!pInfo->error) {
-            pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Close tag on line %d does not match open tag %@"), lineNumber(pInfo), str);
+            pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Close tag on line %u does not match open tag %@"), (unsigned int)lineNumber(pInfo), str);
         }
         CFRelease(str);
         return false;
@@ -1261,7 +1263,7 @@ static Boolean checkForCloseTag(_CFXMLPlistParseInfo *pInfo, const char *tag, CF
     }
     if (*(pInfo->curr) != '>') {
         if (!pInfo->error) {
-            pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered unexpected character %c on line %d while looking for close tag"), *(pInfo->curr), lineNumber(pInfo));
+            pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered unexpected character %c on line %u while looking for close tag"), *(pInfo->curr), (unsigned int)lineNumber(pInfo));
         }
         return false;
     }
@@ -1283,7 +1285,7 @@ static Boolean parsePListTag(_CFXMLPlistParseInfo *pInfo, CFTypeRef *out, size_t
         __CFPListRelease(tmp, pInfo->allocator);
         __CFPListRelease(result, pInfo->allocator);
         pInfo->curr = save;
-        pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered unexpected element at line %d (plist can only include one object)"), lineNumber(pInfo));
+        pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered unexpected element at line %u (plist can only include one object)"), (unsigned int)lineNumber(pInfo));
         return false;
     }
     if (pInfo->error) {
@@ -1315,9 +1317,14 @@ static CFSetRef createTopLevelKeypaths(CFAllocatorRef allocator, CFSetRef keyPat
     CFMutableSetRef splitKeyPathSet = CFSetCreateMutable(allocator, count, &kCFTypeSetCallBacks);
     for (CFIndex i = 0; i < count; i++) {
         // Split each key path and add it to the split path set, which we will reference throughout parsing
-        CFArrayRef split = CFStringCreateArrayBySeparatingStrings(allocator, (CFStringRef)(keyPathValues[i]), CFSTR(":"));
-        CFSetAddValue(splitKeyPathSet, split);
-        __CFPListRelease(split, allocator);
+        // The caller might have already split up the key path into an array of strings.
+        if (CFGetTypeID(keyPathValues[i]) == _kCFRuntimeIDCFArray) {
+            CFSetAddValue(splitKeyPathSet, keyPathValues[i]);
+        } else {
+            CFArrayRef split = CFStringCreateArrayBySeparatingStrings(allocator, (CFStringRef)(keyPathValues[i]), CFSTR(":"));
+            CFSetAddValue(splitKeyPathSet, split);
+            __CFPListRelease(split, allocator);
+        }
     }
     free_cftype_array(keyPathValues);
     return splitKeyPathSet;
@@ -1467,12 +1474,12 @@ static Boolean parseDictTag(_CFXMLPlistParseInfo * _Nonnull pInfo, CFTypeRef * _
         result = getContentObject(pInfo, &gotKey, &key, curDepth);
         while (result) {
             if (!gotKey) { 
-                if (!pInfo->error) pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Found non-key inside <dict> at line %d"), lineNumber(pInfo));
+                if (!pInfo->error) pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Found non-key inside <dict> at line %u"), (unsigned int)lineNumber(pInfo));
                 return false;
             }
             result = getContentObject(pInfo, NULL, &value, curDepth);
             if (!result) { 
-                if (!pInfo->error) pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Value missing for key inside <dict> at line %d"), lineNumber(pInfo)); 
+                if (!pInfo->error) pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Value missing for key inside <dict> at line %u"), (unsigned int)lineNumber(pInfo));
                 return false; 
             }
             // key and value should be null, but we'll release just in case here
@@ -1499,7 +1506,7 @@ static Boolean parseDictTag(_CFXMLPlistParseInfo * _Nonnull pInfo, CFTypeRef * _
     result = getContentObject(pInfo, &gotKey, &key, curDepth);
     while (result && key) {
         if (!gotKey) { 
-            if (!pInfo->error) pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Found non-key inside <dict> at line %d"), lineNumber(pInfo)); 
+            if (!pInfo->error) pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Found non-key inside <dict> at line %u"), (unsigned int)lineNumber(pInfo));
             __CFPListRelease(key, pInfo->allocator);
             __CFPListRelease(nextKeyPaths, pInfo->allocator);
             __CFPListRelease(theseKeyPaths, pInfo->allocator);
@@ -1518,7 +1525,7 @@ static Boolean parseDictTag(_CFXMLPlistParseInfo * _Nonnull pInfo, CFTypeRef * _
         }
         
         if (!result) { 
-            if (!pInfo->error) pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Value missing for key inside <dict> at line %d"), lineNumber(pInfo)); 
+            if (!pInfo->error) pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Value missing for key inside <dict> at line %u"), (unsigned int)lineNumber(pInfo));
             __CFPListRelease(key, pInfo->allocator);
             __CFPListRelease(nextKeyPaths, pInfo->allocator);
             __CFPListRelease(theseKeyPaths, pInfo->allocator);
@@ -1628,7 +1635,7 @@ static Boolean parseDataTag(_CFXMLPlistParseInfo *pInfo, CFTypeRef *out) {
         }
         
         if (c >= dataDecodeTableSize) {
-            pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Could not interpret <data> on line %d (invalid character 0x%hhX)"), lineNumber(pInfo), c);
+            pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Could not interpret <data> on line %u (invalid character 0x%hhX)"), (unsigned int)lineNumber(pInfo), c);
             if (tmpbuf) { CFAllocatorDeallocate(pInfo->allocator, tmpbuf); }
             return false;
         }
@@ -1668,7 +1675,7 @@ static Boolean parseDataTag(_CFXMLPlistParseInfo *pInfo, CFTypeRef *out) {
         }
         if (!result) {
             pInfo->curr = base;
-            pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Could not interpret <data> at line %d (should be base64-encoded)"), lineNumber(pInfo));
+            pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Could not interpret <data> at line %u (should be base64-encoded)"), (unsigned int)lineNumber(pInfo));
             return false;
         }
     }
@@ -1751,7 +1758,7 @@ static Boolean parseDateTag(_CFXMLPlistParseInfo *pInfo, CFTypeRef *out) {
     }
 
     if (badForm || !checkForCloseTag(pInfo, CFXMLPlistTags[DATE_IX], DATE_TAG_LENGTH)) {
-        pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Could not interpret <date> at line %d"), lineNumber(pInfo));
+        pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Could not interpret <date> at line %u"), (unsigned int)lineNumber(pInfo));
         return false;
     }
 
@@ -1800,7 +1807,7 @@ static Boolean parseDateTag(_CFXMLPlistParseInfo *pInfo, CFTypeRef *out) {
 static Boolean parseRealTag(_CFXMLPlistParseInfo *pInfo, CFTypeRef *out) {
     CFStringRef str = NULL;
     if (!parseStringTag(pInfo, &str)) {
-        if (!pInfo->error) pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered empty <real> on line %d"), lineNumber(pInfo));
+        if (!pInfo->error) pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered empty <real> on line %u"), (unsigned int)lineNumber(pInfo));
         return false;
     }
     
@@ -1825,7 +1832,7 @@ static Boolean parseRealTag(_CFXMLPlistParseInfo *pInfo, CFTypeRef *out) {
             double val;
             if (!__CFStringScanDouble(&buf, NULL, &idx, &val) || idx != len) {
                 __CFPListRelease(str, pInfo->allocator);
-                pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered misformatted real on line %d"), lineNumber(pInfo));
+                pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered misformatted real on line %u"), (unsigned int)lineNumber(pInfo));
                 return false;
             }
             result = CFNumberCreate(pInfo->allocator, kCFNumberDoubleType, &val);
@@ -1843,7 +1850,7 @@ static Boolean parseRealTag(_CFXMLPlistParseInfo *pInfo, CFTypeRef *out) {
 }
 
 #define GET_CH	if (pInfo->curr == pInfo->end) {	\
-			pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Premature end of file after <integer> on line %d"), lineNumber(pInfo)); \
+			pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Premature end of file after <integer> on line %u"), (unsigned int)lineNumber(pInfo)); \
 			return false;			\
 		}					\
 		ch = *(pInfo->curr)
@@ -1899,7 +1906,7 @@ static Boolean parseIntegerTag(_CFXMLPlistParseInfo *pInfo, CFTypeRef *out) {
     while (pInfo->curr < pInfo->end && isWhitespace(pInfo->curr, pInfo->end)) pInfo->curr++;
     GET_CH;
     if ('<' == ch) {
-        pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered empty <integer> on line %d"), lineNumber(pInfo));
+        pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered empty <integer> on line %u"), (unsigned int)lineNumber(pInfo));
         return false;
     }
     if ('-' == ch || '+' == ch) {
@@ -1937,7 +1944,7 @@ static Boolean parseIntegerTag(_CFXMLPlistParseInfo *pInfo, CFTypeRef *out) {
         return true;
     }
     if ('<' == ch) {
-        pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Incomplete <integer> on line %d"), lineNumber(pInfo));
+        pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Incomplete <integer> on line %u"), (unsigned int)lineNumber(pInfo));
 	return false;
     }
     uint64_t value = 0;
@@ -1955,25 +1962,25 @@ static Boolean parseIntegerTag(_CFXMLPlistParseInfo *pInfo, CFTypeRef *out) {
                 new_digit = (ch - 'A' + 10);
                 break;
             default:	// other character
-                pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Unknown character '%c' (0x%x) in <integer> on line %d"), ch, ch, lineNumber(pInfo));
+                pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Unknown character '%c' (0x%x) in <integer> on line %u"), ch, ch, (unsigned int)lineNumber(pInfo));
                 return false;
 	}
 	if (!isHex && new_digit > 9) {
-            pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Hex digit in non-hex <integer> on line %d"), lineNumber(pInfo));
+            pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Hex digit in non-hex <integer> on line %u"), (unsigned int)lineNumber(pInfo));
 	    return false;
 	}
 	if (UINT64_MAX / multiplier < value) {
-            pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Integer overflow in <integer> on line %d"), lineNumber(pInfo));
+            pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Integer overflow in <integer> on line %u"), (unsigned int)lineNumber(pInfo));
 	    return false;
 	}
 	value = multiplier * value;
 	if (UINT64_MAX - new_digit < value) {
-            pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Integer overflow in <integer> on line %d"), lineNumber(pInfo));
+            pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Integer overflow in <integer> on line %u"), (unsigned int)lineNumber(pInfo));
 	    return false;
 	}
 	value = value + new_digit;
 	if (isNeg && (uint64_t)INT64_MAX + 1 < value) {
-            pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Integer underflow in <integer> on line %d"), lineNumber(pInfo));
+            pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Integer underflow in <integer> on line %u"), (unsigned int)lineNumber(pInfo));
 	    return false;
 	}
 	pInfo->curr++;
@@ -2030,7 +2037,7 @@ static Boolean parseXMLElement(_CFXMLPlistParseInfo * _Nonnull pInfo, Boolean * 
     if (markerLength == 0) {
         // Back up to the beginning of the marker
         pInfo->curr = marker;
-        pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Malformed tag on line %d"), lineNumber(pInfo));
+        pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Malformed tag on line %u"), (unsigned int)lineNumber(pInfo));
         return false;
     }
     switch (*marker) {
@@ -2151,14 +2158,14 @@ static Boolean parseXMLElement(_CFXMLPlistParseInfo * _Nonnull pInfo, Boolean * 
         }
         case DATA_IX:
             if (isEmpty) {
-                pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered empty <data> on line %d"), lineNumber(pInfo));
+                pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered empty <data> on line %u"), (unsigned int)lineNumber(pInfo));
                 return false;
             } else {
                 return parseDataTag(pInfo, out);
             }
         case DATE_IX:
             if (isEmpty) {
-                pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered empty <date> on line %d"), lineNumber(pInfo));
+                pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered empty <date> on line %u"), (unsigned int)lineNumber(pInfo));
                 return false;
             } else {
                 return parseDateTag(pInfo, out);
@@ -2166,7 +2173,7 @@ static Boolean parseXMLElement(_CFXMLPlistParseInfo * _Nonnull pInfo, Boolean * 
         case TRUE_IX:
             if (!isEmpty) {
 		if (!checkForCloseTag(pInfo, CFXMLPlistTags[TRUE_IX], TRUE_TAG_LENGTH)) {
-                    pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered non-empty <true> on line %d"), lineNumber(pInfo));
+                    pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered non-empty <true> on line %u"), (unsigned int)lineNumber(pInfo));
                     return false;
                 }
 	    }
@@ -2179,7 +2186,7 @@ static Boolean parseXMLElement(_CFXMLPlistParseInfo * _Nonnull pInfo, Boolean * 
         case FALSE_IX:
             if (!isEmpty) {
 		if (!checkForCloseTag(pInfo, CFXMLPlistTags[FALSE_IX], FALSE_TAG_LENGTH)) {
-                    pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered non-empty <false> on line %d"), lineNumber(pInfo));
+                    pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered non-empty <false> on line %u"), (unsigned int)lineNumber(pInfo));
                     return false;
                 }
 	    }
@@ -2191,14 +2198,14 @@ static Boolean parseXMLElement(_CFXMLPlistParseInfo * _Nonnull pInfo, Boolean * 
             return true;
         case REAL_IX:
             if (isEmpty) {
-                pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered empty <real> on line %d"), lineNumber(pInfo));
+                pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered empty <real> on line %u"), (unsigned int)lineNumber(pInfo));
                 return false;
             } else {
                 return parseRealTag(pInfo, out);
             }
         case INTEGER_IX:
             if (isEmpty) {
-                pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered empty <integer> on line %d"), lineNumber(pInfo));
+                pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered empty <integer> on line %u"), (unsigned int)lineNumber(pInfo));
                 return false;
             } else {
                 return parseIntegerTag(pInfo, out);
@@ -2206,7 +2213,7 @@ static Boolean parseXMLElement(_CFXMLPlistParseInfo * _Nonnull pInfo, Boolean * 
         default:  {
             CFStringRef markerStr = CFStringCreateWithBytes(kCFAllocatorSystemDefault, (const UInt8 *)marker, markerLength, kCFStringEncodingUTF8, NO);
             pInfo->curr = marker;
-            pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered unknown tag %@ on line %d"), markerStr ? markerStr : CFSTR("<unknown>"), lineNumber(pInfo));
+            pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Encountered unknown tag %@ on line %u"), markerStr ? markerStr : CFSTR("<unknown>"), (unsigned int)lineNumber(pInfo));
             if (markerStr) CFRelease(markerStr);
             return false;
         }
@@ -2222,7 +2229,7 @@ static Boolean parseXMLPropertyList(_CFXMLPlistParseInfo *pInfo, CFTypeRef *out)
             return false;
         }
         if (*(pInfo->curr) != '<') {
-            pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Unexpected character %c at line %d"), *(pInfo->curr), lineNumber(pInfo));
+            pInfo->error = __CFPropertyListCreateError(kCFPropertyListReadCorruptError, CFSTR("Unexpected character %c at line %u"), *(pInfo->curr), (unsigned int)lineNumber(pInfo));
             return false;
         }
         ch = *(++ pInfo->curr);
@@ -2646,7 +2653,7 @@ CFTypeRef _CFPropertyListCreateFromXMLString(CFAllocatorRef allocator, CFStringR
     return result;
 }
 
-CF_PRIVATE bool __CFBinaryPlistCreateObjectFiltered(const uint8_t *databytes, uint64_t datalen, uint64_t startOffset, const CFBinaryPlistTrailer *trailer, CFAllocatorRef allocator, CFOptionFlags mutabilityOption, CFMutableDictionaryRef objects, CFMutableSetRef set, CFIndex curDepth, CFSetRef keyPaths, CFPropertyListRef *plist, CFTypeID *outPlistTypeID);
+CF_PRIVATE bool __CFBinaryPlistCreateObjectFiltered(const uint8_t *databytes, uint64_t datalen, uint64_t startOffset, const CFBinaryPlistTrailer *trailer, CFAllocatorRef allocator, CFOptionFlags mutabilityOption, CFDataRef backingDataForNoCopy, CFMutableDictionaryRef objects, CFMutableSetRef set, CFIndex curDepth, CFSetRef keyPaths, CFPropertyListRef *plist, CFTypeID *outPlistTypeID);
 
 // Returns a subset of the property list, only including the key paths in the CFSet.
 bool _CFPropertyListCreateFiltered(CFAllocatorRef allocator, CFDataRef data, CFOptionFlags option, CFSetRef keyPaths, CFPropertyListRef *value, CFErrorRef *error) {
@@ -2664,7 +2671,7 @@ bool _CFPropertyListCreateFiltered(CFAllocatorRef allocator, CFDataRef data, CFO
     CFTypeRef out = NULL;
 
     // First check to see if it is a binary property list
-    if (8 <= datalen && __CFBinaryPlistGetTopLevelInfo(databytes, datalen, &marker, &offset, &trailer)) {        
+    if (8 <= datalen && __CFDataGetBinaryPlistTopLevelInfo(data, &marker, &offset, &trailer)) {
         uint64_t valueOffset = offset;
         
         // Split up the key path
@@ -2672,7 +2679,8 @@ bool _CFPropertyListCreateFiltered(CFAllocatorRef allocator, CFDataRef data, CFO
 
         // Create a dictionary to cache objects in
         CFMutableDictionaryRef objects = CFDictionaryCreateMutable(allocator, 0, NULL, &kCFTypeDictionaryValueCallBacks);
-        success = __CFBinaryPlistCreateObjectFiltered(databytes, datalen, valueOffset, &trailer, allocator, option, objects, NULL, 0, splitKeyPaths, &out, NULL);
+        CFDataRef backingDataForNoCopy = (option & kCFPropertyListAllowNoCopyLeaves) ? data : NULL;
+        success = __CFBinaryPlistCreateObjectFiltered(databytes, datalen, valueOffset, &trailer, allocator, (option & kCFPropertyListMutabilityMask), backingDataForNoCopy, objects, NULL, 0, splitKeyPaths, &out, NULL);
         
         CFRelease(splitKeyPaths);
         CFRelease(objects);        
@@ -2687,6 +2695,34 @@ bool _CFPropertyListCreateFiltered(CFAllocatorRef allocator, CFDataRef data, CFO
         CFRelease(out);
     }
     return success;
+}
+
+CFTypeRef _CFPropertyListGetValueWithKeyPath(CFDictionaryRef propertyList, CFTypeRef keyPath) {
+    if (!propertyList || !keyPath) return NULL;
+
+    CFArrayRef split = NULL;
+    if (CFGetTypeID(keyPath) == _kCFRuntimeIDCFArray) {
+        split = CFRetain(keyPath);
+    } else {
+        split = CFStringCreateArrayBySeparatingStrings(kCFAllocatorSystemDefault, (CFStringRef)(keyPath), CFSTR(":"));
+    }
+    CFIndex keyCount = CFArrayGetCount(split);
+    CFTypeRef currentPlist = propertyList;
+    for (CFIndex keyIdx = 0; keyIdx < keyCount && currentPlist; keyIdx++) {
+        CFStringRef key = CFArrayGetValueAtIndex(split, keyIdx);
+
+        CFTypeID currentPlistType = CFGetTypeID(currentPlist);
+        if (currentPlistType == _kCFRuntimeIDCFDictionary) {
+            currentPlist = CFDictionaryGetValue(currentPlist, key);
+        } else if (currentPlistType == _kCFRuntimeIDCFArray) {
+            currentPlist = CFArrayGetValueAtIndex(currentPlist, CFStringGetIntValue(key));
+        } else {
+            currentPlist = NULL;
+            break;
+        }
+    }
+    CFRelease(split);
+    return currentPlist;
 }
 
 /* Get a single value for a given key in a top-level dictionary in a property list.
@@ -2712,7 +2748,7 @@ bool _CFPropertyListCreateSingleValue(CFAllocatorRef allocator, CFDataRef data, 
     bool success = false;
     
     // First check to see if it is a binary property list
-    if (8 <= datalen && __CFBinaryPlistGetTopLevelInfo(databytes, datalen, &marker, &offset, &trailer)) {
+    if (8 <= datalen && __CFDataGetBinaryPlistTopLevelInfo(data, &marker, &offset, &trailer)) {
         // Split up the key path
         CFArrayRef keyPathArray = CFStringCreateArrayBySeparatingStrings(kCFAllocatorSystemDefault, keyPath, CFSTR(":"));
         uint64_t keyOffset, valueOffset = offset;
@@ -2752,7 +2788,7 @@ bool _CFPropertyListCreateSingleValue(CFAllocatorRef allocator, CFDataRef data, 
         // value could be null if the caller wanted to check for the existence of a key but not bother creating it
         if (success && value) {
             CFPropertyListRef pl;
-	    success = __CFBinaryPlistCreateObjectFiltered(databytes, datalen, valueOffset, &trailer, allocator, option, objects, NULL, 0, NULL, &pl, NULL);
+	    success = __CFBinaryPlistCreateObjectFiltered(databytes, datalen, valueOffset, &trailer, allocator, option, NULL, objects, NULL, 0, NULL, &pl, NULL);
 	    if (success) {
 		// caller's responsibility to release the created object
 		*value = pl;
@@ -2823,7 +2859,7 @@ CFSetRef _CFPropertyListCopyTopLevelKeys(CFAllocatorRef allocator, CFDataRef dat
             CFBinaryPlistTrailer trailer;
             uint64_t offset;
             
-            if (__CFBinaryPlistGetTopLevelInfo(databytes, datalen, &marker, &offset, &trailer)) {
+            if (__CFDataGetBinaryPlistTopLevelInfo(data, &marker, &offset, &trailer)) {
                tryXML = false;
                 result = __CFBinaryPlistCopyTopLevelKeys(allocator, databytes, datalen, offset, &trailer);
             }
@@ -2866,6 +2902,7 @@ CFSetRef _CFPropertyListCopyTopLevelKeys(CFAllocatorRef allocator, CFDataRef dat
 }
 
 
+
 // Legacy
 CFTypeRef _CFPropertyListCreateFromXMLData(CFAllocatorRef allocator, CFDataRef xmlData, CFOptionFlags option, CFStringRef *errorString, Boolean allowNewTypes, CFPropertyListFormat *format) {
     CFTypeRef out = NULL;
@@ -2906,8 +2943,7 @@ CFDataRef CFPropertyListCreateData(CFAllocatorRef allocator, CFPropertyListRef p
     __CFAssertIsPList(propertyList);
     
     CFDataRef data = NULL;
-    
-    
+        
     if (format == kCFPropertyListOpenStepFormat) {
         CFLog(kCFLogLevelError, CFSTR("Property list format kCFPropertyListOpenStepFormat not supported for writing"));
         return NULL;
@@ -2915,7 +2951,7 @@ CFDataRef CFPropertyListCreateData(CFAllocatorRef allocator, CFPropertyListRef p
         CFStringRef validErr = NULL;
         if (!_CFPropertyListIsValidWithErrorString(propertyList, format, &validErr)) {
             if (error) {
-                *error = __CFPropertyListCreateError(kCFPropertyListWriteStreamError, CFSTR("Property list invalid for format: %d (%@)"), format, validErr);
+                *error = __CFPropertyListCreateError(kCFPropertyListWriteStreamError, CFSTR("Property list invalid for format: %ld (%@)"), format, validErr);
             }
             if (validErr) CFRelease(validErr);
             return NULL;
@@ -2950,7 +2986,7 @@ CFIndex CFPropertyListWrite(CFPropertyListRef propertyList, CFWriteStreamRef str
     CFStringRef validErr = NULL;
     if (!_CFPropertyListIsValidWithErrorString(propertyList, format, &validErr)) {
         if (error) {
-            *error = __CFPropertyListCreateError(kCFPropertyListWriteStreamError, CFSTR("Property list invalid for format: %d (%@)"), format, validErr);
+            *error = __CFPropertyListCreateError(kCFPropertyListWriteStreamError, CFSTR("Property list invalid for format: %ld (%@)"), format, validErr);
         }
         if (validErr) CFRelease(validErr);
         return 0;
@@ -3131,10 +3167,10 @@ bool _CFPropertyListValidateData(CFDataRef data, CFTypeID *outTopLevelTypeID) {
     uint64_t datalen = CFDataGetLength(data);
     
     bool result = true;
-    if (8 <= datalen && __CFBinaryPlistGetTopLevelInfo(databytes, datalen, &marker, &offset, &trailer)) {
+    if (8 <= datalen && __CFDataGetBinaryPlistTopLevelInfo(data, &marker, &offset, &trailer)) {
         // Object-less plist parsing does not use an objects dictionary.
         CFTypeID typeID = _kCFRuntimeNotATypeID;
-        if (!__CFBinaryPlistCreateObjectFiltered(databytes, datalen, offset, &trailer, kCFAllocatorSystemDefault, 0, NULL, NULL, 0, NULL, NULL, &typeID)) {
+        if (!__CFBinaryPlistCreateObjectFiltered(databytes, datalen, offset, &trailer, kCFAllocatorSystemDefault, 0, NULL, NULL, NULL, 0, NULL, NULL, &typeID)) {
             result = false;
         }
         if (outTopLevelTypeID) *outTopLevelTypeID = typeID;
@@ -3151,7 +3187,6 @@ bool _CFPropertyListValidateData(CFDataRef data, CFTypeID *outTopLevelTypeID) {
     }
     return result;
 }
-
 #endif
 
 #pragma mark -

@@ -547,7 +547,7 @@ void _CFBigNumFromCString(_CFBigNum *r, const char *string) {
 
 char *_CFBigNumCopyDescription(const _CFBigNum *num) {
     char *result = (char *)calloc(1024, sizeof(char));
-    sprintf(result, "sign:%s 1st:%u 2nd:%u 3rd:%u 4th:%u 5th:%u", num->sign < 0 ? "-" : "+", num->digits[0], num->digits[1], num->digits[2], num->digits[3], num->digits[4]);
+    snprintf(result, 1024, "sign:%s 1st:%u 2nd:%u 3rd:%u 4th:%u 5th:%u", num->sign < 0 ? "-" : "+", num->digits[0], num->digits[1], num->digits[2], num->digits[3], num->digits[4]);
     return result;
 }
 
