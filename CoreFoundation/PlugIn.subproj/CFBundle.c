@@ -1441,15 +1441,17 @@ Boolean CFBundlePreflightExecutable(CFBundleRef bundle, CFErrorRef *error) {
 #endif /* BINARY_SUPPORT_DLFCN */
 #if defined(BINARY_SUPPORT_DYLD)
         case __CFBundleDYLDBundleBinary:
-            result = true;
 #if defined(BINARY_SUPPORT_DLFCN)
             result = _CFBundleDlfcnPreflight(bundle, subError);
+#else
+            result = true;
 #endif /* BINARY_SUPPORT_DLFCN */
             break;
         case __CFBundleDYLDFrameworkBinary:
-            result = true;
 #if defined(BINARY_SUPPORT_DLFCN)
             result = _CFBundleDlfcnPreflight(bundle, subError);
+#else
+            result = true;
 #endif /* BINARY_SUPPORT_DLFCN */
             break;
         case __CFBundleDYLDExecutableBinary:

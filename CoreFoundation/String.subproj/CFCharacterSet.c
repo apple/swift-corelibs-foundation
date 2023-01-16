@@ -610,7 +610,7 @@ static Boolean __CFCSetIsEqualAnnex(CFCharacterSetRef cf1, CFCharacterSetRef cf2
     CFCharacterSetRef subSet1;
     CFCharacterSetRef subSet2;
     Boolean isAnnexInvertStateIdentical = (__CFCSetAnnexIsInverted(cf1) == __CFCSetAnnexIsInverted(cf2) ? true: false);
-    int idx;
+    unsigned idx;
 
     if (isAnnexInvertStateIdentical) {
         if (__CFCSetAnnexValidEntriesBitmap(cf1) != __CFCSetAnnexValidEntriesBitmap(cf2)) return false;

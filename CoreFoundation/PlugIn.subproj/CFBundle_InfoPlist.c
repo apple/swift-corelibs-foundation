@@ -587,8 +587,6 @@ static UInt32 _CFVersionNumberFromString(CFStringRef versStr) {
             minor2 = *chars - (UniChar)'0';
             chars++;
             len--;
-        } else {
-            digitsDone = true;
         }
     }
     
@@ -641,7 +639,6 @@ static UInt32 _CFVersionNumberFromString(CFStringRef versStr) {
         if (_isDigit(*chars)) {
             build *= 10;
             build += *chars - (UniChar)'0';
-            chars++;
             len--;
         } else {
             return 0;

@@ -1019,9 +1019,7 @@ CFTypeRef CFNumberFormatterCopyProperty(CFNumberFormatterRef formatter, CFString
     if (CFEqual(kCFNumberFormatterFormattingContextKey, key)) {
 #if U_ICU_VERSION_MAJOR_NUM >= 55
         n = __cficu_unum_getContext(formatter->_nf, UDISPCTX_TYPE_CAPITALIZATION, &status);
-        if (1) {
-            return CFNumberCreate(CFGetAllocator(formatter), kCFNumberSInt32Type, &n);
-        }
+        return CFNumberCreate(CFGetAllocator(formatter), kCFNumberSInt32Type, &n);
 #endif
     }
     if (kCFNumberFormatterSpellOutStyle == formatter->_style && kCFNumberFormatterIsLenientKey != key) return NULL;
@@ -1062,9 +1060,7 @@ CFTypeRef CFNumberFormatterCopyProperty(CFNumberFormatterRef formatter, CFString
 	}
     } else if (kCFNumberFormatterAlwaysShowDecimalSeparatorKey == key) {
 	n = __cficu_unum_getAttribute(formatter->_nf, UNUM_DECIMAL_ALWAYS_SHOWN);
-	if (1) {
-	    return CFRetain(n ? kCFBooleanTrue : kCFBooleanFalse);
-	}
+        return CFRetain(n ? kCFBooleanTrue : kCFBooleanFalse);
     } else if (kCFNumberFormatterGroupingSeparatorKey == key) {
 	cnt = __cficu_unum_getSymbol(formatter->_nf, UNUM_GROUPING_SEPARATOR_SYMBOL, ubuffer, BUFFER_SIZE, &status);
 	if (U_SUCCESS(status) && cnt <= BUFFER_SIZE) {
@@ -1072,9 +1068,7 @@ CFTypeRef CFNumberFormatterCopyProperty(CFNumberFormatterRef formatter, CFString
 	}
     } else if (kCFNumberFormatterUseGroupingSeparatorKey == key) {
 	n = __cficu_unum_getAttribute(formatter->_nf, UNUM_GROUPING_USED);
-	if (1) {
-	    return CFRetain(n ? kCFBooleanTrue : kCFBooleanFalse);
-	}
+        return CFRetain(n ? kCFBooleanTrue : kCFBooleanFalse);
    } else if (kCFNumberFormatterPercentSymbolKey == key) {
 	cnt = __cficu_unum_getSymbol(formatter->_nf, UNUM_PERCENT_SYMBOL, ubuffer, BUFFER_SIZE, &status);
 	if (U_SUCCESS(status) && cnt <= BUFFER_SIZE) {
@@ -1114,54 +1108,34 @@ CFTypeRef CFNumberFormatterCopyProperty(CFNumberFormatterRef formatter, CFString
 	}
     } else if (kCFNumberFormatterMinIntegerDigitsKey == key) {
 	n = __cficu_unum_getAttribute(formatter->_nf, UNUM_MIN_INTEGER_DIGITS);
-	if (1) {
-	    return CFNumberCreate(CFGetAllocator(formatter), kCFNumberSInt32Type, &n);
-	}
+        return CFNumberCreate(CFGetAllocator(formatter), kCFNumberSInt32Type, &n);
     } else if (kCFNumberFormatterMaxIntegerDigitsKey == key) {
 	n = __cficu_unum_getAttribute(formatter->_nf, UNUM_MAX_INTEGER_DIGITS);
-	if (1) {
-	    return CFNumberCreate(CFGetAllocator(formatter), kCFNumberSInt32Type, &n);
-	}
+        return CFNumberCreate(CFGetAllocator(formatter), kCFNumberSInt32Type, &n);
     } else if (kCFNumberFormatterMinFractionDigitsKey == key) {
 	n = __cficu_unum_getAttribute(formatter->_nf, UNUM_MIN_FRACTION_DIGITS);
-	if (1) {
-	    return CFNumberCreate(CFGetAllocator(formatter), kCFNumberSInt32Type, &n);
-	}
+        return CFNumberCreate(CFGetAllocator(formatter), kCFNumberSInt32Type, &n);
     } else if (kCFNumberFormatterMaxFractionDigitsKey == key) {
 	n = __cficu_unum_getAttribute(formatter->_nf, UNUM_MAX_FRACTION_DIGITS);
-	if (1) {
-	    return CFNumberCreate(CFGetAllocator(formatter), kCFNumberSInt32Type, &n);
-	}
+        return CFNumberCreate(CFGetAllocator(formatter), kCFNumberSInt32Type, &n);
     } else if (kCFNumberFormatterGroupingSizeKey == key) {
 	n = __cficu_unum_getAttribute(formatter->_nf, UNUM_GROUPING_SIZE);
-	if (1) {
-	    return CFNumberCreate(CFGetAllocator(formatter), kCFNumberSInt32Type, &n);
-	}
+        return CFNumberCreate(CFGetAllocator(formatter), kCFNumberSInt32Type, &n);
     } else if (kCFNumberFormatterSecondaryGroupingSizeKey == key) {
 	n = __cficu_unum_getAttribute(formatter->_nf, UNUM_SECONDARY_GROUPING_SIZE);
-	if (1) {
-	    return CFNumberCreate(CFGetAllocator(formatter), kCFNumberSInt32Type, &n);
-	}
+        return CFNumberCreate(CFGetAllocator(formatter), kCFNumberSInt32Type, &n);
     } else if (kCFNumberFormatterRoundingModeKey == key) {
 	n = __cficu_unum_getAttribute(formatter->_nf, UNUM_ROUNDING_MODE);
-	if (1) {
-	    return CFNumberCreate(CFGetAllocator(formatter), kCFNumberSInt32Type, &n);
-	}
+        return CFNumberCreate(CFGetAllocator(formatter), kCFNumberSInt32Type, &n);
     } else if (kCFNumberFormatterRoundingIncrementKey == key) {
 	d = __cficu_unum_getDoubleAttribute(formatter->_nf, UNUM_ROUNDING_INCREMENT);
-	if (1) {
-	    return CFNumberCreate(CFGetAllocator(formatter), kCFNumberDoubleType, &d);
-	}
+        return CFNumberCreate(CFGetAllocator(formatter), kCFNumberDoubleType, &d);
     } else if (kCFNumberFormatterFormatWidthKey == key) {
 	n = __cficu_unum_getAttribute(formatter->_nf, UNUM_FORMAT_WIDTH);
-	if (1) {
-	    return CFNumberCreate(CFGetAllocator(formatter), kCFNumberSInt32Type, &n);
-	}
+        return CFNumberCreate(CFGetAllocator(formatter), kCFNumberSInt32Type, &n);
     } else if (kCFNumberFormatterPaddingPositionKey == key) {
 	n = __cficu_unum_getAttribute(formatter->_nf, UNUM_PADDING_POSITION);
-	if (1) {
-	    return CFNumberCreate(CFGetAllocator(formatter), kCFNumberSInt32Type, &n);
-	}
+        return CFNumberCreate(CFGetAllocator(formatter), kCFNumberSInt32Type, &n);
     } else if (kCFNumberFormatterPaddingCharacterKey == key) {
 	cnt = __cficu_unum_getTextAttribute(formatter->_nf, UNUM_PADDING_CHARACTER, ubuffer, BUFFER_SIZE, &status);
 	if (U_SUCCESS(status) && cnt <= BUFFER_SIZE) {
@@ -1211,19 +1185,13 @@ CFTypeRef CFNumberFormatterCopyProperty(CFNumberFormatterRef formatter, CFString
 	return CFRetain(formatter->_isLenient ? kCFBooleanTrue : kCFBooleanFalse);
     } else if (kCFNumberFormatterUseSignificantDigitsKey == key) {
 	n = __cficu_unum_getAttribute(formatter->_nf, UNUM_SIGNIFICANT_DIGITS_USED);
-	if (1) {
-	    return CFRetain(n ? kCFBooleanTrue : kCFBooleanFalse);
-	}
+        return CFRetain(n ? kCFBooleanTrue : kCFBooleanFalse);
     } else if (kCFNumberFormatterMinSignificantDigitsKey == key) {
 	n = __cficu_unum_getAttribute(formatter->_nf, UNUM_MIN_SIGNIFICANT_DIGITS);
-	if (1) {
-	    return CFNumberCreate(CFGetAllocator(formatter), kCFNumberSInt32Type, &n);
-	}
+        return CFNumberCreate(CFGetAllocator(formatter), kCFNumberSInt32Type, &n);
     } else if (kCFNumberFormatterMaxSignificantDigitsKey == key) {
 	n = __cficu_unum_getAttribute(formatter->_nf, UNUM_MAX_SIGNIFICANT_DIGITS);
-	if (1) {
-	    return CFNumberCreate(CFGetAllocator(formatter), kCFNumberSInt32Type, &n);
-	}
+        return CFNumberCreate(CFGetAllocator(formatter), kCFNumberSInt32Type, &n);
     } else {
 	CFAssert3(0, __kCFLogAssertion, "%s(): unknown key %p (%@)", __PRETTY_FUNCTION__, key, key);
     }

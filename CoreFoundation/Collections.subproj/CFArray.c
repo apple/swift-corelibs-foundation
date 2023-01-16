@@ -743,7 +743,7 @@ static void __CFArrayRepositionDequeRegions(CFMutableArrayRef array, CFRange ran
 	if (0 < A) memmove(newBuckets + newL, buckets + oldL, A * sizeof(struct __CFArrayBucket));
 	if (0 < C) memmove(newBuckets + newC0, buckets + oldC0, C * sizeof(struct __CFArrayBucket));
         array->_store = newDeque;
-        if (deque) CFAllocatorDeallocate(allocator, deque);
+        CFAllocatorDeallocate(allocator, deque);
 //printf("3:  array %p store is now %p (%lx)\n", array, array->_store, *(unsigned long *)(array->_store));
 	return;
     }

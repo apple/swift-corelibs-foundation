@@ -789,7 +789,7 @@ CF_PRIVATE Boolean _CFURIParserParseURIReference(CFStringRef urlString, struct _
         //
         if ( (currentUniChar == '/') && (CFStringGetCharacterFromInlineBuffer(&buf, currentCharIndex + 1) == '/') ) {
             unsigned long firstComponentCharIndex;
-            unsigned long componentLength;
+            unsigned long componentLength = 0;
             
             currentCharIndex += 2;
             currentUniChar = CFStringGetCharacterFromInlineBuffer(&buf, currentCharIndex);

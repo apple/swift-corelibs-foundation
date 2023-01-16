@@ -146,7 +146,7 @@ static Boolean constructFD(_CFFileStreamContext *fileStream, CFStreamError *erro
 #endif
         
         return TRUE;
-    } while (1);
+    } while (0);
     
     __CFBitSet(fileStream->flags, USE_RUNLOOP_ARRAY);
     error->error = errno;

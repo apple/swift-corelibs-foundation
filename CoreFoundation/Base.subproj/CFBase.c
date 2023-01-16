@@ -583,6 +583,8 @@ void *CFAllocatorAllocate(CFAllocatorRef allocator, CFIndex size, CFOptionFlags 
     CFAllocatorAllocateCallBack allocateFunc;
     void *newptr = NULL;
 
+    if (0 == size) return NULL;
+
     if (NULL == allocator) {
 	allocator = __CFGetDefaultAllocator();
     }
@@ -594,7 +596,6 @@ void *CFAllocatorAllocate(CFAllocatorRef allocator, CFIndex size, CFOptionFlags 
 #else
     __CFGenericValidateType(allocator, _kCFRuntimeIDCFAllocator);
 #endif
-    if (0 == size) return NULL;
 #if TARGET_OS_MAC
     if (_CFTypeGetClass(allocator) != __CFISAForCFAllocator()) {	// malloc_zone_t *
 	return malloc_zone_malloc((malloc_zone_t *)allocator, size);

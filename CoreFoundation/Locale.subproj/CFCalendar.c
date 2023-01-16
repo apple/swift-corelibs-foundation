@@ -204,7 +204,7 @@ static void __CFCalendarSetToFirstInstant(CFCalendarRef calendar, CFCalendarUnit
     if (unit == kCFCalendarUnitDay || unit == kCFCalendarUnitWeekday || unit == kCFCalendarUnitWeekdayOrdinal) {
         status = U_ZERO_ERROR;
         int32_t targetDay = __cficu_ucal_get(calendar->_cal, UCAL_DAY_OF_MONTH, &status);
-        int32_t currentDay = targetDay;
+        int32_t currentDay;
         do {
             udate = __cficu_ucal_getMillis(calendar->_cal, &status);
             __cficu_ucal_add(calendar->_cal, UCAL_SECOND, -1, &status);
@@ -1196,23 +1196,29 @@ Boolean _CFCalendarComposeAbsoluteTimeV(CFCalendarRef calendar, /* out */ CFAbso
         __cficu_ucal_set(calendar->_cal, UCAL_MILLISECOND, 0);
         const char *desc = componentDesc;
         Boolean seenMonth = false, seenDay = false, seenWeekOY = false, seenWeekday = false;
-        Boolean seenOldWeek = false, seenYear = false, seenYearWOY = false;
+        Boolean seenOldWeek = false, seenYearWOY = false;
         char ch = *desc;
         while (ch) {
             UCalendarDateFields field = __CFCalendarGetICUFieldCodeFromChar(ch);
-            if (UCAL_YEAR == field) {
-                seenYear = true;
-            } else if (UCAL_YEAR_WOY == field) {
-                seenYearWOY = true;
-            }
-            if (UCAL_WEEK_OF_YEAR == field) {
-                if ('^' == ch) seenOldWeek = true; else seenWeekOY = true;
-            } else if (UCAL_DAY_OF_WEEK == field) {
-                seenWeekday = true;
-            } else if (UCAL_MONTH == field) {
-                seenMonth = true;
-            } else if (UCAL_DAY_OF_MONTH == field) {
-                seenDay = true;
+            switch (field)
+            {
+                case UCAL_YEAR_WOY:
+                    seenYearWOY = true;
+                    break;
+                case UCAL_WEEK_OF_YEAR:
+                    if ('^' == ch) seenOldWeek = true; else seenWeekOY = true;
+                    break;
+                case UCAL_DAY_OF_WEEK:
+                    seenWeekday = true;
+                    break;
+                case UCAL_MONTH:
+                    seenMonth = true;
+                    break;
+                case UCAL_DAY_OF_MONTH:
+                    seenDay = true;
+                    break;
+                default:
+                    break;
             }
             desc++;
             ch = *desc;

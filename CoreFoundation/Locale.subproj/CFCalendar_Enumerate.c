@@ -1002,7 +1002,6 @@ static CFDateRef _Nullable _CFCalendarCreateDateAfterDateMatchingHour(CFCalendar
         if (foundRange) {
             CFRelease(result);
             result = hourBegin;
-            adjustedSearchStartDate = true;
         }
     }
     
@@ -2259,8 +2258,6 @@ CF_CROSS_PLATFORM_EXPORT void _CFCalendarEnumerateDates(CFCalendarRef calendar, 
                 // Returning NULL is fine if we've exhausted our search.
                 if (iterations < STOP_EXHAUSTIVE_SEARCH_AFTER_MAX_ITERATIONS) {
                     continue;
-                } else {
-                    passToBlock = true;
                 }
             }
 

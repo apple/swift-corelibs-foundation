@@ -64,14 +64,15 @@ static CFStringRef __CFAccentuatedStringCreateWithAcceptableAccentChars(CFString
     // For each non-skipped character, add a combining accent after the codepoint
     for (CFIndex i = 0; i < workingStringLength;) { // inner loop increments i
         CFRange const composedCharRange = CFStringGetRangeOfComposedCharactersAtIndex(workingString, i); // range length will always be >=1
+        CFIndex j;
         UniChar c;
         // Enqueue the characters within the composedCharRange
-        for (CFIndex j = 0; j < composedCharRange.length; j++) {
+        for (CFIndex j = composedCharRange.length; j > 0; --j) {
             c = CFStringGetCharacterFromInlineBuffer(&originalStringInlineBuffer, i++);
             // Defend against CFStringGetCharacterFromInlineBuffer edge case listed in documentation
             if (c == 0) assert("UniChar at specified index could not be accessed as it is outside the original range specified when initializing the CFStringInlineBuffer");
             accentedStringBuffer[accentedStringCursor++] = c;
-        }
+        } 
         // Don't sprinkle accents onto composed char sequences and characters belonging to certain ranges
         // The goal here is to _never_ ever accentuate composed char sequences (like emoji)
         if ((composedCharRange.length == 1) && !CFCharacterSetIsCharacterMember(charsToSkip, c)) {

@@ -19,7 +19,7 @@
 CF_EXTERN_C_BEGIN
 
 CF_INLINE bool CFUniCharIsDecomposableCharacter(UTF32Char character, bool isHFSPlusCanonical) {
-    if (isHFSPlusCanonical && !isHFSPlusCanonical) return false;	// hack to get rid of "unused" warning
+    (void)isHFSPlusCanonical; // hack to get rid of "unused" warning
     if (character < 0x80) return false;
     return CFUniCharIsMemberOf(character, kCFUniCharHFSPlusDecomposableCharacterSet);
 }

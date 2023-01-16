@@ -1718,14 +1718,13 @@ CFSocketRef CFSocketCreateWithNative(CFAllocatorRef allocator, CFSocketNativeHan
 void CFSocketInvalidate(CFSocketRef s) {
     CF_ASSERT_TYPE(CFSocketGetTypeID(), s);
     CHECK_FOR_FORK();
-    UInt32 previousSocketManagerIteration;
     __CFGenericValidateType(s, CFSocketGetTypeID());
     __CFSOCKETLOG_WS(s, "flags 0x%x disabled 0x%x connected 0x%x\n", s->_f.client, s->_f.disabled, s->_f.connected);
     CFRetain(s);
     __CFLock(&__CFAllSocketsLock);
     __CFSocketLock(s);
     if (__CFSocketIsValid(s)) {
-        SInt32 idx;
+        CFIndex idx;
         CFRunLoopSourceRef source0;
         void *contextInfo = NULL;
         void (*contextRelease)(const void *info) = NULL;
@@ -1744,7 +1743,6 @@ void CFSocketInvalidate(CFSocketRef s) {
             CFArrayRemoveValueAtIndex(__CFReadSockets, idx);
             __CFSocketClearFDForRead(s);
         }
-        previousSocketManagerIteration = __CFSocketManagerIteration;
         __CFUnlock(&__CFActiveSocketsLock);
         CFDictionaryRemoveValue(__CFAllSockets, (void *)(uintptr_t)(s->_socket));
         if ((s->_f.client & kCFSocketCloseOnInvalidate) != 0) closesocket(s->_socket);
@@ -1950,7 +1948,7 @@ void __CFSocketEnableCallBacks(CFSocketRef s, CFOptionFlags callBackTypes, Boole
             __CFLock(&__CFActiveSocketsLock);
             if (turnOnWrite || turnOnConnect) {
                 if (force) {
-                    SInt32 idx = CFArrayGetFirstIndexOfValue(__CFWriteSockets, CFRangeMake(0, CFArrayGetCount(__CFWriteSockets)), s);
+                    CFIndex idx = CFArrayGetFirstIndexOfValue(__CFWriteSockets, CFRangeMake(0, CFArrayGetCount(__CFWriteSockets)), s);
                     if (kCFNotFound == idx)
                         CFArrayAppendValue(__CFWriteSockets, s);
                     if (kCFNotFound == idx)
@@ -1960,7 +1958,7 @@ void __CFSocketEnableCallBacks(CFSocketRef s, CFOptionFlags callBackTypes, Boole
             }
             if (turnOnRead) {
                 if (force) {
-                    SInt32 idx = CFArrayGetFirstIndexOfValue(__CFReadSockets, CFRangeMake(0, CFArrayGetCount(__CFReadSockets)), s);
+                    CFIndex idx = CFArrayGetFirstIndexOfValue(__CFReadSockets, CFRangeMake(0, CFArrayGetCount(__CFReadSockets)), s);
                     if (kCFNotFound == idx) CFArrayAppendValue(__CFReadSockets, s);
                 }
                 if (__CFSocketSetFDForRead(s)) wakeup = true;
@@ -2004,7 +2002,7 @@ static void __CFSocketSchedule(void *info, CFRunLoopRef rl, CFStringRef mode) {
 
 static void __CFSocketCancel(void *info, CFRunLoopRef rl, CFStringRef mode) {
     CFSocketRef s = (CFSocketRef)info;
-    SInt32 idx;
+    CFIndex idx;
     __CFSocketLock(s);
     s->_socketSetCount--;
     if (0 == s->_socketSetCount) {
@@ -2071,7 +2069,7 @@ static void __CFSocketDoCallback(CFSocketRef s, CFDataRef data, CFDataRef addres
     }
     if (kCFSocketDataCallBack == readCallBackType) {
         if (NULL != data && (!calledOut || CFSocketIsValid(s))) {
-            SInt32 datalen = CFDataGetLength(data);
+            CFIndex datalen = CFDataGetLength(data);
             __CFSOCKETLOG_WS(s, "perform calling out data of length %ld", (long)datalen);
             if (callout) callout(s, kCFSocketDataCallBack, address, data, contextInfo);
             calledOut = true;

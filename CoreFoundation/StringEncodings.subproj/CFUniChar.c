@@ -1134,7 +1134,6 @@ CF_INLINE bool __CFUniCharIsAfter_i(UTF16Char *buffer, CFIndex length) {
     }
 
     decompLength = CFUniCharDecomposeCharacter(currentChar, decomposed, MAX_DECOMPOSED_LENGTH);
-    currentChar = *decomposed;
 
 
     for (idx = 1;idx < decompLength;idx++) {

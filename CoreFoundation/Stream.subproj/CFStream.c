@@ -1712,12 +1712,9 @@ static void* _legacyStreamRunLoop_workThread(void* arg)
     CFRelease(rls);
 
     dispatch_semaphore_signal(*(dispatch_semaphore_t*) arg);
-    arg = NULL;
 
-    while (true) {
+    for (;;) {
         SInt32 why = CFRunLoopRunInMode(kCFRunLoopDefaultMode, 1E30, true);
-
-        (void) why;
 #if defined(LOG_STREAM)
         switch (why) {
             case kCFRunLoopRunFinished:
@@ -1733,6 +1730,8 @@ static void* _legacyStreamRunLoop_workThread(void* arg)
                 fprintf(stderr, "WOKE: kCFRunLoopRunHandledSource\n");
                 break;
         }
+#else
+        (void) why;
 #endif
     }
 

@@ -253,7 +253,7 @@ CFDictionaryRef CFPreferencesCopyMultiple(CFArrayRef keysToFetch, CFStringRef ap
             }
         }
     }
-    return result;
+    return (CFDictionaryRef)result;
 }
 
 void CFPreferencesSetValue(CFStringRef  key, CFTypeRef  value, CFStringRef  appName, CFStringRef  user, CFStringRef  host) {
@@ -315,9 +315,12 @@ Boolean CFPreferencesSynchronize(CFStringRef  appName, CFStringRef  user, CFStri
     CFAssert1(appName != NULL && user != NULL && host != NULL, __kCFLogAssertion, "%s(): Cannot access preferences for a NULL application name, user, or host", __PRETTY_FUNCTION__);
 
     domain = _CFPreferencesStandardDomain(appName, user, host);
-    if(domain) _CFApplicationPreferencesDomainHasChanged(domain);
-    
-    return domain ? _CFPreferencesDomainSynchronize(domain) : false;
+    if (domain) {
+        _CFApplicationPreferencesDomainHasChanged(domain);
+        return _CFPreferencesDomainSynchronize(domain);
+    }
+
+    return false;
 }
 
 CFArrayRef  CFPreferencesCopyApplicationList(CFStringRef  user, CFStringRef  host) {
@@ -335,21 +338,22 @@ CFArrayRef  CFPreferencesCopyKeyList(CFStringRef  appName, CFStringRef  user, CF
     if (!domain) {
         return NULL;
     } else {
-        CFArrayRef  result;
+    CFArrayRef result;
+    CFAllocatorRef alloc;
+    CFIndex count;
+    CFTypeRef *keys;
 
-	CFAllocatorRef alloc = __CFPreferencesAllocator();
-	CFDictionaryRef d = _CFPreferencesDomainDeepCopyDictionary(domain);
-	CFIndex count = d ? CFDictionaryGetCount(d) : 0;
-	CFTypeRef *keys = (CFTypeRef *)CFAllocatorAllocate(alloc, count * sizeof(CFTypeRef), 0);
-	if (d) CFDictionaryGetKeysAndValues(d, keys, NULL);
-        if (count == 0) {
-            result = NULL;
-        } else {
-            result = CFArrayCreate(alloc, keys, count, &kCFTypeArrayCallBacks);
-        }
+    CFDictionaryRef d = _CFPreferencesDomainDeepCopyDictionary(domain);
+    if (!d) return NULL;
+
+    alloc = __CFPreferencesAllocator();
+	count = CFDictionaryGetCount(d);
+	keys = (CFTypeRef *)CFAllocatorAllocate(alloc, count * sizeof(CFTypeRef), 0);
+	CFDictionaryGetKeysAndValues(d, keys, NULL);
+    result = CFArrayCreate(alloc, keys, count, &kCFTypeArrayCallBacks);
 	CFAllocatorDeallocate(alloc, keys);
-	if (d) CFRelease(d);
-        return result;
+    CFRelease(d);
+    return result;
     }
 }
 
@@ -718,12 +722,13 @@ Boolean _CFPreferencesDomainExists(CFStringRef domainName, CFStringRef userName,
     CFPreferencesDomainRef domain;
     domain = _CFPreferencesStandardDomain(domainName, userName, hostName);
     if (domain) {
-		CFDictionaryRef d = _CFPreferencesDomainDeepCopyDictionary(domain);
-		if (d) CFRelease(d);
-		return d != NULL;
-    } else {
-        return false;
+        CFDictionaryRef d = _CFPreferencesDomainDeepCopyDictionary(domain);
+        if (d) {
+            CFRelease(d);
+            return true;
+        }
     }
+    return false;
 }
 
 /* Volatile domains - context is ignored; domain is a CFDictionary (mutable) */

@@ -156,7 +156,7 @@ CF_INLINE int __CFCompareUUIDBytes(const void * const lhs, const void * const rh
     memcpy(rhsCharBytes, rhs, sizeof(rhsCharBytes));
     
     int result = 0, diff;
-    for (int i = sizeof(lhsCharBytes) - 1; i >= 0; i--) {
+    for (size_t i = 0; i < sizeof(lhsCharBytes); i++) {
         diff = lhsCharBytes[i] - rhsCharBytes[i];
         // Constant time, no branching equivalent of
         // if (diff != 0) {

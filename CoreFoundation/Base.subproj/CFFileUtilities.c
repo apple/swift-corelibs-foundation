@@ -352,7 +352,7 @@ CF_PRIVATE CFMutableArrayRef _CFCreateContentsOfDirectory(CFAllocatorRef alloc, 
         if (extBuffStr[0] == '.')
             extBuffStr++; //skip the first dot, it's legitimate to have ".plist" for example
         
-        char *extBuffDotPtr = extBuffStr;
+        char *extBuffDotPtr;
         while ((extBuffDotPtr = strchr(extBuffStr, '.'))) { //find the next . in the extension...
             extBuffInteriorDotCount++;
             extBuffStr = extBuffDotPtr + 1;
@@ -1320,7 +1320,6 @@ CF_CROSS_PLATFORM_EXPORT
 CFStringRef _CFXDGCreateCacheDirectoryPath(void) {
     //$XDG_CACHE_HOME defines the base directory relative to which user specific non-essential data files should be stored. If $XDG_CACHE_HOME is either not set or empty, a default equal to $HOME/.cache should be used.
     const char *cacheHome = __CFgetenv("XDG_CACHE_HOME");
-    const char *path = __CFgetenv("PATH");
     if (cacheHome && strnlen(cacheHome, CFMaxPathSize) > 1 && cacheHome[0] == '/') {
         return CFStringCreateWithCString(kCFAllocatorSystemDefault, cacheHome, _kCFXDGStringEncoding);
     } else {

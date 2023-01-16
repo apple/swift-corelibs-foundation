@@ -338,12 +338,10 @@ CFMachPortRef _CFMachPortCreateWithPort2(CFAllocatorRef allocator, mach_port_t p
 	    }
         }
     }
-    
-    if (mp && !CFMachPortIsValid(mp)) { // must do this outside lock to avoid deadlock
-        CFRelease(mp); // NOTE: we release the extra +1 introduced in this function (or birth) so that the only potential refcount left for this frame is from the set of all ports.
-        mp = NULL;
-    }
-    return mp;
+
+    if (CFMachPortIsValid(mp)) return mp; // must do this outside lock to avoid deadlock. mp is always nonnull when we get here
+    CFRelease(mp); // NOTE: we release the extra +1 introduced in this function (or birth) so that the only potential refcount left for this frame is from the set of all ports.
+    return NULL;
 }
 
 CFMachPortRef CFMachPortCreateWithPort(CFAllocatorRef allocator, mach_port_t port, CFMachPortCallBack callout, CFMachPortContext *context, Boolean *shouldFreeInfo) {

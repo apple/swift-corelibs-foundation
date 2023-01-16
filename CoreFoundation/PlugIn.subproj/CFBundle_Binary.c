@@ -162,8 +162,9 @@ static CFStringRef _CFBundleDYLDCopyLoadedImagePathForPointer(void *p) {
 #if USE_DYLD_PRIV
     const char *name = dyld_image_path_containing_address(p);
     if (name) result = CFStringCreateWithFileSystemRepresentation(kCFAllocatorSystemDefault, name);
+    if (!result)
 #else /* USE_DYLD_PRIV */
-    if (!result) {
+    {
         uint32_t i, j, n = _dyld_image_count();
         Boolean foundIt = false;
         const char *name;
@@ -766,13 +767,14 @@ CF_CROSS_PLATFORM_EXPORT CFStringRef _CFBundleCopyLoadedImagePathForAddress(cons
 }
 
 CF_PRIVATE CFStringRef _CFBundleCopyLoadedImagePathForPointer(void *p) {
-    CFStringRef imagePath = NULL;
 #if defined(BINARY_SUPPORT_DYLD)
-    if (!imagePath) imagePath = _CFBundleDYLDCopyLoadedImagePathForPointer(p);
+    return _CFBundleDYLDCopyLoadedImagePathForPointer(p);
 #elif defined(BINARY_SUPPORT_DLFCN)
-    if (!imagePath) imagePath = _CFBundleDlfcnCopyLoadedImagePathForPointer(p);
+    return _CFBundleDlfcnCopyLoadedImagePathForPointer(p);
+#else
+    (void)p;
+    return NULL;
 #endif /* BINARY_SUPPORT_DYLD */
-    return imagePath;
 }
 
 void *CFBundleGetFunctionPointerForName(CFBundleRef bundle, CFStringRef funcName) {

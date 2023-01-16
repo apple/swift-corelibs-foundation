@@ -68,8 +68,7 @@ CF_INLINE void _cfmp_mod_refs(mach_port_t const port, const Boolean doSend, cons
 CF_BREAKPOINT_FUNCTION(void _CFMachPortDeallocationFailure(void));
 static void _cfmp_log_failure(char const *const msg, _cfmp_deallocation_record *const pr, _CFMPLifetimeClient const client, mach_port_t const port) {
     if (pr) {
-        _cfmp_deallocation_record const R = *pr;
-        os_log_error(OS_LOG_DEFAULT, "*** %{public}s break on '_CFMachPortDeallocationFailure' to debug: {p:%{private}d c:%d is:%d <i:%d,d:%d> s:%d,r:%d nsi:%d,nss:%d,nsr:%d - ic:%d,ip:%d}", msg, R.port, R.client, R.inSet, R.invalidated, R.deallocated, R.doSend, R.doReceive, R.nsportIsInterested, R.nsportDoSend, R.nsportDoReceive, client, port);
+        os_log_error(OS_LOG_DEFAULT, "*** %{public}s break on '_CFMachPortDeallocationFailure' to debug: {p:%{private}d c:%d is:%d <i:%d,d:%d> s:%d,r:%d nsi:%d,nss:%d,nsr:%d - ic:%d,ip:%d}", msg, pr->port, pr->client, pr->inSet, pr->invalidated, pr->deallocated, pr->doSend, pr->doReceive, pr->nsportIsInterested, pr->nsportDoSend, pr->nsportDoReceive, client, port);
     } else {
         os_log_error(OS_LOG_DEFAULT, "*** %{public}s break on '_CFMachPortDeallocationFailure' to debug: {null - ic:%d,ip:%d}", msg, client, port);
     }

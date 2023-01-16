@@ -1913,7 +1913,7 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
         /// A custom deallocator.
         case custom((UnsafeMutableRawPointer, Int) -> Void)
         
-        @usableFromInline internal var _deallocator : ((UnsafeMutableRawPointer, Int) -> Void) {
+        @usableFromInline internal var _deallocator : (UnsafeMutableRawPointer, Int) -> Void {
 #if DEPLOYMENT_RUNTIME_SWIFT
             switch self {
             case .unmap:

@@ -583,7 +583,7 @@ Boolean __CFStringDecodeByteStream3(const uint8_t *bytes, CFIndex len, CFStringE
                 break;
             }
         }
-        result = ((mode == __NSNonLossyASCIIMode) ? YES : NO);
+        result = mode == __NSNonLossyASCIIMode;
     } else {
         const CFStringEncodingConverter *converter = CFStringEncodingGetConverter(encoding);
         

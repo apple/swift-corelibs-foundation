@@ -1833,7 +1833,7 @@ CFStringRef CFLocaleCreateCanonicalLanguageIdentifierFromString(CFAllocatorRef a
             			;
             		expectedLength = 4;
             	}
-            	*regionTag = (inLocalePtr - regionTag == expectedLength)? '-': 0;
+            	*regionTag = (inLocalePtr - regionTag == expectedLength)? '-': '\0';
              }
              // anything else at/after '_' just gets deleted
             *inLocalePtr = 0;

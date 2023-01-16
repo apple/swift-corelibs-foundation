@@ -118,18 +118,14 @@ CF_PRIVATE void _CFBundleSplitFileName(CFStringRef fileName, CFStringRef *noProd
         CFIndex start, length = 0;
 
         // Because the platform always comes first and is immediately followed by product if it exists, we'll use the platform start location as the start of our range to delete.
+        start = (foundPlatform ? platformRange : productRange).location;
+
         if (foundPlatform) {
-            start = platformRange.location;
-        } else {
-            start = productRange.location;
+            length += platformRange.length;
         }
 
-        if (foundPlatform && foundProduct) {
-            length = platformRange.length + productRange.length;
-        } else if (foundPlatform) {
-            length = platformRange.length;
-        } else if (foundProduct) {
-            length = productRange.length;
+        if (foundProduct) {
+            length += productRange.length;
         }
         CFStringDelete(fileNameScratch, CFRangeMake(start, length));
         *noProductOrPlatform = (CFStringRef)fileNameScratch;

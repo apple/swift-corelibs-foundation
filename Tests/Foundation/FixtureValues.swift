@@ -429,7 +429,7 @@ struct AnyFixture: Fixture {
     
     init<T: Fixture>(_ fixture: T) {
         self.identifier = fixture.identifier
-        self.creationHandler = { return try fixture.make() as! (NSObject & NSCoding) }
+        self.creationHandler = { return try fixture.make() as! NSObject & NSCoding }
         self.supportsSecureCoding = fixture.supportsSecureCoding
     }
     

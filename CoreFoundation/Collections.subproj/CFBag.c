@@ -130,7 +130,6 @@ CFBagRef CFBagCreateCopy(CFAllocatorRef allocator, CFBagRef other) {
     CFTypeID typeID = CFBagGetTypeID();
     CFAssert1(other, __kCFLogAssertion, "%s(): other CFBag cannot be NULL", __PRETTY_FUNCTION__);
     __CFGenericValidateType(other, typeID);
-    Boolean markImmutable = false;
     CFBasicHashRef ht = NULL;
     if (CF_IS_OBJC(typeID, other)) {
         CFIndex numValues = CFBagGetCount(other);
@@ -145,17 +144,13 @@ CFBagRef CFBagCreateCopy(CFAllocatorRef allocator, CFBagRef other) {
             CFBasicHashAddValue(ht, (uintptr_t)klist[idx], (uintptr_t)vlist[idx]);
         }
         if (!useStack) CFAllocatorDeallocate(kCFAllocatorSystemDefault, vlist);
-        markImmutable = true;
     } else { // non-objc types
         ht = CFBasicHashCreateCopy(allocator, (CFBasicHashRef)other);
-        markImmutable = true;
     }
-    if (ht && markImmutable) {
-        CFBasicHashMakeImmutable(ht);
-        _CFRuntimeSetInstanceTypeIDAndIsa(ht, typeID);
-        if (__CFOASafe) __CFSetLastAllocationEventName(ht, "CFBag (immutable)");
-        return (CFBagRef)ht;
-    }
+    if (!ht) return NULL;
+    CFBasicHashMakeImmutable(ht);
+    _CFRuntimeSetInstanceTypeIDAndIsa(ht, typeID);
+    if (__CFOASafe) __CFSetLastAllocationEventName(ht, "CFBag (immutable)");
     return (CFBagRef)ht;
 }
 
@@ -237,7 +232,7 @@ void CFBagApplyFunction(CFBagRef hc, CFBagApplierFunction applier, void *context
     FAULT_CALLBACK((void **)&(applier));
     __CFGenericValidateType(hc, CFBagGetTypeID());
     CFBasicHashApply((CFBasicHashRef)hc, ^(CFBasicHashBucket bkt) {
-        for (CFIndex cnt = bkt.count; cnt--;) {
+        for (CFIndex cnt = bkt.count; cnt > 0; cnt--) {
             INVOKE_CALLBACK2(applier, (const void *)bkt.weak_value, context);
         }
         return (Boolean)true;

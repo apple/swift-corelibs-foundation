@@ -739,7 +739,6 @@ static CFDictionaryRef _createQueryTableAtPath(CFStringRef inPath, CFArrayRef la
     CFMutableDictionaryRef addedTypes = CFDictionaryCreateMutable(kCFAllocatorSystemDefault, 0, &kCFCopyStringDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
     
     Boolean hasFileAdded = false;
-    Boolean firstLproj = true;
     
     // First, search lproj for user's chosen language
     if (numLprojs >= 1) {
@@ -751,14 +750,13 @@ static CFDictionaryRef _createQueryTableAtPath(CFStringRef inPath, CFArrayRef la
         if (subdirectory) {
             _CFAppendPathComponent2(path, subdirectory);
         }
-        _CFBundleReadDirectory(path, subdirectory, allFiles, hasFileAdded, queryTable, typeDir, addedTypes, firstLproj, lprojTargetWithLproj);
+        _CFBundleReadDirectory(path, subdirectory, allFiles, hasFileAdded, queryTable, typeDir, addedTypes, true, lprojTargetWithLproj);
         CFRelease(lprojTargetWithLproj);
         CFStringDelete(path, CFRangeMake(basePathLen, CFStringGetLength(path) - basePathLen));         // Strip the string back to the base path
         
         if (!hasFileAdded && numOfAllFiles < CFArrayGetCount(allFiles)) {
             hasFileAdded = true;
         }
-        firstLproj = false;
     }
     
     // Next, search Base.lproj folder

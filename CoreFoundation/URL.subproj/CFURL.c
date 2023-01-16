@@ -2132,7 +2132,6 @@ static CFURLRef _CFURLCreateWithFileSystemPath(CFAllocatorRef allocator, CFStrin
     
     struct __CFURL *result = NULL;
     CFStringRef urlString = NULL;
-    Boolean isAbsolute;
     Boolean isFileReferencePath = false;
     Boolean posixAndUrlPathsMatch = false;
     Boolean releaseBaseURL = false;
@@ -2143,9 +2142,12 @@ static CFURLRef _CFURLCreateWithFileSystemPath(CFAllocatorRef allocator, CFStrin
         // Then, convert the fileSystemPath to a urlString. The urlString returned will have a pathDelim at the end if isDirectory
         // was true and no pathDelim if isDirectory was false (unless the urlPath is "/").
         // If isAbsolute, "file://" will be prepended to the urlString.
+        Boolean isAbsolute = false;
         switch (pathStyle) {
             case kCFURLPOSIXPathStyle:
-                isAbsolute = (len > 0 && CFStringGetCharacterAtIndex(fileSystemPath, 0) == '/');
+                if (len > 0 && CFStringGetCharacterAtIndex(fileSystemPath, 0) == '/') {
+                    isAbsolute = true;
+                }
                 isFileReferencePath = _pathHasFileIDPrefix(fileSystemPath);
                 urlString = POSIXPathToURLPath(fileSystemPath, allocator, isDirectory, isAbsolute, &posixAndUrlPathsMatch);
                 break;
@@ -2175,7 +2177,7 @@ static CFURLRef _CFURLCreateWithFileSystemPath(CFAllocatorRef allocator, CFStrin
                     urlString = POSIXPathToURLPath(fileSystemPath, allocator, isDirectory, isAbsolute, &posixAndUrlPathsMatch);
                 }
                 else {
-                    isAbsolute = false;
+                    // Not absolute
                     urlString = WindowsPathToURLPath(fileSystemPath, allocator, isDirectory, isAbsolute);
                 }
             }

@@ -53,7 +53,6 @@ static inline _Bool _resizeConditionalAllocationBuffer(_ConditionalAllocationBuf
         newMemory = realloc(buffer->memory, amount);
         if (newMemory == NULL) { return false; }
     }
-    if (newMemory == NULL) { return false; }
     buffer->memory = newMemory;
     buffer->capacity = amount;
     return true;

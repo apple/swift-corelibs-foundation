@@ -75,71 +75,74 @@ static void _CFBundleInitializeMainBundleInfoDictionaryAlreadyLocked(CFStringRef
 }
 
 static CFBundleRef _CFBundleGetMainBundleAlreadyLocked(void) {
-    if (!_initedMainBundle) {
-        const char *processPath;
-        CFStringRef str = NULL;
-        CFURLRef executableURL = NULL, bundleURL = NULL;
-        _initedMainBundle = true;
-        processPath = _CFProcessPath();
-        if (processPath) {
-            str = CFStringCreateWithFileSystemRepresentation(kCFAllocatorSystemDefault, processPath);
-            if (!executableURL) executableURL = CFURLCreateWithFileSystemPath(kCFAllocatorSystemDefault, str, PLATFORM_PATH_STYLE, false);
-        }
-        if (executableURL) bundleURL = _CFBundleCopyBundleURLForExecutableURL(executableURL);
-        if (bundleURL) {
-            // make sure that main bundle has executable path
-            //??? what if we are not the main executable in the bundle?
-            // NB doFinalProcessing must be false here, see below
-            _mainBundle = _CFBundleCreateMain(kCFAllocatorSystemDefault, bundleURL);
-            if (_mainBundle) {
-                // make sure that the main bundle is listed as loaded, and mark it as executable
-                _mainBundle->_isLoaded = true;
+    const char *processPath;
+    CFStringRef str = NULL;
+    CFURLRef executableURL = NULL, bundleURL = NULL;
+
+    if (_initedMainBundle) {
+        return _mainBundle;
+    }
+
+    _initedMainBundle = true;
+    processPath = _CFProcessPath();
+    if (processPath) {
+        str = CFStringCreateWithFileSystemRepresentation(kCFAllocatorSystemDefault, processPath);
+        if (str) {
+            executableURL = CFURLCreateWithFileSystemPath(kCFAllocatorSystemDefault, str, PLATFORM_PATH_STYLE, false);
+            if (executableURL) {
+                bundleURL = _CFBundleCopyBundleURLForExecutableURL(executableURL);
+                if (bundleURL) {
+                    // make sure that main bundle has executable path
+                    //??? what if we are not the main executable in the bundle?
+                    // NB doFinalProcessing must be false here, see below
+                    _mainBundle = _CFBundleCreateMain(kCFAllocatorSystemDefault, bundleURL);
+                    if (_mainBundle) {
+                        // make sure that the main bundle is listed as loaded, and mark it as executable
+                        _mainBundle->_isLoaded = true;
 #if defined(BINARY_SUPPORT_DYLD)
-                if (_mainBundle->_binaryType == __CFBundleUnknownBinary) {
-                    if (!executableURL) {
-                        _mainBundle->_binaryType = __CFBundleNoBinary;
-                    } else {
-                        _mainBundle->_binaryType = _CFBundleGrokBinaryType(executableURL);
-                        if (_mainBundle->_binaryType != __CFBundleCFMBinary && _mainBundle->_binaryType != __CFBundleUnreadableBinary) _mainBundle->_resourceData._executableLacksResourceFork = true;
-                    }
-                }
-#endif /* BINARY_SUPPORT_DYLD */
-                // get cookie for already-loaded main bundle
+                        if (_mainBundle->_binaryType == __CFBundleUnknownBinary) {
+                            _mainBundle->_binaryType = _CFBundleGrokBinaryType(executableURL);
+                            if (_mainBundle->_binaryType != __CFBundleCFMBinary && _mainBundle->_binaryType != __CFBundleUnreadableBinary)
+                                _mainBundle->_resourceData._executableLacksResourceFork = true;
+                        }
+#endif                  /* BINARY_SUPPORT_DYLD */
+                        // get cookie for already-loaded main bundle
 #if defined(BINARY_SUPPORT_DLFCN)
-                if (!_mainBundle->_handleCookie) {
+                        if (!_mainBundle->_handleCookie) {
 #if TARGET_OS_MAC
-                    _mainBundle->_handleCookie = RTLD_MAIN_ONLY;
+                            _mainBundle->_handleCookie = RTLD_MAIN_ONLY;
 #else
-                    _mainBundle->_handleCookie = dlopen(NULL, 0);
+                            _mainBundle->_handleCookie = dlopen(NULL, 0);
 #endif
 #if LOG_BUNDLE_LOAD
-                    printf("main bundle %p getting handle %p\n", _mainBundle, _mainBundle->_handleCookie);
+                            printf("main bundle %p getting handle %p\n", _mainBundle, _mainBundle->_handleCookie);
 #endif /* LOG_BUNDLE_LOAD */
-                }
+                        }
 #elif defined(BINARY_SUPPORT_DYLD)
-                if (_mainBundle->_binaryType == __CFBundleDYLDExecutableBinary && !_mainBundle->_imageCookie) {
-                    _mainBundle->_imageCookie = (void *)_dyld_get_image_header(0);
+                        if (_mainBundle->_binaryType == __CFBundleDYLDExecutableBinary && !_mainBundle->_imageCookie) {
+                            _mainBundle->_imageCookie = (void *)_dyld_get_image_header(0);
 #if LOG_BUNDLE_LOAD
-                    printf("main bundle %p getting image %p\n", _mainBundle, _mainBundle->_imageCookie);
+                            printf("main bundle %p getting image %p\n", _mainBundle, _mainBundle->_imageCookie);
 #endif /* LOG_BUNDLE_LOAD */
-                }
+                        }
 #endif /* BINARY_SUPPORT_DLFCN */
-                _CFBundleInitializeMainBundleInfoDictionaryAlreadyLocked(str);
-                // Perform delayed final processing steps.
-                // This must be done after _isLoaded has been set, for security reasons (3624341).
-                // It is safe to unlock and re-lock here because we don't really do anything under the lock after we are done. It is just re-locked to satisfy the 'already locked' contract.
-                _CFMutexUnlock(&_mainBundleLock);
-                CFDictionaryRef infoDict = CFBundleGetInfoDictionary(_mainBundle);
-                // CFBundleInitPlugIn will return false if the factory ID already exists. For the main bundle, if that happens, we just continue on since we cannot just return NULL.
-                _CFBundleInitPlugIn(_mainBundle, infoDict, NULL);
-                _CFPlugInHandleDynamicRegistration(_mainBundle);
-                _CFMutexLock(&_mainBundleLock);
+                        _CFBundleInitializeMainBundleInfoDictionaryAlreadyLocked(str);
+                        // Perform delayed final processing steps.
+                        // This must be done after _isLoaded has been set, for security reasons (3624341).
+                        // It is safe to unlock and re-lock here because we don't really do anything under the lock after we are done. It is just re-locked to satisfy the 'already locked' contract.
+                        _CFMutexUnlock(&_mainBundleLock);
+                        CFDictionaryRef infoDict = CFBundleGetInfoDictionary(_mainBundle);
+                        // CFBundleInitPlugIn will return false if the factory ID already exists. For the main bundle, if that happens, we just continue on since we cannot just return NULL.
+                        _CFBundleInitPlugIn(_mainBundle, infoDict, NULL);
+                        _CFPlugInHandleDynamicRegistration(_mainBundle);
+                        _CFMutexLock(&_mainBundleLock);
+                    }
+                    CFRelease(bundleURL);
+                }
+                CFRelease(executableURL);
             }
+            CFRelease(str);
         }
-        if (bundleURL) CFRelease(bundleURL);
-        if (str) CFRelease(str);
-        if (executableURL) CFRelease(executableURL);
-        
     }
     return _mainBundle;
 }

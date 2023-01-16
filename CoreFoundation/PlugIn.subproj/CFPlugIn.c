@@ -953,7 +953,7 @@ CF_EXPORT CFPlugInInstanceRef CFPlugInInstanceCreateWithInstanceDataSize(CFAlloc
 }
 
 CF_EXPORT Boolean CFPlugInInstanceGetInterfaceFunctionTable(CFPlugInInstanceRef instance, CFStringRef interfaceName, void **ftbl) {
-    void *myFtbl;
+    void *myFtbl = NULL;
     Boolean result = false;
     
     if (instance->getInterfaceFunction) {

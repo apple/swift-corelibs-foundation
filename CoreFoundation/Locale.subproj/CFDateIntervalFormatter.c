@@ -50,8 +50,8 @@ struct __CFDateIntervalFormatter {
     CFLocaleRef _locale;
     CFCalendarRef _calendar;
     CFTimeZoneRef _timeZone;
-    CFStringRef _dateTemplateFromStyles;
     CFStringRef _dateTemplate;
+    CFStringRef _dateTemplateFromStyles;
     void *_formatter;
     CFDateIntervalFormatterStyle _dateStyle;
     CFDateIntervalFormatterStyle _timeStyle;
@@ -439,7 +439,6 @@ CFStringRef CFDateIntervalFormatterCopyDateTemplate(CFDateIntervalFormatterRef f
         }
     }
     UNLOCK();
-    
     return dateTemplate;
 }
 

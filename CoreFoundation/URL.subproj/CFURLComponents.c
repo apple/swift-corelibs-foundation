@@ -1307,7 +1307,6 @@ static CFArrayRef _CFURLComponentsCopyQueryItemsInternal(CFURLComponentsRef comp
                         CFStringRef temp = _CFStringCreateByRemovingPercentEncoding(kCFAllocatorSystemDefault, valueString);
                         CFRelease(valueString);
                         valueString = temp;
-                        sawPercent = false;
                     }
                 }
                 else {
@@ -1339,7 +1338,6 @@ static CFArrayRef _CFURLComponentsCopyQueryItemsInternal(CFURLComponentsRef comp
                             // the percent-decoded string had invalid UTF8 bytes - return an empty name string
                             nameString = CFRetain(CFSTR(""));
                         }
-                        sawPercent = false;
                     }
                 }
                 else {

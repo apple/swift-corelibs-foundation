@@ -405,11 +405,7 @@ static void *__CFStrAllocateMutableContents(CFMutableStringRef str, CFIndex size
 
 static void __CFStrDeallocateMutableContents(CFMutableStringRef str, void *buffer) {
     CFAllocatorRef alloc = (__CFStrHasContentsAllocator(str)) ? __CFStrContentsAllocator(str) : __CFGetAllocator(str);
-    if (__CFStrIsMutable(str) && __CFStrHasContentsAllocator(str) && (0)) {
-        // do nothing
-    } else {
-        CFAllocatorDeallocate(alloc, buffer);
-    }
+    CFAllocatorDeallocate(alloc, buffer);
 }
 
 
@@ -1495,7 +1491,7 @@ CF_PRIVATE CFStringRef __CFStringCreateImmutableFunnel3(
 
         if (! romResult) {
 #else
-        if (1) {
+        {
 #endif
             
 #if INSTRUMENT_SHARED_STRINGS
@@ -3269,7 +3265,7 @@ Boolean CFStringFindWithOptionsAndLocale(CFStringRef string, CFStringRef stringT
             const uint8_t *graphemeBMP = CFUniCharGetBitmapPtrForPlane(kCFUniCharGraphemeExtendCharacterSet, 0);
             const uint8_t *combClassBMP = (const uint8_t *)CFUniCharGetUnicodePropertyDataForPlane(kCFUniCharCombiningProperty, 0);
 
-            while (1) {
+            for (;;) {
                 str1Index = fromLoc;
                 str2Index = 0;
                 lastStr2FoldIndex = lastStr2FoldUsed = lastStr2FoldLength = preventStr2FoldingUntil = 0;

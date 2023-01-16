@@ -1142,12 +1142,12 @@ _CFXMLDTDNodePtr _CFXMLParseDTDNode(const unsigned char* xmlString) {
         return NULL;
     }
     
-    xmlNodePtr node = dtd->children;
+    void *node = dtd->children;
     if (node != NULL) {
-        xmlUnlinkNode(node);
+        xmlUnlinkNode((xmlNodePtr)node);
     } else if (dtd->notations) {
-        node = (xmlNodePtr)calloc(1, sizeof(_cfxmlNotation));
-        xmlHashScan((xmlNotationTablePtr)dtd->notations, &_CFXMLNotationScanner, (void*)node);
+        node = calloc(1, sizeof(_cfxmlNotation));
+        xmlHashScan((xmlNotationTablePtr)dtd->notations, &_CFXMLNotationScanner, node);
     }
 
     return node;
@@ -1482,10 +1482,16 @@ void _CFXMLAddNamespace(_CFXMLNodePtr node, _CFXMLNodePtr nsNode) {
 }
 
 void _CFXMLRemoveNamespace(_CFXMLNodePtr node, const char* prefix) {
+
     xmlNodePtr nodePtr = (xmlNodePtr)node;
     xmlNsPtr ns = nodePtr->nsDef;
+
+    if (ns == NULL) {
+        return;
+    }
+
     const xmlChar* prefixForLibxml2 = _getNamespacePrefix(prefix);
-    if (ns != NULL && _compareNamespacePrefix(prefixForLibxml2, ns->prefix) == 0) {
+    if (_compareNamespacePrefix(prefixForLibxml2, ns->prefix) == 0) {
         nodePtr->nsDef = ns->next;
         xmlFreeNs(ns);
         return;

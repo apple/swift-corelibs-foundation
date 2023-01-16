@@ -139,10 +139,9 @@ static void freeXMLDomain(CFAllocatorRef allocator, CFTypeRef context, void *tDo
 // Assumes the domain has already been locked
 static void _loadXMLDomainIfStale(CFURLRef url, _CFXMLPreferencesDomain *domain) {
     CFAllocatorRef alloc = __CFPreferencesAllocator();
-    int idx;
     if (domain->_domainDict) {
         CFDateRef modDate;
-        CFAbsoluteTime modTime;
+
     	CFURLRef testURL = url;
 
         if (CFDictionaryGetCount(domain->_domainDict) == 0) {
@@ -151,14 +150,16 @@ static void _loadXMLDomainIfStale(CFURLRef url, _CFXMLPreferencesDomain *domain)
         }
 
         modDate = (CFDateRef )CFURLCreatePropertyFromResource(alloc, testURL, kCFURLFileLastModificationTime, NULL);
-        modTime = modDate ? CFDateGetAbsoluteTime(modDate) : 0.0;
 
         // free before possible return. we can test non-NULL of modDate but don't depend on contents after this.
         if (testURL != url) CFRelease(testURL);
-        if (modDate) CFRelease(modDate);
-        
-        if (modDate != NULL && modTime < domain->_lastReadTime) {            // We're up-to-date
-            return;
+        if (modDate) {
+            CFAbsoluteTime modTime = CFDateGetAbsoluteTime(modDate);
+            CFRelease(modDate);
+            if (testURL != url) CFRelease(testURL); // free before possible return.
+            if (modTime < domain->_lastReadTime) {            // We're up-to-date
+                return;
+            }
         }
     }
 
@@ -171,7 +172,7 @@ static void _loadXMLDomainIfStale(CFURLRef url, _CFXMLPreferencesDomain *domain)
 
     // We no longer lock on read; instead, we assume parse failures are because someone else is writing the file, and just try to parse again.  If we fail 3 times in a row, we assume the file is corrupted.  REW, 7/13/99
 
-    for (idx = 0; idx < 3; idx ++) {
+    for (unsigned idx = 3; idx; idx --) {
         CFDataRef data;
         if (!CFURLCreateDataAndPropertiesFromResource(alloc, url, &data, NULL, NULL, NULL) || !data) {
             // Either a file system error (so we can't read the file), or an empty (or perhaps non-existent) file
@@ -331,7 +332,7 @@ static Boolean _writeXMLFile(CFURLRef url, CFMutableDictionaryRef dict, Boolean 
                         CFRelease(data);
                         return true;
                     }
-                    if (!atomicWriteSuccess && thread_errno() == ENOSPC) {
+                    if (thread_errno() == ENOSPC) {
                         CFRelease(scheme);
                         *tryAgain = false;
                         CFRelease(data);
