@@ -177,28 +177,31 @@ open class JSONSerialization : NSObject {
     open class func data(withJSONObject value: Any, options opt: WritingOptions = []) throws -> Data {
         return try _data(withJSONObject: value, options: opt, stream: false)
     }
+
+    internal static func createParser(with data: Data) throws -> JSONParser {
+        let (encoding, advanceBy) = JSONSerialization.detectEncoding(data)
+
+        if encoding == .utf8 {
+            // we got utf8... happy path
+            let parser = JSONParser(bytes: data[advanceBy...])
+            return parser
+        }
+
+        guard let utf8String = String(bytes: data[advanceBy...], encoding: encoding) else {
+            throw JSONError.cannotConvertInputDataToUTF8
+        }
+
+        let parser = JSONParser(bytes: Data(utf8String.utf8))
+        return parser
+    }
     
     /* Create a Foundation object from JSON data. Set the NSJSONReadingAllowFragments option if the parser should allow top-level objects that are not an NSArray or NSDictionary. Setting the NSJSONReadingMutableContainers option will make the parser generate mutable NSArrays and NSDictionaries. Setting the NSJSONReadingMutableLeaves option will make the parser generate mutable NSString objects. If an error occurs during the parse, then the error parameter will be set and the result will be nil.
        The data must be in one of the 5 supported encodings listed in the JSON specification: UTF-8, UTF-16LE, UTF-16BE, UTF-32LE, UTF-32BE. The data may or may not have a BOM. The most efficient encoding to use for parsing is UTF-8, so if you have a choice in encoding the data passed to this method, use UTF-8.
      */
     open class func jsonObject(with data: Data, options opt: ReadingOptions = []) throws -> Any {
         do {
-            let jsonValue = try data.withUnsafeBytes { (ptr) -> JSONValue in
-                let (encoding, advanceBy) = JSONSerialization.detectEncoding(ptr)
-                
-                if encoding == .utf8 {
-                    // we got utf8... happy path
-                    var parser = JSONParser(bytes: Array(ptr[advanceBy..<ptr.count]))
-                    return try parser.parse()
-                }
-                
-                guard let utf8String = String(bytes: ptr[advanceBy..<ptr.count], encoding: encoding) else {
-                    throw JSONError.cannotConvertInputDataToUTF8
-                }
-                
-                var parser = JSONParser(bytes: Array(utf8String.utf8))
-                return try parser.parse()
-            }
+            var jsonParser = try JSONSerialization.createParser(with: data)
+            let jsonValue = try jsonParser.parse()
             
             if jsonValue.isValue, !opt.contains(.fragmentsAllowed) {
                 throw JSONError.singleFragmentFoundButNotAllowed
@@ -306,7 +309,7 @@ open class JSONSerialization : NSObject {
 
 private extension JSONSerialization {
     /// Detect the encoding format of the NSData contents
-    static func detectEncoding(_ bytes: UnsafeRawBufferPointer) -> (String.Encoding, Int) {
+    static func detectEncoding(_ bytes: Data) -> (String.Encoding, Int) {
         // According to RFC8259, the text encoding in JSON must be UTF8 in nonclosed systems
         // https://tools.ietf.org/html/rfc8259#section-8.1
         // However, since Darwin Foundation supports utf16 and utf32, so should Swift Foundation.
@@ -334,7 +337,7 @@ private extension JSONSerialization {
         // If there is no BOM present, we might be able to determine the encoding based on
         // occurences of null bytes.
         if bytes.count >= 4 {
-            switch (bytes[0], bytes[1], bytes[2], bytes[3]) {
+            switch (bytes[bytes.startIndex], bytes[bytes.startIndex + 1], bytes[bytes.startIndex + 2], bytes[bytes.startIndex + 3]) {
             case (0, 0, 0, _):
                 return (.utf32BigEndian, 0)
             case (_, 0, 0, 0):
@@ -348,7 +351,7 @@ private extension JSONSerialization {
             }
         }
         else if bytes.count >= 2 {
-            switch (bytes[0], bytes[1]) {
+            switch (bytes[bytes.startIndex], bytes[bytes.startIndex + 1]) {
             case (0, _):
                 return (.utf16BigEndian, 0)
             case (_, 0):
@@ -360,7 +363,7 @@ private extension JSONSerialization {
         return (.utf8, 0)
     }
     
-    static func parseBOM(_ bytes: UnsafeRawBufferPointer) -> (encoding: String.Encoding, skipLength: Int)? {
+    static func parseBOM(_ bytes: Data) -> (encoding: String.Encoding, skipLength: Int)? {
         
         return nil
     }

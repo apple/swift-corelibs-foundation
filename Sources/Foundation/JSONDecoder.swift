@@ -195,7 +195,7 @@ open class JSONDecoder {
     /// - throws: An error if any value throws an error during decoding.
     open func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
         do {
-            var parser = JSONParser(bytes: Array(data))
+            var parser = try JSONSerialization.createParser(with: data)
             let json = try parser.parse()
             return try JSONDecoderImpl(userInfo: self.userInfo, from: json, codingPath: [], options: self.options).unwrap(as: T.self)
         } catch let error as JSONError {
