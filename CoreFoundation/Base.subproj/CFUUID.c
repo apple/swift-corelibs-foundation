@@ -115,15 +115,16 @@ static CFUUIDRef __CFUUIDCreateWithBytesPrimitive(CFAllocatorRef allocator, CFUU
             
             uuid->_bytes = bytes;
             __CFUUIDAddUniqueUUIDHasLock(uuid);
-        } else if (!isConst) {
-            CFRetain(uuid);
+            return;
         }
-        
-        if (isConst) {
+
 #if !DEPLOYMENT_RUNTIME_SWIFT
+        if (isConst) {
             __CFRuntimeSetRC(uuid, 0); // constant CFUUIDs should be immortal. This applies even to equivalent UUIDs created earlier that were *not* constant.
+        else
+            CFRetain(uuid);
 #else
-            CFRetain(uuid); // Swift doesn't support meddling with the retain count. Just ensure there is one retain here.
+        CFRetain(uuid); // Swift doesn't support meddling with the retain count. Just ensure there is one retain here.
 #endif
         }
     });
@@ -175,25 +176,8 @@ CFUUIDRef CFUUIDCreate(CFAllocatorRef alloc) {
     return (retval == 0) ? __CFUUIDCreateWithBytesPrimitive(alloc, bytes, false) : NULL;
 }
 
-CFUUIDRef CFUUIDCreateWithBytes(CFAllocatorRef alloc, uint8_t byte0, uint8_t byte1, uint8_t byte2, uint8_t byte3, uint8_t byte4, uint8_t byte5, uint8_t byte6, uint8_t byte7, uint8_t byte8, uint8_t byte9, uint8_t byte10, uint8_t byte11, uint8_t byte12, uint8_t byte13, uint8_t byte14, uint8_t byte15) {
-    CFUUIDBytes bytes;
-    // CodeWarrior can't handle the structure assignment of bytes, so we must explode this - REW, 10/8/99
-    bytes.byte0 = byte0;
-    bytes.byte1 = byte1;
-    bytes.byte2 = byte2;
-    bytes.byte3 = byte3;
-    bytes.byte4 = byte4;
-    bytes.byte5 = byte5;
-    bytes.byte6 = byte6;
-    bytes.byte7 = byte7;
-    bytes.byte8 = byte8;
-    bytes.byte9 = byte9;
-    bytes.byte10 = byte10;
-    bytes.byte11 = byte11;
-    bytes.byte12 = byte12;
-    bytes.byte13 = byte13;
-    bytes.byte14 = byte14;
-    bytes.byte15 = byte15;
+CFUUIDRef CFUUIDCreateWithBytes(CFAllocatorRef alloc, UInt8 byte0, UInt8 byte1, UInt8 byte2, UInt8 byte3, UInt8 byte4, UInt8 byte5, UInt8 byte6, UInt8 byte7, UInt8 byte8, UInt8 byte9, UInt8 byte10, UInt8 byte11, UInt8 byte12, UInt8 byte13, UInt8 byte14, UInt8 byte15) {
+    CFUUIDBytes bytes = {byte0, byte1, byte2, byte3, byte4, byte5, byte6, byte7, byte8, byte9, byte10, byte11, byte12, byte13, byte14, byte15};
 
     return __CFUUIDCreateWithBytesPrimitive(alloc, bytes, false);
 }
@@ -338,25 +322,8 @@ CFStringRef CFUUIDCreateString(CFAllocatorRef alloc, CFUUIDRef uuid) {
     return str;
 }
 
-CFUUIDRef CFUUIDGetConstantUUIDWithBytes(CFAllocatorRef alloc, uint8_t byte0, uint8_t byte1, uint8_t byte2, uint8_t byte3, uint8_t byte4, uint8_t byte5, uint8_t byte6, uint8_t byte7, uint8_t byte8, uint8_t byte9, uint8_t byte10, uint8_t byte11, uint8_t byte12, uint8_t byte13, uint8_t byte14, uint8_t byte15) {
-    CFUUIDBytes bytes;
-    // CodeWarrior can't handle the structure assignment of bytes, so we must explode this - REW, 10/8/99
-    bytes.byte0 = byte0;
-    bytes.byte1 = byte1;
-    bytes.byte2 = byte2;
-    bytes.byte3 = byte3;
-    bytes.byte4 = byte4;
-    bytes.byte5 = byte5;
-    bytes.byte6 = byte6;
-    bytes.byte7 = byte7;
-    bytes.byte8 = byte8;
-    bytes.byte9 = byte9;
-    bytes.byte10 = byte10;
-    bytes.byte11 = byte11;
-    bytes.byte12 = byte12;
-    bytes.byte13 = byte13;
-    bytes.byte14 = byte14;
-    bytes.byte15 = byte15;
+CFUUIDRef CFUUIDGetConstantUUIDWithBytes(CFAllocatorRef alloc, UInt8 byte0, UInt8 byte1, UInt8 byte2, UInt8 byte3, UInt8 byte4, UInt8 byte5, UInt8 byte6, UInt8 byte7, UInt8 byte8, UInt8 byte9, UInt8 byte10, UInt8 byte11, UInt8 byte12, UInt8 byte13, UInt8 byte14, UInt8 byte15) {
+    CFUUIDBytes bytes = {byte0, byte1, byte2, byte3, byte4, byte5, byte6, byte7, byte8, byte9, byte10, byte11, byte12, byte13, byte14, byte15};
 
     // The analyzer can't understand functions like __CFUUIDCreateWithBytesPrimitive which return retained objects based on a parameter.
 #ifdef __clang_analyzer__
