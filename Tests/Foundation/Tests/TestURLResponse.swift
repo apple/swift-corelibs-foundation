@@ -81,7 +81,7 @@ class TestURLResponse : XCTestCase {
     func test_NSCoding() {
         let url = URL(string: "https://apple.com")!
         let responseA = URLResponse(url: url, mimeType: "txt", expectedContentLength: 0, textEncodingName: nil)
-        let responseB = NSKeyedUnarchiver.unarchiveObject(with: NSKeyedArchiver.archivedData(withRootObject: responseA)) as! URLResponse
+        let responseB = try! NSKeyedUnarchiver.unarchivedObject(ofClass: URLResponse.self, from: NSKeyedArchiver.archivedData(withRootObject: responseA))!
 
         //On macOS unarchived Archived then unarchived `URLResponse` is not equal.
         XCTAssertEqual(responseA.url, responseB.url, "Archived then unarchived url response must be equal.")
@@ -89,6 +89,46 @@ class TestURLResponse : XCTestCase {
         XCTAssertEqual(responseA.expectedContentLength, responseB.expectedContentLength, "Archived then unarchived url response must be equal.")
         XCTAssertEqual(responseA.textEncodingName, responseB.textEncodingName, "Archived then unarchived url response must be equal.")
         XCTAssertEqual(responseA.suggestedFilename, responseB.suggestedFilename, "Archived then unarchived url response must be equal.")
+    }
+
+    func test_NSCodingEmptySuggestedFilename() {
+        let url = URL(string: "https://apple.com")!
+        let responseA = URLResponse(url: url, mimeType: "txt", expectedContentLength: 0, textEncodingName: nil)
+        
+        // archiving in xml format
+        let archiver = NSKeyedArchiver(requiringSecureCoding: false)
+        archiver.outputFormat = .xml
+        archiver.encode(responseA, forKey: NSKeyedArchiveRootObjectKey)
+        var plist = String(data: archiver.encodedData, encoding: .utf8)!
+        
+        // clearing the filename in the archive
+        plist = plist.replacingOccurrences(of: "Unknown", with: "")
+        let data = plist.data(using: .utf8)!
+        
+        // unarchiving
+        let responseB = try! NSKeyedUnarchiver.unarchivedObject(ofClass: URLResponse.self, from: data)!
+        
+        XCTAssertEqual(responseB.suggestedFilename, "Unknown", "Unarchived filename must be valid.")
+    }
+
+    func test_NSCodingInvalidSuggestedFilename() {
+        let url = URL(string: "https://apple.com")!
+        let responseA = URLResponse(url: url, mimeType: "txt", expectedContentLength: 0, textEncodingName: nil)
+        
+        // archiving in xml format
+        let archiver = NSKeyedArchiver(requiringSecureCoding: false)
+        archiver.outputFormat = .xml
+        archiver.encode(responseA, forKey: NSKeyedArchiveRootObjectKey)
+        var plist = String(data: archiver.encodedData, encoding: .utf8)!
+        
+        // invalidating the filename in the archive
+        plist = plist.replacingOccurrences(of: "Unknown", with: "invalid/valid")
+        let data = plist.data(using: .utf8)!
+        
+        // unarchiving
+        let responseB = try! NSKeyedUnarchiver.unarchivedObject(ofClass: URLResponse.self, from: data)!
+        
+        XCTAssertEqual(responseB.suggestedFilename, "valid", "Unarchived filename must be valid.")
     }
 
     func test_equalWithTheSameInstance() throws {
@@ -188,6 +228,8 @@ class TestURLResponse : XCTestCase {
             ("test_suggestedFilename_3", test_suggestedFilename_3),
             ("test_copywithzone", test_copyWithZone),
             ("test_NSCoding", test_NSCoding),
+            ("test_NSCodingEmptySuggestedFilename", test_NSCodingEmptySuggestedFilename),
+            ("test_NSCodingInvalidSuggestedFilename", test_NSCodingInvalidSuggestedFilename),
             ("test_equalWithTheSameInstance", test_equalWithTheSameInstance),
             ("test_equalWithUnrelatedObject", test_equalWithUnrelatedObject),
             ("test_equalCheckingURL", test_equalCheckingURL),
