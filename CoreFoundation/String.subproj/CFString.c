@@ -1510,7 +1510,7 @@ CF_PRIVATE CFStringRef __CFStringCreateImmutableFunnel3(
             if (noCopy) {
 
                 size = sizeof(void *);				// Pointer to the buffer
-                if ((0) || (contentsDeallocator != alloc && contentsDeallocator != kCFAllocatorNull)) {
+                if (contentsDeallocator != alloc && contentsDeallocator != kCFAllocatorNull) {
                     size += sizeof(void *);	// The contentsDeallocator
                 }
                 if (!hasLengthByte) size += sizeof(CFIndex);	// Explicit length
@@ -1538,13 +1538,13 @@ CF_PRIVATE CFStringRef __CFStringCreateImmutableFunnel3(
 
 #ifdef STRING_SIZE_STATS
             // Dump alloced CFString size info every so often
-            static int cnt = 0;
+            static unsigned cnt = 0;
             static unsigned sizes[256] = {0};
-            int allocedSize = size + sizeof(CFRuntimeBase);
+            unsigned allocedSize = size + sizeof(CFRuntimeBase);
             if (allocedSize < 255) sizes[allocedSize]++; else sizes[255]++;
             if ((++cnt % 1000) == 0) {
                 printf ("\nTotal: %d\n", cnt);
-                int i; for (i = 0; i < 256; i++) printf("%03d: %5d%s", i, sizes[i], ((i % 8) == 7) ? "\n" : " ");
+                for (unsigned i = 0; i < 256; i++) printf("%03u: %5u%s", i, sizes[i], ((i % 8) == 7) ? "\n" : " ");
             }
 #endif
          
