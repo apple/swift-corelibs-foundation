@@ -1,5 +1,6 @@
 # Foundation
 
+
 The Foundation framework defines a base layer of functionality that is required for almost all applications. It provides primitive classes and introduces several paradigms that define functionality not provided by either the Objective-C runtime and language or Swift standard library and language.
 
 It is designed with these goals in mind:
