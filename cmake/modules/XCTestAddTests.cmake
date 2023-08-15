@@ -1,6 +1,7 @@
-set(properties ${TEST_PROPERTIES})
+set(properties "${TEST_PROPERTIES}")
 set(script)
 set(tests)
+set(dll_library_path)
 
 function(add_command NAME)
   set(_args "")
@@ -21,7 +22,7 @@ if(NOT EXISTS "${TEST_EXECUTABLE}")
   )
 endif()
 # We need to figure out if some environment is needed to run the test listing.
-cmake_parse_arguments("_properties" "" "ENVIRONMENT" "" ${properties})
+cmake_parse_arguments("_properties" "" "" "ENVIRONMENT" ${properties})
 if(_properties_ENVIRONMENT)
   foreach(_env ${_properties_ENVIRONMENT})
     string(REGEX REPLACE "([a-zA-Z0-9_]+)=(.*)" "\\1" _key "${_env}")
@@ -31,6 +32,13 @@ if(_properties_ENVIRONMENT)
     endif()
   endforeach()
 endif()
+# Set Path to avoid DLL missing
+if (DEFINED ENV{DLL_LIBRARY_PATH} AND CMAKE_HOST_SYSTEM_NAME STREQUAL Windows)
+  string(REPLACE "?" ";" dll_library_path "$ENV{DLL_LIBRARY_PATH}")
+  set(ENV{Path} "${dll_library_path};$ENV{Path}")
+  string(REPLACE ";" "\\\\;" dll_library_path "${dll_library_path}")
+endif()
+
 execute_process(
   COMMAND "${TEST_EXECUTABLE}" --list-tests
   WORKING_DIRECTORY "${TEST_WORKING_DIR}"
@@ -75,6 +83,13 @@ foreach(line ${output})
       WORKING_DIRECTORY "${TEST_WORKING_DIR}"
       ${properties}
     )
+    if (NOT "${dll_library_path}" STREQUAL "")
+      add_command(set_tests_properties
+        "${pretty_target}"
+        PROPERTIES
+        ENVIRONMENT "Path=${dll_library_path}"
+      )
+    endif()
     list(APPEND tests "${pretty_target}")
   else()
     message(FATAL_ERROR

@@ -179,6 +179,8 @@ add_custom_command(TARGET TestFoundation POST_BUILD
   COMMAND
     ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:FoundationXML> ${CMAKE_BINARY_DIR}/TestFoundation.app)
 
+cmake_path(GET CMAKE_Swift_COMPILER PARENT_PATH Swift_LIBRARY_PATH)
+# NOTE(stevapple): Path separator ; is passed as ? because it conflicts with CMake's list separator
 xctest_discover_tests(TestFoundation
                       COMMAND
                         ${CMAKE_BINARY_DIR}/TestFoundation.app/TestFoundation${CMAKE_EXECUTABLE_SUFFIX}
@@ -188,4 +190,5 @@ xctest_discover_tests(TestFoundation
                         30
                       PROPERTIES
                         ENVIRONMENT
-                          LD_LIBRARY_PATH=${CMAKE_BINARY_DIR}/TestFoundation.app:$<TARGET_LINKER_FILE_DIR:XCTest>:$<TARGET_LINKER_FILE_DIR:dispatch>:$<TARGET_LINKER_FILE_DIR:swiftDispatch>:$<TARGET_LINKER_FILE_DIR:BlocksRuntime>)
+                          LD_LIBRARY_PATH=${CMAKE_BINARY_DIR}/TestFoundation.app:$<TARGET_LINKER_FILE_DIR:XCTest>:$<TARGET_LINKER_FILE_DIR:dispatch>:$<TARGET_LINKER_FILE_DIR:swiftDispatch>:$<TARGET_LINKER_FILE_DIR:BlocksRuntime>
+                          DLL_LIBRARY_PATH=${Swift_LIBRARY_PATH}?${CMAKE_BINARY_DIR}/bin?$<TARGET_FILE_DIR:XCTest>?$<TARGET_FILE_DIR:dispatch>?$<TARGET_FILE_DIR:swiftDispatch>?$<TARGET_FILE_DIR:BlocksRuntime>)
