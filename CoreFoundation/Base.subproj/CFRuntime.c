@@ -1805,17 +1805,17 @@ const char *_NSPrintForDebugger(void *cf) {
     if (CF_IS_SWIFT(_kCFRuntimeNotATypeID, cf)) {
         return "Not a CF Type";
     } else {
-        CFStringRef desc = CFCopyDescription((CFTypeRef)cf);
-        if (!desc) {
-            return "<no description>";
-        }
         const char *cheapResult = CFStringGetCStringPtr((CFTypeRef)cf, kCFStringEncodingUTF8);
         if (cheapResult) {
             return cheapResult;
         }
-        
+
         CFIndex bufferSize = 0;
         CFIndex numberConverted = CFStringGetBytes((CFStringRef)cf, CFRangeMake(0, CFStringGetLength((CFStringRef)cf)), kCFStringEncodingUTF8, 0, false, NULL, 0, &bufferSize);
+        if (numberConverted <= 0) {
+            return "<unable to fetch description (conversion failed)>";
+        }
+
         const char *result = malloc(bufferSize);
         if (!result) {
             return "<unable to fetch description>";
