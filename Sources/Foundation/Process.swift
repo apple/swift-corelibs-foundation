@@ -288,6 +288,8 @@ open class Process: NSObject {
         }
     }
 
+    var executableName: String?
+
     private var _currentDirectoryPath = FileManager.default.currentDirectoryPath
     open var currentDirectoryURL: URL? {
         get { _currentDirectoryPath == "" ? nil : URL(fileURLWithPath: _currentDirectoryPath, isDirectory: true) }
@@ -497,8 +499,10 @@ open class Process: NSObject {
             throw NSError(domain: NSCocoaErrorDomain, code: NSFileNoSuchFileError)
         }
 
+        let launchName = executableName ?? launchPath
+
 #if os(Windows)
-        var command: [String] = [launchPath]
+        var command: [String] = [launchName]
         if let arguments = self.arguments {
           command.append(contentsOf: arguments)
         }
@@ -662,20 +666,22 @@ open class Process: NSObject {
         try quoteWindowsCommandLine(command).withCString(encodedAs: UTF16.self) { wszCommandLine in
           try FileManager.default._fileSystemRepresentation(withPath: workingDirectory) { wszCurrentDirectory in
             try szEnvironment.withCString(encodedAs: UTF16.self) { wszEnvironment in
-              if !CreateProcessW(nil, UnsafeMutablePointer<WCHAR>(mutating: wszCommandLine),
-                                 nil, nil, true,
-                                 DWORD(CREATE_UNICODE_ENVIRONMENT), UnsafeMutableRawPointer(mutating: wszEnvironment),
-                                 wszCurrentDirectory,
-                                 &siStartupInfo, &piProcessInfo) {
-                let error = GetLastError()
-                // If the current directory doesn't exist, Windows
-                // throws an ERROR_DIRECTORY. Since POSIX gives an
-                // ENOENT, we intercept the error to match the POSIX
-                // behaviour
-                if error == ERROR_DIRECTORY {
+              try launchPath.withCString(encodedAs: UTF16.self) { wszLaunchPath in
+                if !CreateProcessW(wszLaunchPath, UnsafeMutablePointer<WCHAR>(mutating: wszCommandLine),
+                                   nil, nil, true,
+                                   DWORD(CREATE_UNICODE_ENVIRONMENT),
+                                   UnsafeMutableRawPointer(mutating: wszEnvironment), wszCurrentDirectory,
+                                   &siStartupInfo, &piProcessInfo) {
+                  let error = GetLastError()
+                  // If the current directory doesn't exist, Windows
+                  // throws an ERROR_DIRECTORY. Since POSIX gives an
+                  // ENOENT, we intercept the error to match the POSIX
+                  // behaviour
+                  if error == ERROR_DIRECTORY {
                     throw _NSErrorWithWindowsError(DWORD(ERROR_FILE_NOT_FOUND), reading: true)
+                  }
+                  throw _NSErrorWithWindowsError(GetLastError(), reading: true)
                 }
-                throw _NSErrorWithWindowsError(GetLastError(), reading: true)
               }
             }
           }
@@ -736,7 +742,7 @@ open class Process: NSObject {
         })
         // Convert the arguments array into a posix_spawn-friendly format
         
-        var args = [launchPath]
+        var args = [launchName]
         if let arguments = self.arguments {
             args.append(contentsOf: arguments)
         }
