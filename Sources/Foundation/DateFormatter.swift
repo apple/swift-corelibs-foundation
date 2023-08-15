@@ -563,12 +563,13 @@ open class DateFormatter : Formatter {
     open var doesRelativeDateFormatting = false { willSet { _reset() } }
 }
 
+// Date: 2022-05-15 14:43:25 +0000
 extension DateFormatter {
     public enum Style : UInt {
-        case none
-        case short
-        case medium
-        case long
-        case full
+        case none   // \n
+        case short  // 5/15/22
+        case medium // May 15, 2022
+        case long   // May 15, 2022
+        case full   // Sunday, May 15, 2022
     }
 }
