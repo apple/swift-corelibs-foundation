@@ -958,7 +958,6 @@ CF_INLINE void _CFCharacterSetUnlockGlobal() { OSSpinLockUnlock(&__CFCharacterSe
 */
 static Boolean __CFCharacterSetEqual(CFTypeRef cf1, CFTypeRef cf2) {
     Boolean isInvertStateIdentical = (__CFCSetIsInverted((CFCharacterSetRef)cf1) == __CFCSetIsInverted((CFCharacterSetRef)cf2) ? true: false);
-    Boolean isAnnexInvertStateIdentical = (__CFCSetAnnexIsInverted((CFCharacterSetRef)cf1) == __CFCSetAnnexIsInverted((CFCharacterSetRef)cf2) ? true: false);
     CFIndex idx;
     CFCharacterSetRef subSet1;
     uint8_t bitsBuf[__kCFBitmapSize];
@@ -1183,7 +1182,7 @@ static Boolean __CFCharacterSetEqual(CFTypeRef cf1, CFTypeRef cf2) {
 
 	lastChar &= 0xFFFF;
 
-        isAnnexInvertStateIdentical = (isRangeSetInverted == __CFCSetAnnexIsInverted(nonRangeSet) ? true : false);
+        Boolean isAnnexInvertStateIdentical = (isRangeSetInverted == __CFCSetAnnexIsInverted(nonRangeSet) ? true : false);
 
         for (idx = 1;idx < MAX_ANNEX_PLANE;idx++) {
             subSet1 = __CFCSetGetAnnexPlaneCharacterSetNoAlloc(nonRangeSet, idx);
