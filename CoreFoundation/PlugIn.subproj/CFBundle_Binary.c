@@ -110,12 +110,12 @@ static char *_cleanedPathForPath(const char *curName) {
     char *thePath = strdup(curName);
     if (thePath) {
         // We are going to process the buffer replacing all "/./" and "//" with "/"
-        CFIndex srcIndex = 0, dstIndex = 0;
-        CFIndex len = strlen(thePath);
+        size_t srcIndex = 0, dstIndex = 0;
+        size_t len = strlen(thePath);
         for (srcIndex=0; srcIndex<len; srcIndex++) {
             thePath[dstIndex] = thePath[srcIndex];
             dstIndex++;
-            while (srcIndex < len-1 && thePath[srcIndex] == '/' && (thePath[srcIndex+1] == '/' || (thePath[srcIndex+1] == '.' && srcIndex < len-2 && thePath[srcIndex+2] == '/'))) srcIndex += (thePath[srcIndex+1] == '/' ? 1 : 2);
+            while (srcIndex + 1 < len && thePath[srcIndex] == '/' && (thePath[srcIndex+1] == '/' || (thePath[srcIndex+1] == '.' && srcIndex + 2 < len && thePath[srcIndex+2] == '/'))) srcIndex += (thePath[srcIndex+1] == '/' ? 1 : 2);
         }
         thePath[dstIndex] = 0;
     }

@@ -223,9 +223,9 @@ static void __CFSortIndexesNMerge(VALUE_TYPE listp1[], INDEX_TYPE cnt1, VALUE_TY
 /* Merging algorithm based on
     "A New Parallel Sorting Algorithm based on Odd-Even Mergesort", Ezequiel Herruzo, et al
 */
-static void __CFSortIndexesN(VALUE_TYPE listp[], INDEX_TYPE count, int32_t ncores, CMP_RESULT_TYPE (^cmp)(INDEX_TYPE, INDEX_TYPE)) {
+static void __CFSortIndexesN(VALUE_TYPE listp[], INDEX_TYPE count, INDEX_TYPE ncores, CMP_RESULT_TYPE (^cmp)(INDEX_TYPE, INDEX_TYPE)) {
     /* Divide the array up into up to ncores, multiple-of-16-sized, chunks */
-    INDEX_TYPE sz = ((((count + ncores - 1) / ncores) + 15) / 16) * 16;
+    INDEX_TYPE sz = (((count + ncores - 1) / ncores) + 15) & ~15;
     INDEX_TYPE num_sect = (count + sz - 1) / sz;
     INDEX_TYPE last_sect_len = count + sz - sz * num_sect;
 
@@ -260,7 +260,7 @@ static void __CFSortIndexesN(VALUE_TYPE listp[], INDEX_TYPE count, int32_t ncore
                 INDEX_TYPE sect2_len = (sect + 1 + (right ? 1 : 2) == num_sect) ? last_sect_len : sz;
                 __CFSortIndexesNMerge(left_base, sz, right_base, sect2_len, listp + sect * sz + sz, right, cmp);
             });
-        memmove(listp + 0 * sz, tmps[0], sz * sizeof(VALUE_TYPE));
+        memmove(listp, tmps[0], sz * sizeof(VALUE_TYPE));
         if (!(num_sect & 0x1)) {
             memmove(listp + (num_sect - 1) * sz, tmps[num_sect - 1], last_sect_len * sizeof(VALUE_TYPE));
         }
@@ -285,7 +285,7 @@ _CF_SORT_INDEXES_EXPORT void CFSortIndexes(CFIndex *indexBuffer, CFIndex count, 
         CRSetCrashLogMessage("Size of array to be sorted is too big");
         HALT;
     }
-    int32_t ncores = 0;
+    CFIndex ncores = 0;
     if (opts & kCFSortConcurrent) {
         ncores = __CFActiveProcessorCount();
         if (count < 160 || ncores < 2) {
@@ -307,7 +307,7 @@ _CF_SORT_INDEXES_EXPORT void CFSortIndexes(CFIndex *indexBuffer, CFIndex count, 
     } else {
         /* Specifically hard-coded to 8; the count has to be very large before more chunks and/or cores is worthwhile. */
         dispatch_queue_t q = dispatch_queue_create(__CF_QUEUE_NAME("NSSortIndexes"), DISPATCH_QUEUE_CONCURRENT);
-        CFIndex sz = ((((size_t)count + 15) / 16) * 16) / 8;
+        CFIndex sz = ((count + 15) >> 3) & ~1;
         dispatch_apply(8, DISPATCH_APPLY_AUTO, ^(size_t n) {
                 CFIndex idx = n * sz, lim = __CFMin(idx + sz, count);
                 for (; idx < lim; idx++) indexBuffer[idx] = idx;

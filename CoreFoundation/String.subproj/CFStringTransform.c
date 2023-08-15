@@ -83,10 +83,7 @@ __CFStringTransformCreate(CFStringRef identifier, bool reverse) {
     if (known) {
 	UniChar buff[kCFStringTransformStackBufferSize];
 	CFIndex len = strlen(known);
-	CFIndex idx;
-	for (idx = 0; idx < len; idx++) {
-	    buff[idx] = known[idx];
-	}
+	memcpy(buff, known, len);
 	made = utrans_openU((const UChar *)buff, len, reverse?UTRANS_REVERSE:UTRANS_FORWARD, NULL, 0, NULL, &icuStatus);
     } else {
 	CFIndex len = CFStringGetLength(identifier);

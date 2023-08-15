@@ -198,11 +198,11 @@ CFUUIDRef CFUUIDCreateWithBytes(CFAllocatorRef alloc, uint8_t byte0, uint8_t byt
     return __CFUUIDCreateWithBytesPrimitive(alloc, bytes, false);
 }
 
-static void _intToHexChars(UInt32 in, UniChar *out, int digits) {
-    int shift;
+static void _intToHexChars(UInt32 in, UniChar *out, unsigned int digits) {
+    unsigned int shift;
     UInt32 d;
-
-    while (--digits >= 0) {
+    
+    while (digits--) {
         shift = digits << 2;
         d = 0x0FL & (in >> shift);
         if (d <= 9) {

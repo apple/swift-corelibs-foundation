@@ -1815,16 +1815,17 @@ static Boolean __cStrEqual(const void *ptr1, const void *ptr2) {
 static CFHashCode __cStrHash(const void *ptr) {
     // It doesn't quite matter if we convert to Unicode correctly, as long as we do it consistently    
     const char *cStr = (const char *)ptr;
-    CFIndex len = strlen(cStr);
+    size_t len = strlen(cStr);
     CFHashCode result = 0;
     if (len <= 4) {	// All chars
-        unsigned cnt = len;
-        while (cnt--) result += (result << 8) + *cStr++;
+        for (size_t cnt = len; cnt; cnt--) {
+            result += (result << 8) | *cStr++;
+        }
     } else {		// First and last 2 chars
-        result += (result << 8) + cStr[0];
-        result += (result << 8) + cStr[1];
-        result += (result << 8) + cStr[len-2];
-        result += (result << 8) + cStr[len-1];
+        result += (result << 8) | cStr[0];
+        result += (result << 8) | cStr[1];
+        result += (result << 8) | cStr[len-2];
+        result += (result << 8) | cStr[len-1];
     }
     result += (result << (len & 31));
     return result;    
