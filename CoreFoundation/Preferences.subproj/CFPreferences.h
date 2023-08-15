@@ -93,7 +93,7 @@ keysToFetch that are not present in the returned dictionary
 are not present in the domain.  If keysToFetch is NULL, all
 keys are fetched. */
 CF_EXPORT
-CFDictionaryRef CFPreferencesCopyMultiple(_Nullable CFArrayRef keysToFetch, CFStringRef applicationID, CFStringRef userName, CFStringRef hostName);
+_Nullable CFDictionaryRef CFPreferencesCopyMultiple(_Nullable CFArrayRef keysToFetch, CFStringRef applicationID, CFStringRef userName, CFStringRef hostName);
 
 /* The primitive set function; all arguments except value must be
 non-NULL.  If value is NULL, the given key is removed */
