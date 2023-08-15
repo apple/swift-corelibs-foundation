@@ -1597,7 +1597,7 @@ void _CF_dispatch_once(dispatch_once_t *predicate, void (^block)(void)) {
 
 #include <stdio.h>
 
-CF_PRIVATE int asprintf(char **ret, const char *format, ...) {
+CF_PRIVATE int asprintf(char **restrict ret, const char *restrict format, ...) {
     va_list args;
     size_t sz = 1024;
     *ret = (char *) malloc(sz * sizeof(char));

@@ -194,8 +194,8 @@ CF_INLINE Boolean _CFBundleURLHasSubDir(CFURLRef url, CFStringRef subDirName) {
 
 #if TARGET_OS_WIN32
 typedef signed long long ssize_t;
-static ssize_t readlink(const char * restrict pathname,
-                        char * restrict buffer, size_t bufsiz) {
+static ssize_t readlink(const char *restrict pathname,
+                        char *restrict buffer, size_t bufsiz) {
   ssize_t result = -1;
 
   WIN32_FILE_ATTRIBUTE_DATA fsa;

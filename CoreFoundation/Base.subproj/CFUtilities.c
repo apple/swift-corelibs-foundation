@@ -1096,7 +1096,7 @@ CF_EXPORT void _CFLogvEx(CFLogFunc logit, CFStringRef (*copyDescFunc)(void *, co
 }
 
 // This CF-only log function uses no CF functionality, so it may be called anywhere within CF - including thread teardown or prior to full CF setup
-CF_PRIVATE void _CFLogSimple(int32_t lev, char *format, ...) {
+CF_PRIVATE void _CFLogSimple(int32_t lev, char *restrict format, ...) {
     va_list args;
     va_start(args, format);
     char formattedMessage[1024];
