@@ -804,73 +804,73 @@ static uintptr_t __CFBasicHashFold(uintptr_t dividend, uint8_t idx) {
 #define FIND_BUCKET_HASH_STYLE		1
 #define FIND_BUCKET_FOR_REHASH		0
 #define FIND_BUCKET_FOR_INDIRECT_KEY	0
-#include "CFBasicHashFindBucket.m"
+#include "CFBasicHashFindBucket.c"
 
 #define FIND_BUCKET_NAME		___CFBasicHashFindBucket_Linear_NoCollision
 #define FIND_BUCKET_HASH_STYLE		1
 #define FIND_BUCKET_FOR_REHASH		1
 #define FIND_BUCKET_FOR_INDIRECT_KEY	0
-#include "CFBasicHashFindBucket.m"
+#include "CFBasicHashFindBucket.c"
 
 #define FIND_BUCKET_NAME		___CFBasicHashFindBucket_Linear_Indirect
 #define FIND_BUCKET_HASH_STYLE		1
 #define FIND_BUCKET_FOR_REHASH		0
 #define FIND_BUCKET_FOR_INDIRECT_KEY	1
-#include "CFBasicHashFindBucket.m"
+#include "CFBasicHashFindBucket.c"
 
 #define FIND_BUCKET_NAME		___CFBasicHashFindBucket_Linear_Indirect_NoCollision
 #define FIND_BUCKET_HASH_STYLE		1
 #define FIND_BUCKET_FOR_REHASH		1
 #define FIND_BUCKET_FOR_INDIRECT_KEY	1
-#include "CFBasicHashFindBucket.m"
+#include "CFBasicHashFindBucket.c"
 
 #define FIND_BUCKET_NAME		___CFBasicHashFindBucket_Double
 #define FIND_BUCKET_HASH_STYLE		2
 #define FIND_BUCKET_FOR_REHASH		0
 #define FIND_BUCKET_FOR_INDIRECT_KEY	0
-#include "CFBasicHashFindBucket.m"
+#include "CFBasicHashFindBucket.c"
 
 #define FIND_BUCKET_NAME		___CFBasicHashFindBucket_Double_NoCollision
 #define FIND_BUCKET_HASH_STYLE		2
 #define FIND_BUCKET_FOR_REHASH		1
 #define FIND_BUCKET_FOR_INDIRECT_KEY	0
-#include "CFBasicHashFindBucket.m"
+#include "CFBasicHashFindBucket.c"
 
 #define FIND_BUCKET_NAME		___CFBasicHashFindBucket_Double_Indirect
 #define FIND_BUCKET_HASH_STYLE		2
 #define FIND_BUCKET_FOR_REHASH		0
 #define FIND_BUCKET_FOR_INDIRECT_KEY	1
-#include "CFBasicHashFindBucket.m"
+#include "CFBasicHashFindBucket.c"
 
 #define FIND_BUCKET_NAME		___CFBasicHashFindBucket_Double_Indirect_NoCollision
 #define FIND_BUCKET_HASH_STYLE		2
 #define FIND_BUCKET_FOR_REHASH		1
 #define FIND_BUCKET_FOR_INDIRECT_KEY	1
-#include "CFBasicHashFindBucket.m"
+#include "CFBasicHashFindBucket.c"
 
 #define FIND_BUCKET_NAME		___CFBasicHashFindBucket_Exponential
 #define FIND_BUCKET_HASH_STYLE		3
 #define FIND_BUCKET_FOR_REHASH		0
 #define FIND_BUCKET_FOR_INDIRECT_KEY	0
-#include "CFBasicHashFindBucket.m"
+#include "CFBasicHashFindBucket.c"
 
 #define FIND_BUCKET_NAME		___CFBasicHashFindBucket_Exponential_NoCollision
 #define FIND_BUCKET_HASH_STYLE		3
 #define FIND_BUCKET_FOR_REHASH		1
 #define FIND_BUCKET_FOR_INDIRECT_KEY	0
-#include "CFBasicHashFindBucket.m"
+#include "CFBasicHashFindBucket.c"
 
 #define FIND_BUCKET_NAME		___CFBasicHashFindBucket_Exponential_Indirect
 #define FIND_BUCKET_HASH_STYLE		3
 #define FIND_BUCKET_FOR_REHASH		0
 #define FIND_BUCKET_FOR_INDIRECT_KEY	1
-#include "CFBasicHashFindBucket.m"
+#include "CFBasicHashFindBucket.c"
 
 #define FIND_BUCKET_NAME		___CFBasicHashFindBucket_Exponential_Indirect_NoCollision
 #define FIND_BUCKET_HASH_STYLE		3
 #define FIND_BUCKET_FOR_REHASH		1
 #define FIND_BUCKET_FOR_INDIRECT_KEY	1
-#include "CFBasicHashFindBucket.m"
+#include "CFBasicHashFindBucket.c"
 
 
 CF_INLINE CFBasicHashBucket __CFBasicHashFindBucket(CFConstBasicHashRef ht, uintptr_t stack_key) {

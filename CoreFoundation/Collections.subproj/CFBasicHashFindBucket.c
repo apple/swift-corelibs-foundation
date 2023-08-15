@@ -1,4 +1,4 @@
-/*	CFBasicHashFindBucket.m
+/*	CFBasicHashFindBucket.c
 	Copyright (c) 2009-2019, Apple Inc. and the Swift project authors
  
 	Portions Copyright (c) 2014-2019, Apple Inc. and the Swift project authors
