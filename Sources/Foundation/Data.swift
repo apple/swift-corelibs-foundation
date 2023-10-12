@@ -1119,8 +1119,8 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
 
     // A reference wrapper around a Range<Int> for when the range of a data buffer is too large to whole in a single word.
     // Inlinability strategy: everything should be inlinable as trivial.
-    @usableFromInline
-    internal final class RangeReference {
+    // @usableFromInline
+    public /* internal */ final class RangeReference {
         @usableFromInline var range: Range<Int>
 
         @inlinable @inline(__always) // This is @inlinable as trivially forwarding.
@@ -1138,8 +1138,8 @@ public struct Data : ReferenceConvertible, Equatable, Hashable, RandomAccessColl
             return range.upperBound - range.lowerBound
         }
 
-        @inlinable @inline(__always) // This is @inlinable as a trivial initializer.
-        init(_ range: Range<Int>) {
+        /* @inlinable */ @inline(__always) // This is @inlinable as a trivial initializer.
+        public init(_ range: Range<Int>) {
             self.range = range
         }
     }
