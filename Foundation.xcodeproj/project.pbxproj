@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		0383A1751D2E558A0052E5D1 /* TestStream.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0383A1741D2E558A0052E5D1 /* TestStream.swift */; };
 		03B6F5841F15F339004F25AF /* TestURLProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03B6F5831F15F339004F25AF /* TestURLProtocol.swift */; };
+		07B15FA9292FA759007119B8 /* SortComparators.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07B15FA8292FA759007119B8 /* SortComparators.swift */; };
 		151023B426C3336F009371F3 /* CFPropertyList_Internal.h in Headers */ = {isa = PBXBuildFile; fileRef = 151023B326C3336F009371F3 /* CFPropertyList_Internal.h */; };
 		1513A8432044893F00539722 /* FileManager+XDG.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1513A8422044893F00539722 /* FileManager+XDG.swift */; };
 		1520469B1D8AEABE00D02E36 /* HTTPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1520469A1D8AEABE00D02E36 /* HTTPServer.swift */; };
@@ -772,6 +773,7 @@
 /* Begin PBXFileReference section */
 		0383A1741D2E558A0052E5D1 /* TestStream.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TestStream.swift; sourceTree = "<group>"; };
 		03B6F5831F15F339004F25AF /* TestURLProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestURLProtocol.swift; sourceTree = "<group>"; };
+		07B15FA8292FA759007119B8 /* SortComparators.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SortComparators.swift; sourceTree = "<group>"; };
 		151023B326C3336F009371F3 /* CFPropertyList_Internal.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CFPropertyList_Internal.h; sourceTree = "<group>"; };
 		1513A8422044893F00539722 /* FileManager+XDG.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FileManager+XDG.swift"; sourceTree = "<group>"; };
 		1520469A1D8AEABE00D02E36 /* HTTPServer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = HTTPServer.swift; sourceTree = "<group>"; };
@@ -2245,6 +2247,7 @@
 				EADE0B771BD15DFF00C49C64 /* Scanner.swift */,
 				153CC8322214C3D100BFE8F3 /* ScannerAPI.swift */,
 				5BD31D401D5D1BC300563814 /* Set.swift */,
+				07B15FA8292FA759007119B8 /* SortComparators.swift */,
 				EADE0B791BD15DFF00C49C64 /* Stream.swift */,
 				5BD31D211D5CEBA800563814 /* String.swift */,
 				5B40920F1D1B304C0022B067 /* StringEncodings.swift */,
@@ -2945,6 +2948,7 @@
 				5BC1B9AA21F275C400524D8C /* DispatchData+DataProtocol.swift in Sources */,
 				61E0117E1C1B55B9000037DD /* Timer.swift in Sources */,
 				5BDC3FD01BCF17E600ED97BB /* NSCFSet.swift in Sources */,
+				07B15FA9292FA759007119B8 /* SortComparators.swift in Sources */,
 				EADE0B931BD15DFF00C49C64 /* NSComparisonPredicate.swift in Sources */,
 				EADE0B921BD15DFF00C49C64 /* NSCache.swift in Sources */,
 				EADE0BAB1BD15E0000C49C64 /* Operation.swift in Sources */,
