@@ -23,7 +23,7 @@
 #if !UCONFIG_NO_COLLATION
 
 /**  
- * This indicates an error has occured during processing or if no more CEs is 
+ * This indicates an error has occurred during processing or if no more CEs is 
  * to be returned.
  * @stable ICU 2.0
  */
@@ -33,7 +33,7 @@
 /**
  * DO NOT USE, INTERNAL CONSTANT THAT WAS REMOVED AND THEN
  * TEMPORARILY RESTORED TO PREVENT THE BUILD FROM BREAKING.
- * This indicates an error has occured during processing or there are no more CEs
+ * This indicates an error has occurred during processing or there are no more CEs
  * to be returned.
  *
  * @internal
@@ -165,7 +165,7 @@ ucol_reset(UCollationElements *elems);
  * @param elems The UCollationElements containing the text.
  * @param status A pointer to a UErrorCode to receive any errors.
  * @return The next collation elements ordering, otherwise returns UCOL_NULLORDER 
- *         if an error has occured or if the end of string has been reached
+ *         if an error has occurred or if the end of string has been reached
  * @stable ICU 2.0
  */
 U_STABLE int32_t U_EXPORT2 
@@ -180,7 +180,7 @@ ucol_next(UCollationElements *elems, UErrorCode *status);
  *               a U_BUFFER_OVERFLOW_ERROR is returned if the internal stack
  *               buffer has been exhausted.
  * @return The previous collation elements ordering, otherwise returns 
- *         UCOL_NULLORDER if an error has occured or if the start of string has 
+ *         UCOL_NULLORDER if an error has occurred or if the start of string has 
  *         been reached.
  * @stable ICU 2.0
  */
@@ -199,7 +199,7 @@ ucol_previous(UCollationElements *elems, UErrorCode *status);
  * @param ixHigh a pointer to an int32_t to receive the iterator index after fetching the CE.
  * @param status A pointer to an UErrorCode to receive any errors.
  * @return The next collation elements ordering, otherwise returns UCOL_PROCESSED_NULLORDER
- *         if an error has occured or if the end of string has been reached
+ *         if an error has occurred or if the end of string has been reached
  *
  * @internal
  */
@@ -223,7 +223,7 @@ ucol_nextProcessed(UCollationElements *elems, int32_t *ixLow, int32_t *ixHigh, U
  *               a U_BUFFER_OVERFLOW_ERROR is returned if the internal stack
  *               buffer has been exhausted.
  * @return The previous collation elements ordering, otherwise returns
- *         UCOL_PROCESSED_NULLORDER if an error has occured or if the start of
+ *         UCOL_PROCESSED_NULLORDER if an error has occurred or if the start of
  *         string has been reached.
  *
  * @internal
