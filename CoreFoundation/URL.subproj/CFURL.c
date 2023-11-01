@@ -2381,13 +2381,7 @@ CFURLRef _CFURLCopyFileURL(CFURLRef url)
         // get just the component flag bits
         UInt32 flags = url->_flags & ALL_COMPONENTS_MASK;
         // get the rangeCount -- the number of component flag bits set
-        CFIndex rangeCount = 0;
-        while ( flags != 0 ) {
-            if ( flags & 1 ) {
-                ++rangeCount;
-            }
-            flags >>= 1;
-        }
+        CFIndex rangeCount = __builtin_popcount(flags);
         result = _CFURLAlloc(allocator, rangeCount);
         if ( result ) {
             // copy the URL fields from _flags to _ranges
