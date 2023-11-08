@@ -95,7 +95,7 @@ CF_EXPORT CFRange _CFURLComponentsGetRangeOfPath(CFURLComponentsRef components) 
 CF_EXPORT CFRange _CFURLComponentsGetRangeOfQuery(CFURLComponentsRef components) _CF_URL_COMPONENTS_API_AVAILABLE(macos(10.12), ios(10.0), watchos(3.0), tvos(10.0));
 CF_EXPORT CFRange _CFURLComponentsGetRangeOfFragment(CFURLComponentsRef components) _CF_URL_COMPONENTS_API_AVAILABLE(macos(10.12), ios(10.0), watchos(3.0), tvos(10.0));
 
-CF_EXPORT CFStringRef _CFStringCreateByAddingPercentEncodingWithAllowedCharacters(CFAllocatorRef alloc, CFStringRef string, CFCharacterSetRef allowedCharacters) _CF_URL_COMPONENTS_API_AVAILABLE(macos(10.12), ios(10.0), watchos(3.0), tvos(10.0));
+CF_EXPORT CFStringRef _Nullable _CFStringCreateByAddingPercentEncodingWithAllowedCharacters(CFAllocatorRef alloc, CFStringRef string, CFCharacterSetRef allowedCharacters) _CF_URL_COMPONENTS_API_AVAILABLE(macos(10.12), ios(10.0), watchos(3.0), tvos(10.0));
 CF_EXPORT CFStringRef _Nullable _CFStringCreateByRemovingPercentEncoding(CFAllocatorRef alloc, CFStringRef string) _CF_URL_COMPONENTS_API_AVAILABLE(macos(10.12), ios(10.0), watchos(3.0), tvos(10.0));
 
 // These return singletons
