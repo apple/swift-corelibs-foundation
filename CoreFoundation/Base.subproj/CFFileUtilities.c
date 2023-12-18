@@ -1390,7 +1390,7 @@ CF_PRIVATE CFArrayRef _CFCreateCFArrayByTokenizingString(const char *values, cha
         }
         free(copyDirPath);
         CFArrayRef pathArray = CFArrayCreate(kCFAllocatorSystemDefault, (const void **)pathList  , validPathCount, &kCFTypeArrayCallBacks);
-        for(int i = 0; i < validPathCount; i ++) {
+        for(size_t i = 0; i < validPathCount; i ++) {
             CFRelease(pathList[i]);
         }
         return pathArray;
