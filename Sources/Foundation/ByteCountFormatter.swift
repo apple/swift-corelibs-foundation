@@ -67,7 +67,23 @@ open class ByteCountFormatter : Formatter {
         self.includesCount = !coder.decodeBool(forKey: "NSNoCount")
         self.isAdaptive = !coder.decodeBool(forKey: "NSNoAdaptive")
     }
-    
+
+    open override func copy(with zone: NSZone? = nil) -> Any {
+        let copied = ByteCountFormatter()
+        copied.allowedUnits = allowedUnits
+        copied.countStyle = countStyle
+        copied.allowsNonnumericFormatting = allowsNonnumericFormatting
+        copied.includesUnit = includesUnit
+        copied.includesCount = includesCount
+        copied.includesActualByteCount = includesActualByteCount
+        copied.isAdaptive = isAdaptive
+        copied.zeroPadsFractionDigits = zeroPadsFractionDigits
+        copied.formattingContext = formattingContext
+        copied.actualBytes = actualBytes
+        copied.numberFormatter = numberFormatter.copy(with: zone) as? NumberFormatter ?? NumberFormatter()
+        return copied
+    }
+
     open override func encode(with coder: NSCoder) {
         super.encode(with: coder)
         precondition(coder.allowsKeyedCoding)
@@ -144,7 +160,7 @@ open class ByteCountFormatter : Formatter {
     
     /* Create an instance of NumberFormatter for use in various methods
      */
-    private let numberFormatter = NumberFormatter()
+    private var numberFormatter = NumberFormatter()
     
     /* Shortcut for converting a byte count into a string without creating an ByteCountFormatter and an NSNumber. If you need to specify options other than countStyle, create an instance of ByteCountFormatter first.
      */

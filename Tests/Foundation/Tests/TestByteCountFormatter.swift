@@ -456,6 +456,50 @@ class TestByteCountFormatter : XCTestCase {
         }
     }
 
+    func test_copy() throws {
+        let original = ByteCountFormatter()
+        original.allowedUnits = .useAll
+        original.countStyle = .decimal
+        original.allowsNonnumericFormatting = false
+        original.includesUnit = false
+        original.includesCount = false
+        original.includesActualByteCount = true
+        original.isAdaptive = false
+        original.zeroPadsFractionDigits = true
+        original.formattingContext = .dynamic
+
+        let copied = try XCTUnwrap(original.copy() as? ByteCountFormatter)
+        XCTAssertEqual(original.allowedUnits, copied.allowedUnits)
+        XCTAssertEqual(original.countStyle, copied.countStyle)
+        XCTAssertEqual(original.allowsNonnumericFormatting, copied.allowsNonnumericFormatting)
+        XCTAssertEqual(original.includesUnit, copied.includesUnit)
+        XCTAssertEqual(original.includesCount, copied.includesCount)
+        XCTAssertEqual(original.includesActualByteCount, copied.includesActualByteCount)
+        XCTAssertEqual(original.isAdaptive, copied.isAdaptive)
+        XCTAssertEqual(original.zeroPadsFractionDigits, copied.zeroPadsFractionDigits)
+        XCTAssertEqual(original.formattingContext, copied.formattingContext)
+
+        copied.allowedUnits = .useBytes
+        copied.countStyle = .binary
+        copied.allowsNonnumericFormatting = true
+        copied.includesUnit = true
+        copied.includesCount = true
+        copied.includesActualByteCount = false
+        copied.isAdaptive = true
+        copied.zeroPadsFractionDigits = false
+        copied.formattingContext = .standalone
+
+        XCTAssertNotEqual(original.allowedUnits, copied.allowedUnits)
+        XCTAssertNotEqual(original.countStyle, copied.countStyle)
+        XCTAssertNotEqual(original.allowsNonnumericFormatting, copied.allowsNonnumericFormatting)
+        XCTAssertNotEqual(original.includesUnit, copied.includesUnit)
+        XCTAssertNotEqual(original.includesCount, copied.includesCount)
+        XCTAssertNotEqual(original.includesActualByteCount, copied.includesActualByteCount)
+        XCTAssertNotEqual(original.isAdaptive, copied.isAdaptive)
+        XCTAssertNotEqual(original.zeroPadsFractionDigits, copied.zeroPadsFractionDigits)
+        XCTAssertNotEqual(original.formattingContext, copied.formattingContext)
+    }
+
     static var allTests: [(String, (TestByteCountFormatter) -> () throws -> Void)] {
         return [
             ("test_DefaultValues", test_DefaultValues),
@@ -479,6 +523,7 @@ class TestByteCountFormatter : XCTestCase {
             ("test_largeByteValues", test_largeByteValues),
             ("test_negativeByteValues", test_negativeByteValues),
             ("test_unarchivingFixtures", test_unarchivingFixtures),
+            ("test_copy", test_copy),
         ]
     }
     
