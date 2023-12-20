@@ -37,14 +37,6 @@
 #include <dispatch/dispatch.h>
 #endif
 
-#if TARGET_OS_WIN32
-// Remember to use _CF_RESTRICT instead of restrict, which is correctly defined for TARGET_OS_WIN32 elsewhere.
-
-// Replace bzero
-#define bzero(dst, size)    ZeroMemory(dst, size)
-
-#endif
-
 #if !defined(PAGE_SIZE)
 #define PAGE_SIZE 4096
 #endif
@@ -1275,13 +1267,13 @@ void CFStorageDeleteValues(CFStorageRef storage, CFRange range) {
 	/* Got a legitimately new root back.  If it is unfrozen, we can just acquire its guts.  If it is frozen, we have more work to do.  Note that we do not have to worry about releasing any existing children of the root, because __CFStorageDeleteUnfrozen already did that.  Also note that if we got a legitimately new root back, we must be a branch node, because if we were a leaf node, we would have been unfrozen and gotten ourself back. */
 	storage->rootNode.numBytes = newRoot->numBytes;
 	storage->rootNode.isLeaf = newRoot->isLeaf;
-	bzero(&storage->rootNode.info, sizeof storage->rootNode.info); //be a little paranoid here
+	memset(&storage->rootNode.info, 0, sizeof storage->rootNode.info); //be a little paranoid here
 	if (newRoot->isLeaf) {
 	    if (! newRoot->isFrozen) {
 		/* If the leaf is not frozen, we can just steal its memory (if any)!  If it is frozen, we must copy it. */
 		*((void **)&storage->rootNode.info.leaf.memory) = newRoot->info.leaf.memory;
-		/* Clear out the old node, because we stole its memory and we don't want it to deallocate it when teh node is destroyed below. */
-		bzero(&newRoot->info, sizeof newRoot->info);
+		/* Clear out the old node, because we stole its memory and we don't want it to deallocate it when the node is destroyed below. */
+		memset(&newRoot->info, 0, sizeof newRoot->info);
 	    }
 	    else {
 		/* The leaf is frozen, so we have to copy its memory.   */

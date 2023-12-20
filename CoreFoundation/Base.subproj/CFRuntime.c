@@ -496,20 +496,22 @@ CFTypeRef _CFRuntimeCreateInstance(CFAllocatorRef allocator, CFTypeID typeID, CF
     size = (size + 0xF) & ~0xF;	// CF objects are multiples of 16 in size
     // CFType version 0 objects are unscanned by default since they don't have write-barriers and hard retain their innards
     // CFType version 1 objects are scanned and use hand coded write-barriers to store collectable storage within
-    Boolean needsClear = false;
     CFRuntimeBase *memory = NULL;
     if (cls->version & _kCFRuntimeRequiresAlignment) {
         memory = _cf_aligned_calloc(align, size, cls->className);
+        if (NULL == memory) {
+            return NULL;
+        }
     } else if (__CFAllocatorRespectsHintZeroWhenAllocating(allocator)) {
         memory = (CFRuntimeBase *)CFAllocatorAllocate(allocator, size, _CFAllocatorHintZeroWhenAllocating);
+        if (NULL == memory) {
+            return NULL;
+        }
     } else {
         memory = (CFRuntimeBase *)CFAllocatorAllocate(allocator, size, 0);
-        needsClear = true;
-    }
-
-    if (NULL == memory) {
-	return NULL;
-    } else if (needsClear) {
+        if (NULL == memory) {
+            return NULL;
+        }
         memset(memory, 0, size);
     }
 

@@ -50,8 +50,8 @@ CF_EXPORT CFStringRef _CFGetProductName(void) {
             _cfBundlePlatform = CFSTR("");
 #else
             char buffer[256];
-            memset(buffer, 0, sizeof(buffer));
             size_t buflen = sizeof(buffer);
+            memset(buffer, 0, buflen);
             int ret = sysctlbyname("hw.machine", buffer, &buflen, NULL, 0);
             if (0 == ret || (-1 == ret && ENOMEM == errno)) {
 #if TARGET_OS_IOS

@@ -1083,7 +1083,7 @@ CFStringRef _CFXMLNodeCopyPrefix(_CFXMLNodePtr node) {
 
 void _CFXMLValidityErrorHandler(void* ctxt, const char* msg, ...);
 void _CFXMLValidityErrorHandler(void* ctxt, const char* msg, ...) {
-    char* formattedMessage = calloc(1, 1024);
+    char* formattedMessage = calloc(1024, 1);
 
     va_list args;
     va_start(args, msg);
@@ -1247,7 +1247,7 @@ _CFXMLDTDNodePtr _Nullable _CFXMLDTDGetAttributeDesc(_CFXMLDTDPtr dtd, const uns
 
 _CFXMLDTDNodePtr _Nullable _CFXMLDTDGetNotationDesc(_CFXMLDTDPtr dtd, const unsigned char* name) {
     xmlNotationPtr notation = xmlGetDtdNotationDesc(dtd, name);
-    _cfxmlNotation *notationPtr = calloc(sizeof(_cfxmlNotation), 1);
+    _cfxmlNotation *notationPtr = calloc(1, sizeof(_cfxmlNotation));
     notationPtr->type = XML_NOTATION_NODE;
     notationPtr->notation = notation;
     notationPtr->parent = dtd;

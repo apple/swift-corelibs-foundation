@@ -87,7 +87,7 @@ CFStringRef _CFListFormatterCreateStringByJoiningStrings(CFAllocatorRef allocato
     bool *needsFree = calloc(count, sizeof(bool));
 
     CFStringRef string;
-    for (int i = 0; i < count; ++i) {
+    for (CFIndex i = 0; i < count; ++i) {
         string = CFArrayGetValueAtIndex(strings, i);
         CFIndex const len = CFStringGetLength(string);
         UChar const *ucharString = CFStringGetCharactersPtr(string);
@@ -115,7 +115,7 @@ CFStringRef _CFListFormatterCreateStringByJoiningStrings(CFAllocatorRef allocato
         if (fmt) {
             __cficu_ulistfmt_close(fmt);
         }
-        for (int i = 0; i < count; ++i) {
+        for (CFIndex i = 0; i < count; ++i) {
             UChar *ucharString = ucharStrings[i];
             if (ucharString && needsFree[i]) {
                 free(ucharString);

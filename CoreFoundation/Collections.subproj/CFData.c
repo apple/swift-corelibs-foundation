@@ -282,13 +282,11 @@ static void *__CFDataAllocate(CFDataRef data, CFIndex size, Boolean clear) {
     if (__CFDataUseAllocator(data)) {
 	CFAllocatorRef allocator = __CFGetAllocator(data);
 	bytes = CFAllocatorAllocate(allocator, size, 0);
-	if (clear) memset((uint8_t *)bytes, 0, size);
+	if (clear) memset(bytes, 0, size);
+    } else if (clear) {
+        bytes = calloc(1, size);
     } else {
-        if (clear) {
-            bytes = calloc(1, size);
-        } else {
-            bytes = malloc(size);
-        }
+        bytes = malloc(size);
     }
     return bytes;
 }

@@ -502,8 +502,12 @@ void _CFBigNumToCString(const _CFBigNum *vp, Boolean leading_zeros, Boolean lead
     snprintf(tmp, sizeof(tmp), "%09u%09u%09u%09u%09u", vp->digits[4], vp->digits[3], vp->digits[2], vp->digits[1], vp->digits[0]);
     if (leading_zeros) {
         memset(buffer, '0', buflen);
-        uint32_t tocopy = __CFMin(sizeof(tmp), buflen);
-        memmove(buffer + buflen - tocopy, tmp + sizeof(tmp) - tocopy, tocopy); // copies trailing nul from tmp to nul-terminate
+
+        if (sizeof(tmp) < buflen)
+            memmove(buffer + (buflen - sizeof(tmp)), tmp, sizeof(tmp)); // copies trailing nul from tmp to nul-terminate
+        else
+            memmove(buffer, tmp + (sizeof(tmp)  - buflen), buflen); // copies trailing nul from tmp to nul-terminate
+        
     } else {
         char *s = tmp;
         while (*s == '0') s++;
@@ -513,9 +517,11 @@ void _CFBigNumToCString(const _CFBigNum *vp, Boolean leading_zeros, Boolean lead
 }
 
 void _CFBigNumFromCString(_CFBigNum *r, const char *string) {
+    size_t strSize = strlen(string) + 1;
     memset(r, 0, sizeof(*r));
-    char *copy = (char *)calloc(strlen(string)+1, sizeof(char));
-    memcpy(copy, string, strlen(string)+1);
+
+    char *copy = (char *)malloc(strSize);
+    memcpy(copy, string, strSize);
     char *working = copy;
     if (*working == '-') {
         r->sign = -1;
@@ -532,8 +538,8 @@ void _CFBigNumFromCString(_CFBigNum *r, const char *string) {
         free(copy);
         return;
     }
-    int curDigit = 0;
-    while (curDigit + 1 < sizeof(r->digits) / sizeof(r->digits[0]) && 9 < length) {
+    size_t curDigit = 0;
+    while (curDigit < sizeof(r->digits) / sizeof(r->digits[0]) - 1 && length > 9) {
         uint32_t digit = atol(working+length-9);
         r->digits[curDigit] = digit;
         *(working+length-9) = 0;

@@ -479,10 +479,8 @@ CF_PRIVATE Boolean _CFCalendarIsDateInWeekend(CFCalendarRef calendar, CFDateRef 
 
 CF_PRIVATE Boolean _CFCalendarGetNextWeekend(CFCalendarRef calendar, _CFCalendarWeekendRange *range) {
     // TODO: Double check this logic vs that in _NSCFCalendar
-    CFIndex weekdaysIndex[7];
-    memset(weekdaysIndex, '\0', sizeof(CFIndex)*7);
-    CFIndex firstWeekday = CFCalendarGetFirstWeekday(calendar);
-    weekdaysIndex[0] = firstWeekday;
+    CFIndex weekdaysIndex[7] = {0};
+    weekdaysIndex[0] = CFCalendarGetFirstWeekday(calendar);
     for (CFIndex i = 1; i < 7; i++) {
         weekdaysIndex[i] = (weekdaysIndex[i-1] % 7) + 1;
     }

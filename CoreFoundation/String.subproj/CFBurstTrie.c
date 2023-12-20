@@ -33,7 +33,6 @@
 #define stat(x,y) _NS_stat(x,y)
 #define __builtin_memcmp(x, y, z) memcmp(x, y, z)
 #define __builtin_popcountll(x) popcountll(x)
-#define bzero(dst, size)    ZeroMemory(dst, size)
 #define S_IWUSR 0
 #define S_IRUSR 0
 
@@ -727,7 +726,7 @@ Boolean CFBurstTrieSetCursorForBytes(CFBurstTrieRef trie, CFBurstTrieCursorRef c
 
 CFBurstTrieCursorRef CFBurstTrieCreateCursorForBytes(CFBurstTrieRef trie, const UInt8* bytes, CFIndex length)
 {
-    CFBurstTrieCursorRef cursor = (CFBurstTrieCursorRef)calloc(sizeof(_CFBurstTrieCursor), 1);
+    CFBurstTrieCursorRef cursor = (CFBurstTrieCursorRef)calloc(1, sizeof(_CFBurstTrieCursor));
     if (!CFBurstTrieSetCursorForBytes(trie, cursor, bytes, length)) {
         CFBurstTrieCursorRelease(cursor);
         return NULL;
@@ -740,7 +739,7 @@ CFBurstTrieCursorRef CFBurstTrieCursorCreateByCopy(CFBurstTrieCursorRef cursor)
     if (!cursor)
         return NULL;
 
-    CFBurstTrieCursorRef newCursor = (CFBurstTrieCursorRef)calloc(sizeof(_CFBurstTrieCursor), 1);
+    CFBurstTrieCursorRef newCursor = (CFBurstTrieCursorRef)calloc(1, sizeof(_CFBurstTrieCursor));
     switch (cursor->cursorType) {
         case _kCFBurstTrieCursorMapType:
             copyMapCursor(&cursor->mapCursor, &newCursor->mapCursor);
@@ -807,7 +806,7 @@ void CFBurstTrieTraverseFromCursor(CFBurstTrieCursorRef cursor, void *ctx, CFBur
     if (!cursor)
         return;
 
-    UInt8 *bytes = (UInt8*)calloc(1, MAX_KEY_LENGTH);
+    UInt8 *bytes = (UInt8*)calloc(MAX_KEY_LENGTH, 1);
     uint32_t capacity = MAX_KEY_LENGTH;
     uint32_t length = 0;
     Boolean stop = FALSE;
@@ -830,13 +829,14 @@ void CFBurstTrieTraverseFromCursor(CFBurstTrieCursorRef cursor, void *ctx, CFBur
 #endif
 
 static ListNodeRef makeCFBurstTrieListNode(const uint8_t *key, uint32_t keylen, uint32_t weight, uint32_t payload) {
-    ListNodeRef node = (ListNodeRef) calloc(1, sizeof(*node) + keylen + 1);
-    memcpy(node->string, key, keylen);
-    node->string[keylen] = 0;
+    ListNodeRef node = (ListNodeRef) malloc(sizeof(*node) + keylen + 1);
     node->next = 0;
-    node->length = keylen;
     node->weight = weight;
     node->payload = payload;
+    node->length = keylen;
+    memcpy(node->string, key, keylen);
+    node->string[keylen] = 0;
+
     return node;
 }
 
@@ -1800,7 +1800,7 @@ static bool serializeCFBurstTrieLevels(CFBurstTrieRef trie, TrieLevelRef root, u
         int offsetSlot = 0;
         
         CompactMapTrieLevel *maptrie = (CompactMapTrieLevel *)alloca(size);
-        bzero(maptrie, size);
+        memset(maptrie, 0, size);
         *offset += size;
         
         for (int i=0; i < CHARACTER_SET_SIZE; i++) {

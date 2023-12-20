@@ -236,10 +236,7 @@ CF_PRIVATE Boolean fdCanRead(int fd) {
         FD_ZERO(&readSet);
         readSetPtr = &readSet;
     } else {
-        int size = howmany(fd+1, NFDBITS) * sizeof(uint32_t);
-        uint32_t *fds_bits = (uint32_t *)malloc(size);
-        memset(fds_bits, 0, size);
-        readSetPtr = (fd_set *)fds_bits;
+        readSetPtr = (fd_set *)calloc(howmany(fd+1, NFDBITS), sizeof(uint32_t));
     }
     FD_SET(fd, readSetPtr);
     result = (select(fd + 1, readSetPtr, NULL, NULL, &timeout) == 1) ? TRUE : FALSE;
@@ -299,10 +296,7 @@ CF_PRIVATE Boolean fdCanWrite(int fd) {
         FD_ZERO(&writeSet);
         writeSetPtr = &writeSet;
     } else {
-        int size = howmany(fd+1, NFDBITS) * sizeof(uint32_t);
-        uint32_t *fds_bits = (uint32_t *)malloc(size);
-        memset(fds_bits, 0, size);
-        writeSetPtr = (fd_set *)fds_bits;
+        writeSetPtr = (fd_set *)calloc(howmany(fd+1, NFDBITS), sizeof(uint32_t));
     }
     FD_SET(fd, writeSetPtr);
     result = (select(fd + 1, NULL, writeSetPtr, NULL, &timeout) == 1) ? TRUE : FALSE;

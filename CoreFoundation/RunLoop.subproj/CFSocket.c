@@ -1338,8 +1338,7 @@ static void *__CFSocketManager(void * arg)
         }
 
         if (exceptfds == NULL) {
-            exceptfds = (fd_set*) malloc(maxnrfds * NFDBITS);
-            bzero(exceptfds, maxnrfds * NFDBITS);
+            exceptfds = (fd_set*) calloc(maxnrfds, NFDBITS);
         }
 #endif
 
