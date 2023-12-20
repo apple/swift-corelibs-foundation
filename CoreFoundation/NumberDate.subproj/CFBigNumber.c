@@ -532,15 +532,15 @@ void _CFBigNumFromCString(_CFBigNum *r, const char *string) {
         free(copy);
         return;
     }
-    int curDigit = 0;
+    size_t curDigit = 0;
     while (curDigit + 1 < sizeof(r->digits) / sizeof(r->digits[0]) && 9 < length) {
-        uint32_t digit = atol(working+length-9);
+        uint32_t digit = (uint32_t)strtoul(&working[length-9], NULL, 10);
         r->digits[curDigit] = digit;
-        *(working+length-9) = 0;
+        working[length-9] = 0;
         length -= 9;
         curDigit++;
     }
-    uint32_t digit = atol(working);
+    uint32_t digit = (uint32_t)strtoul(working, NULL, 10);
     r->digits[curDigit] = digit;
     free(copy);
 }
