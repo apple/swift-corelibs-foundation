@@ -66,10 +66,11 @@ Note that `cmake` needs to be a relatively recent version, currently 3.15.1, and
 then it is built as part of the `build-script` invocation. Therefore `cmake` may be installed in `build/cmake`.
 
 ```sh
+export BUILD_DIR=build/Ninja-ReleaseAssert
 # Build TestFoundation
-$SWIFT_BUILD_ROOT=build $BUILD_ROOT/cmake-linux-x86_64/bin/cmake --build $BUILD_ROOT/Ninja-ReleaseAssert/foundation-linux-x86_64/ -v -- -j4 TestFoundation
+build/cmake-linux-x86_64/bin/cmake --build $BUILD_DIR/foundation-linux-x86_64/ -v -- -j4 TestFoundation
 # Run the tests
-$SWIFT_BUILD_ROOT=build $BUILD_ROOT/cmake-linux-x86_64/bin/cmake --build $BUILD_ROOT/Ninja-ReleaseAssert/foundation-linux-x86_64/ -v -- -j4 test
+build/cmake-linux-x86_64/bin/cmake --build $BUILD_DIR/foundation-linux-x86_64/ -v -- -j4 test
 ```
 
 If `TestFoundation` needs to be run outside of `ctest`, perhaps to run under `lldb`  or to run individual tests, then it can be run directly but an appropriate `LD_LIBRARY_PATH`
