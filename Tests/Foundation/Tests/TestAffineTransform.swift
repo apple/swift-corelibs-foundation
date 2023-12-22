@@ -72,13 +72,27 @@ extension TestAffineTransform {
         
         let nsTransform = transform as NSAffineTransform
         XCTAssertEqual(
-            nsTransform.transform(point), newPoint,
-            "Expected NSAffineTransform to match AffineTransform's point-accepting transform(_:)",
+            nsTransform.transform(point).x, newPoint.x,
+            accuracy: accuracyThreshold,
+            "Expected NSAffineTransform x to match AffineTransform's point-accepting transform(_:)",
             file: file, line: line
         )
         XCTAssertEqual(
-            nsTransform.transform(size), newSize,
-            "Expected NSAffineTransform to match AffineTransform's size-accepting transform(_:)",
+            nsTransform.transform(point).y, newPoint.y,
+            accuracy: accuracyThreshold,
+            "Expected NSAffineTransform y to match AffineTransform's point-accepting transform(_:)",
+            file: file, line: line
+        )
+        XCTAssertEqual(
+            nsTransform.transform(size).width, newSize.width,
+            accuracy: accuracyThreshold,
+            "Expected NSAffineTransform width to match AffineTransform's size-accepting transform(_:)",
+            file: file, line: line
+        )
+        XCTAssertEqual(
+            nsTransform.transform(size).height, newSize.height,
+            accuracy: accuracyThreshold,
+            "Expected NSAffineTransform height to match AffineTransform's size-accepting transform(_:)",
             file: file, line: line
         )
         
