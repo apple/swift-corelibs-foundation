@@ -133,7 +133,7 @@ class TestDate : XCTestCase {
             dateWithString("2010-05-17 14:50:47 -0700"),
             dateWithString("2010-05-17 14:49:48 -0700"),
         ]
-        checkHashable(values, equalityOracle: { $0 == $1 })
+        checkHashable(values, equalityOracle: { values[$0] == values[$1] })
     }
 
     func test_AnyHashableContainingDate() {
