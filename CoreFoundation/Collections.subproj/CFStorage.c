@@ -132,7 +132,8 @@ CF_INLINE void __CFStorageAllocLeafNodeMemory(CFAllocatorRef allocator, CFStorag
     /* We must be careful here, because another thread may be trying to allocate this memory at the same time (8203146).  This may happen if two threads both attempt to read from a lazily-allocated node. */
     if ((compact ? (cap != node->info.leaf.capacityInBytes) : (cap > node->info.leaf.capacityInBytes))) {
 	__CFLock(&(storage->cacheReaderMemoryAllocationLock));
-	/* Check again now that we've acquired the lock.  We know that we can do this because two simultaneous readers will always pass the same capacity.  This is the fix for 8203146.  This probably needs a memory barrier. */
+	/* Check again now that we've acquired the lock.  We know that we can do this because two simultaneous readers will always pass the same capacity.  This is the fix for 8203146. */
+    atomic_thread_fence();
 	if ((compact ? (cap != node->info.leaf.capacityInBytes) : (cap > node->info.leaf.capacityInBytes))) {
 	    *((void **)&node->info.leaf.memory) = __CFSafelyReallocateWithAllocator(allocator, node->info.leaf.memory, cap, 0, NULL);	// This will free...
 	    if (__CFOASafe) __CFSetLastAllocationEventName(node->info.leaf.memory, "CFStorage (node bytes)");
