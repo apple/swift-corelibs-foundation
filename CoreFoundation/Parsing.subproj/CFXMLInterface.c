@@ -123,13 +123,27 @@ typedef struct {
     xmlNotationPtr notation;
 } _cfxmlNotation;
 
+// I'm not sure if libxml handles external entities as it should do.
+// This struct is used to handle callback calls that happen during
+// an external entity is loaded.
+struct CFXMLInterfacePrivateState {
+    // If this field is not 0, some delegate calls are blocked.
+    uint8_t     delegateBlocked;
+
+    // Flag set when the get entity call is seen.
+    uint8_t     gettingEntity;
+    // parsing depth while getting an entity.
+    uint32_t    depth;
+};
+
+
 #if DEPLOYMENT_RUNTIME_SWIFT
 static xmlExternalEntityLoader __originalLoader = NULL;
 
 static xmlParserInputPtr _xmlExternalEntityLoader(const char *urlStr, const char * ID, xmlParserCtxtPtr context) {
     _CFXMLInterface parser = __CFSwiftXMLParserBridge.currentParser();
     if (parser != NULL) {
-        return __CFSwiftXMLParserBridge._xmlExternalEntityWithURL(parser, urlStr, ID, context, __originalLoader);
+        return __CFSwiftXMLParserBridge._xmlExternalEntityWithURL(parser, (const unsigned char *)urlStr, (const unsigned char *)ID, context, (_CFXMLInterfaceExternalEntityLoader) __originalLoader);
     }
     return __originalLoader(urlStr, ID, context);
 }
@@ -154,8 +168,8 @@ void _CFSetupXMLBridgeIfNeededUsingBlock(void (^block)(void)) {
 #endif // DEPLOYMENT_RUNTIME_SWIFT
 }
 
-_CFXMLInterfaceParserInput _CFXMLInterfaceNoNetExternalEntityLoader(const char *URL, const char *ID, _CFXMLInterfaceParserContext ctxt) {
-    return xmlNoNetExternalEntityLoader(URL, ID, ctxt);
+_CFXMLInterfaceParserInput _CFXMLInterfaceNoNetExternalEntityLoader(const unsigned char *URL, const unsigned char *ID, _CFXMLInterfaceParserContext ctxt) {
+    return xmlNoNetExternalEntityLoader((const char *) URL, (const char *) ID, ctxt);
 }
 
 #if DEPLOYMENT_RUNTIME_SWIFT
@@ -170,31 +184,41 @@ static void _errorCallback(void *ctx, const char *msg, ...) {
 _CFXMLInterfaceSAXHandler _CFXMLInterfaceCreateSAXHandler() {
     _CFXMLInterfaceSAXHandler saxHandler = (_CFXMLInterfaceSAXHandler)calloc(1, sizeof(struct _xmlSAXHandler));
 #if DEPLOYMENT_RUNTIME_SWIFT
+    // To make it easier to spot missing or unused callbacks, the order of setting follows
+    // that of _xmlSAXHandler with unused (or outdated) callbacks being commented out.
+
     saxHandler->internalSubset = (internalSubsetSAXFunc)__CFSwiftXMLParserBridge.internalSubset;
     saxHandler->isStandalone = (isStandaloneSAXFunc)__CFSwiftXMLParserBridge.isStandalone;
-    
     saxHandler->hasInternalSubset = (hasInternalSubsetSAXFunc)__CFSwiftXMLParserBridge.hasInternalSubset;
     saxHandler->hasExternalSubset = (hasExternalSubsetSAXFunc)__CFSwiftXMLParserBridge.hasExternalSubset;
-    
+    // saxHandler->resolveEntity          replaced by xmlSetExternalEntityLoader
     saxHandler->getEntity = (getEntitySAXFunc)__CFSwiftXMLParserBridge.getEntity;
-    
+    saxHandler->entityDecl = (entityDeclSAXFunc)__CFSwiftXMLParserBridge.entityDecl;
     saxHandler->notationDecl = (notationDeclSAXFunc)__CFSwiftXMLParserBridge.notationDecl;
     saxHandler->attributeDecl = (attributeDeclSAXFunc)__CFSwiftXMLParserBridge.attributeDecl;
     saxHandler->elementDecl = (elementDeclSAXFunc)__CFSwiftXMLParserBridge.elementDecl;
     saxHandler->unparsedEntityDecl = (unparsedEntityDeclSAXFunc)__CFSwiftXMLParserBridge.unparsedEntityDecl;
+    // saxHandler->setDocumentLocator     currently not used by CFXMLInterface
     saxHandler->startDocument = (startDocumentSAXFunc)__CFSwiftXMLParserBridge.startDocument;
     saxHandler->endDocument = (endDocumentSAXFunc)__CFSwiftXMLParserBridge.endDocument;
+    // saxHandler->startElement           replaced by startElementNs
+    // saxHandler->endElement             replaced by endElementNs
+    // saxHandler->reference              currently not used by CFXMLInterface
+    saxHandler->characters = (charactersSAXFunc)__CFSwiftXMLParserBridge.characters;
+    saxHandler->ignorableWhitespace = (ignorableWhitespaceSAXFunc)__CFSwiftXMLParserBridge.ignorableWhitespace;
+    saxHandler->processingInstruction = (processingInstructionSAXFunc)__CFSwiftXMLParserBridge.processingInstruction;
+    saxHandler->comment = (commentSAXFunc)__CFSwiftXMLParserBridge.comment;
+    // saxHandler->warning                currently not used by CFXMLInterface
+    saxHandler->error = _errorCallback;
+    // saxHandler->fatalError             unused by libxml
+    // saxHandler->getParameterEntity     currently not used by CFXMLInterface
+    saxHandler->cdataBlock = (cdataBlockSAXFunc)__CFSwiftXMLParserBridge.cdataBlock;
+    saxHandler->externalSubset = (externalSubsetSAXFunc)__CFSwiftXMLParserBridge.externalSubset;
+    saxHandler->initialized = XML_SAX2_MAGIC; // make sure start/endElementNS are used
+    // saxHandler->_private               We do not touch private parts (currently not used by CFXMLInterface).
     saxHandler->startElementNs = (startElementNsSAX2Func)__CFSwiftXMLParserBridge.startElementNs;
     saxHandler->endElementNs = (endElementNsSAX2Func)__CFSwiftXMLParserBridge.endElementNs;
-    saxHandler->characters = (charactersSAXFunc)__CFSwiftXMLParserBridge.characters;
-    saxHandler->processingInstruction = (processingInstructionSAXFunc)__CFSwiftXMLParserBridge.processingInstruction;
-    saxHandler->error = _errorCallback;
-    saxHandler->cdataBlock = (cdataBlockSAXFunc)__CFSwiftXMLParserBridge.cdataBlock;
-    saxHandler->comment = (commentSAXFunc)__CFSwiftXMLParserBridge.comment;
-    
-    saxHandler->externalSubset = (externalSubsetSAXFunc)__CFSwiftXMLParserBridge.externalSubset;
-    
-    saxHandler->initialized = XML_SAX2_MAGIC; // make sure start/endElementNS are used
+    // saxHandler->serror                 currently not used by CFXMLInterface
 #endif //if DEPLOYMENT_RUNTIME_SWIFT
     return saxHandler;
 }
@@ -229,6 +253,9 @@ void _CFXMLInterfaceDestroyContext(_CFXMLInterfaceParserContext ctx) {
     if (ctx->myDoc) {
         xmlFreeDoc(ctx->myDoc);
     }
+    if (ctx->_private) {
+        free(ctx->_private);
+    }
     xmlFreeParserCtxt(ctx);
 }
 
@@ -243,9 +270,9 @@ int _CFXMLInterfaceSAX2GetColumnNumber(_CFXMLInterfaceParserContext ctx) {
 }
 
 void _CFXMLInterfaceSAX2InternalSubset(_CFXMLInterfaceParserContext ctx,
-                                       const unsigned char *name,
-                                       const unsigned char *ExternalID,
-                                       const unsigned char *SystemID) {
+                                       const unsigned char *_Nullable name,
+                                       const unsigned char *_Nullable ExternalID,
+                                       const unsigned char *_Nullable SystemID) {
     if (ctx != NULL) xmlSAX2InternalSubset(ctx, name, ExternalID, SystemID);
 }
 
@@ -322,17 +349,72 @@ _CFXMLDTDNodePtr _Nullable _CFXMLDTDNewAttributeDesc(_CFXMLDTDPtr dtd, const uns
 _CFXMLInterfaceEntity _CFXMLInterfaceSAX2GetEntity(_CFXMLInterfaceParserContext ctx, const unsigned char *name) {
     if (ctx == NULL) return NULL;
     _CFXMLInterfaceEntity entity = xmlSAX2GetEntity(ctx, name);
-    if (entity && ctx->instate == XML_PARSER_CONTENT) ctx->_private = (void *)1;
     return entity;
 }
 
-int _CFXMLInterfaceInRecursiveState(_CFXMLInterfaceParserContext ctx) {
-    return ctx->_private == (void *)1;
+void _CFXMLInterfacePrivateStateSetGettingEntity(_CFXMLInterfaceParserContext ctx) {
+    if (!ctx) return;
+
+    xmlParserCtxtPtr context = __CFSwiftXMLParserBridge.getContext((_CFXMLInterface)ctx);
+    if (!context->_private) {
+        context->_private = calloc(1, sizeof(struct CFXMLInterfacePrivateState));
+    }
+    struct CFXMLInterfacePrivateState *privateState = (struct CFXMLInterfacePrivateState *) context->_private;
+    privateState->gettingEntity = 1;
 }
 
-void _CFXMLInterfaceResetRecursiveState(_CFXMLInterfaceParserContext ctx) {
-    ctx->_private = NULL;
+void _CFXMLInterfacePrivateStateClearGettingEntity(_CFXMLInterfaceParserContext ctx) {
+    if (!ctx) return;
+
+    xmlParserCtxtPtr context = __CFSwiftXMLParserBridge.getContext((_CFXMLInterface)ctx);
+    if (!context->_private) return;
+
+    struct CFXMLInterfacePrivateState *privateState = (struct CFXMLInterfacePrivateState *) context->_private;
+    privateState->gettingEntity = 0;
 }
+
+uint8_t _CFXMLInterfacePrivateStateIsGettingEntity(_CFXMLInterfaceParserContext ctx) {
+    if (!ctx) return 0;
+
+    xmlParserCtxtPtr context = __CFSwiftXMLParserBridge.getContext((_CFXMLInterface)ctx);
+    if (!context->_private) return 0;
+
+    struct CFXMLInterfacePrivateState *privateState = (struct CFXMLInterfacePrivateState *) context->_private;
+    return privateState->gettingEntity;
+}
+
+void _CFXMLInterfacePrivateStateModifyLevel(_CFXMLInterfaceParserContext ctx, int8_t change) {
+    if (!ctx) return;
+    xmlParserCtxtPtr context = __CFSwiftXMLParserBridge.getContext((_CFXMLInterface)ctx);
+    if (!context->_private) {
+        context->_private = calloc(1, sizeof(struct CFXMLInterfacePrivateState));
+    }
+
+    struct CFXMLInterfacePrivateState *privateState = (struct CFXMLInterfacePrivateState *) context->_private;
+
+    if (0 == change && !privateState->gettingEntity) {
+        privateState->depth = 0;
+        privateState->delegateBlocked = 1;
+    } else if (0 < change && privateState->delegateBlocked != 0) {
+        privateState->depth++;
+    } else if (0 > change && privateState->delegateBlocked != 0 && 0 < privateState->depth) {
+        privateState->depth--;
+        if (0 == privateState->depth) {
+            privateState->delegateBlocked = 0;
+        }
+    }
+}
+
+uint8_t _CFXMLInterfacePrivateStateDelegateCallsBlocked(_CFXMLInterfaceParserContext ctx) {
+    if (!ctx) return 0;
+
+    xmlParserCtxtPtr context = __CFSwiftXMLParserBridge.getContext((_CFXMLInterface)ctx);
+    if (!context->_private) return 0;
+
+    struct CFXMLInterfacePrivateState *privateState = (struct CFXMLInterfacePrivateState *) context->_private;
+    return privateState->delegateBlocked;
+}
+
 
 int _CFXMLInterfaceHasDocument(_CFXMLInterfaceParserContext ctx) {
     if (ctx == NULL) return 0;
@@ -749,7 +831,7 @@ CFStringRef _CFXMLDocCopyCharacterEncoding(_CFXMLDocPtr doc) {
     return __CFSwiftXMLParserBridgeCF.CFStringCreateWithCString(NULL, (const char*)((xmlDocPtr)doc)->encoding, kCFStringEncodingUTF8);
 }
 
-void _CFXMLDocSetCharacterEncoding(_CFXMLDocPtr doc,  const unsigned char* _Nullable  encoding) {
+void _CFXMLDocSetCharacterEncoding(_CFXMLDocPtr doc, const unsigned char* _Nullable  encoding) {
     xmlDocPtr docPtr = (xmlDocPtr)doc;
 
     if (docPtr->encoding) {

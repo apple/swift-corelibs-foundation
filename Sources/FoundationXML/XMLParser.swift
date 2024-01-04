@@ -38,14 +38,27 @@ extension XMLParser {
 }
 
 private func UTF8STRING(_ bytes: UnsafePointer<UInt8>?) -> String? {
+
     guard let bytes = bytes else {
         return nil
     }
-    if let (str, _) = String.decodeCString(bytes, as: UTF8.self,
-                                           repairingInvalidCodeUnits: false) {
-        return str
+
+    guard let (str, _) = String.decodeCString(bytes, as: UTF8.self,
+                                              repairingInvalidCodeUnits: false) else {
+        return nil
     }
-    return nil
+
+    return str
+}
+
+extension XMLParser {
+    fileprivate func _getDelegateUnlessBlocked(in interface: _CFXMLInterface) -> XMLParserDelegate? {
+        if 0 == _CFXMLInterfacePrivateStateDelegateCallsBlocked(interface) {
+            return self.delegate
+        }
+
+        return nil
+    }
 }
 
 internal func _NSXMLParserCurrentParser() -> _CFXMLInterface? {
@@ -56,12 +69,13 @@ internal func _NSXMLParserCurrentParser() -> _CFXMLInterface? {
     }
 }
 
-internal func _NSXMLParserExternalEntityWithURL(_ interface: _CFXMLInterface, urlStr: UnsafePointer<Int8>, identifier: UnsafePointer<Int8>, context: _CFXMLInterfaceParserContext, originalLoaderFunction: _CFXMLInterfaceExternalEntityLoader) -> _CFXMLInterfaceParserInput? {
+internal func _NSXMLParserExternalEntityWithURL(_ interface: _CFXMLInterface, urlStr: UnsafePointer<UInt8>, identifier: UnsafePointer<UInt8>, context: _CFXMLInterfaceParserContext, originalLoaderFunction: _CFXMLInterfaceExternalEntityLoader) -> _CFXMLInterfaceParserInput? {
+    _CFXMLInterfacePrivateStateModifyLevel(interface, 0);
     let parser = interface.parser
     let policy = parser.externalEntityResolvingPolicy
     var a: URL?
     if let allowedEntityURLs = parser.allowedExternalEntityURLs {
-        if let url = URL(string: String(describing: urlStr)) {
+        if let urlString = UTF8STRING(urlStr), let url = URL(string: urlString) {
             a = url
             if let scheme = url.scheme {
                 if scheme == "file" {
@@ -83,8 +97,8 @@ internal func _NSXMLParserExternalEntityWithURL(_ interface: _CFXMLInterface, ur
     case .sameOriginOnly:
         guard let url = parser._url else { break }
         
-        if a == nil {
-            a = URL(string: String(describing: urlStr))
+        if a == nil, let urlString = UTF8STRING(urlStr) {
+            a = URL(string: urlString)
         }
         
         guard let aUrl = a else { break }
@@ -130,7 +144,7 @@ internal func _NSXMLParserGetContext(_ ctx: _CFXMLInterface) -> _CFXMLInterfaceP
     return ctx.parser._parserContext!
 }
 
-internal func _NSXMLParserInternalSubset(_ ctx: _CFXMLInterface, name: UnsafePointer<UInt8>, ExternalID: UnsafePointer<UInt8>, SystemID: UnsafePointer<UInt8>) -> Void {
+internal func _NSXMLParserInternalSubset(_ ctx: _CFXMLInterface, name: UnsafePointer<UInt8>?, ExternalID: UnsafePointer<UInt8>?, SystemID: UnsafePointer<UInt8>?) -> Void {
     _CFXMLInterfaceSAX2InternalSubset(ctx.parser._parserContext, name, ExternalID, SystemID)
 }
 
@@ -149,12 +163,16 @@ internal func _NSXMLParserHasExternalSubset(_ ctx: _CFXMLInterface) -> Int32 {
 internal func _NSXMLParserGetEntity(_ ctx: _CFXMLInterface, name: UnsafePointer<UInt8>) -> _CFXMLInterfaceEntity? {
     let parser = ctx.parser
     let context = _NSXMLParserGetContext(ctx)
+
+    _CFXMLInterfacePrivateStateSetGettingEntity(ctx)
+    defer { _CFXMLInterfacePrivateStateClearGettingEntity(ctx) }
+
     var entity = _CFXMLInterfaceGetPredefinedEntity(name)
     if entity == nil {
         entity = _CFXMLInterfaceSAX2GetEntity(context, name)
     }
     if entity == nil {
-        if let delegate = parser.delegate {
+        if let delegate = parser._getDelegateUnlessBlocked(in: ctx) {
             let entityName = UTF8STRING(name)!
             // if the systemID was valid, we would already have the correct entity (since we're loading external dtds) so this callback is a bit of a misnomer
             let result = delegate.parser(parser, resolveExternalEntityName: entityName, systemID: nil)
@@ -165,7 +183,6 @@ internal func _NSXMLParserGetEntity(_ ctx: _CFXMLInterface, name: UnsafePointer<
                         let bytes = rawBuffer.baseAddress!.assumingMemoryBound(to: UInt8.self)
                         _NSXMLParserCharacters(ctx, ch: bytes, len: Int32(data.count))
                     }
-                    
                 }
             }
         }
@@ -173,9 +190,37 @@ internal func _NSXMLParserGetEntity(_ ctx: _CFXMLInterface, name: UnsafePointer<
     return entity
 }
 
-internal func _NSXMLParserNotationDecl(_ ctx: _CFXMLInterface, name: UnsafePointer<UInt8>, publicId: UnsafePointer<UInt8>, systemId: UnsafePointer<UInt8>) -> Void {
+internal func _NSXMLParserEntityDecl(_ ctx: _CFXMLInterface, name: UnsafePointer<UInt8>, type: Int32, publicId: UnsafePointer<UInt8>?, systemId: UnsafePointer<UInt8>?, content: UnsafeMutablePointer<UInt8>?) -> Void {
+    switch CFIndex(type) {
+    case _kCFXMLDTDNodeEntityTypeInternalGeneral:
+        // Internal entity
+
+        // Inform delegate
+        let parser = ctx.parser
+        if let delegate = parser._getDelegateUnlessBlocked(in: ctx) {
+            let nameString = UTF8STRING(name)!
+            let content = UTF8STRING(content)
+            delegate.parser(parser, foundInternalEntityDeclarationWithName: nameString, value: content)
+        }
+    case _kCFXMLDTDNodeEntityTypeExternalGeneralParsed:
+        // External
+
+        // Inform delegate
+        let parser = ctx.parser
+        if let delegate = parser._getDelegateUnlessBlocked(in: ctx) {
+            let nameString = UTF8STRING(name)!
+            let publicIdString = UTF8STRING(publicId)
+            let systemIdString = UTF8STRING(systemId)
+            delegate.parser(parser, foundExternalEntityDeclarationWithName: nameString, publicID: publicIdString, systemID: systemIdString)
+        }
+    default:
+        break
+    }
+}
+
+internal func _NSXMLParserNotationDecl(_ ctx: _CFXMLInterface, name: UnsafePointer<UInt8>, publicId: UnsafePointer<UInt8>?, systemId: UnsafePointer<UInt8>?) -> Void {
     let parser = ctx.parser
-    if let delegate = parser.delegate {
+    if let delegate = parser._getDelegateUnlessBlocked(in: ctx) {
         let notationName = UTF8STRING(name)!
         let publicIDString = UTF8STRING(publicId)
         let systemIDString = UTF8STRING(systemId)
@@ -183,13 +228,28 @@ internal func _NSXMLParserNotationDecl(_ ctx: _CFXMLInterface, name: UnsafePoint
     }
 }
 
-internal func _NSXMLParserAttributeDecl(_ ctx: _CFXMLInterface, elem: UnsafePointer<UInt8>, fullname: UnsafePointer<UInt8>, type: Int32, def: Int32, defaultValue: UnsafePointer<UInt8>, tree: _CFXMLInterfaceEnumeration) -> Void {
+internal func _NSXMLParserAttributeDecl(_ ctx: _CFXMLInterface, elem: UnsafePointer<UInt8>, fullname: UnsafePointer<UInt8>, type: Int32, def: Int32, defaultValue: UnsafePointer<UInt8>?, tree: _CFXMLInterfaceEnumeration) -> Void {
     let parser = ctx.parser
-    if let delegate = parser.delegate {
+    if let delegate = parser._getDelegateUnlessBlocked(in: ctx) {
         let elementString = UTF8STRING(elem)!
         let nameString = UTF8STRING(fullname)!
-        let typeString = "" // FIXME!
         let defaultValueString = UTF8STRING(defaultValue)
+
+        let typeString: String?
+        switch CFIndex(type) {
+            case _kCFXMLDTDNodeAttributeTypeCData:       typeString = "CDATA"
+            case _kCFXMLDTDNodeAttributeTypeID:          typeString = "ID"
+            case _kCFXMLDTDNodeAttributeTypeIDRef:       typeString = "IDREF"
+            case _kCFXMLDTDNodeAttributeTypeIDRefs:      typeString = "IDREFS"
+            case _kCFXMLDTDNodeAttributeTypeEntity:      typeString = "ENTITY"
+            case _kCFXMLDTDNodeAttributeTypeEntities:    typeString = "ENTITIES"
+            case _kCFXMLDTDNodeAttributeTypeNMToken:     typeString = "NMTOKEN"
+            case _kCFXMLDTDNodeAttributeTypeNMTokens:    typeString = "NMTOKENS"
+            case _kCFXMLDTDNodeAttributeTypeEnumeration: typeString = "ENUMERATION"
+            case _kCFXMLDTDNodeAttributeTypeNotation:    typeString = "NOTATION"
+            default:                                     typeString = nil
+        }
+
         delegate.parser(parser, foundAttributeDeclarationWithName: nameString, forElement: elementString, type: typeString, defaultValue: defaultValueString)
     }
     // in a regular sax implementation tree is added to an attribute, which takes ownership of it; in our case we need to make sure to release it
@@ -198,20 +258,30 @@ internal func _NSXMLParserAttributeDecl(_ ctx: _CFXMLInterface, elem: UnsafePoin
 
 internal func _NSXMLParserElementDecl(_ ctx: _CFXMLInterface, name: UnsafePointer<UInt8>, type: Int32, content: _CFXMLInterfaceElementContent) -> Void {
     let parser = ctx.parser
-    if let delegate = parser.delegate {
+    if let delegate = parser._getDelegateUnlessBlocked(in: ctx) {
         let nameString = UTF8STRING(name)!
-        let modelString = "" // FIXME!
+
+        let modelString: String
+        switch CFIndex(type) {
+            case _kCFXMLDTDNodeElementTypeUndefined: modelString = "UNDEFINED"
+            case _kCFXMLDTDNodeElementTypeEmpty:     modelString = "EMPTY"
+            case _kCFXMLDTDNodeElementTypeAny:       modelString = "ANY"
+            case _kCFXMLDTDNodeElementTypeMixed:     modelString = "MIXED"
+            case _kCFXMLDTDNodeElementTypeElement:   modelString = "ELEMENT"
+            default:                                 modelString = "UNKNOWN"
+        }
+
         delegate.parser(parser, foundElementDeclarationWithName: nameString, model: modelString)
     }
 }
 
-internal func _NSXMLParserUnparsedEntityDecl(_ ctx: _CFXMLInterface, name: UnsafePointer<UInt8>, publicId: UnsafePointer<UInt8>, systemId: UnsafePointer<UInt8>, notationName: UnsafePointer<UInt8>) -> Void {
+internal func _NSXMLParserUnparsedEntityDecl(_ ctx: _CFXMLInterface, name: UnsafePointer<UInt8>, publicId: UnsafePointer<UInt8>?, systemId: UnsafePointer<UInt8>?, notationName: UnsafePointer<UInt8>?) -> Void {
     let parser = ctx.parser
     let context = _NSXMLParserGetContext(ctx)
     
     // Add entities to the libxml2 doc so they'll resolve properly
     _CFXMLInterfaceSAX2UnparsedEntityDecl(context, name, publicId, systemId, notationName)
-    if let delegate = parser.delegate {
+    if let delegate = parser._getDelegateUnlessBlocked(in: ctx) {
         let declName = UTF8STRING(name)!
         let publicIDString = UTF8STRING(publicId)
         let systemIDString = UTF8STRING(systemId)
@@ -221,21 +291,27 @@ internal func _NSXMLParserUnparsedEntityDecl(_ ctx: _CFXMLInterface, name: Unsaf
 }
 
 internal func _NSXMLParserStartDocument(_ ctx: _CFXMLInterface) -> Void {
+    _CFXMLInterfacePrivateStateModifyLevel(ctx, 1);
+
     let parser = ctx.parser
-    if let delegate = parser.delegate {
+    if let delegate = parser._getDelegateUnlessBlocked(in: ctx) {
         delegate.parserDidStartDocument(parser)
     }
 }
 
 internal func _NSXMLParserEndDocument(_ ctx: _CFXMLInterface) -> Void {
+    defer { _CFXMLInterfacePrivateStateModifyLevel(ctx, -1) }
+
     let parser = ctx.parser
-    if let delegate = parser.delegate {
+    if let delegate = parser._getDelegateUnlessBlocked(in: ctx) {
         delegate.parserDidEndDocument(parser)
     }
 }
 
 
 internal func _NSXMLParserStartElementNs(_ ctx: _CFXMLInterface, localname: UnsafePointer<UInt8>, prefix: UnsafePointer<UInt8>?, URI: UnsafePointer<UInt8>?, nb_namespaces: Int32, namespaces: UnsafeMutablePointer<UnsafePointer<UInt8>?>, nb_attributes: Int32, nb_defaulted: Int32, attributes: UnsafeMutablePointer<UnsafePointer<UInt8>?>) -> Void {
+    _CFXMLInterfacePrivateStateModifyLevel(ctx, 1);
+
     let parser = ctx.parser
     let reportNamespaces = parser.shouldReportNamespacePrefixes
 
@@ -268,7 +344,7 @@ internal func _NSXMLParserStartElementNs(_ ctx: _CFXMLInterface, localname: Unsa
     }
     
     if reportNamespaces {
-        parser._pushNamespaces(nsDict)
+        parser._pushNamespaces(nsDict, in: ctx)
     }
     
     for idx in stride(from: 0, to: Int(nb_attributes) * 5, by: 5) {
@@ -314,10 +390,14 @@ internal func _NSXMLParserStartElementNs(_ ctx: _CFXMLInterface, localname: Unsa
         elementName = prefix + ":" + elementName
     }
 
-    parser.delegate?.parser(parser, didStartElement: elementName, namespaceURI: namespaceURI, qualifiedName: qualifiedName, attributes: attrDict)
+    if let delegate = parser._getDelegateUnlessBlocked(in: ctx) {
+        delegate.parser(parser, didStartElement: elementName, namespaceURI: namespaceURI, qualifiedName: qualifiedName, attributes: attrDict)
+    }
 }
 
 internal func _NSXMLParserEndElementNs(_ ctx: _CFXMLInterface , localname: UnsafePointer<UInt8>, prefix: UnsafePointer<UInt8>?, URI: UnsafePointer<UInt8>?) -> Void {
+    defer { _CFXMLInterfacePrivateStateModifyLevel(ctx, -1) }
+
     let parser = ctx.parser
 
     var elementName: String = UTF8STRING(localname)!
@@ -335,30 +415,35 @@ internal func _NSXMLParserEndElementNs(_ ctx: _CFXMLInterface , localname: Unsaf
         elementName = prefix + ":" + elementName
     }
 
-    parser.delegate?.parser(parser, didEndElement: elementName, namespaceURI: namespaceURI, qualifiedName: qualifiedName)
+    if let delegate = parser._getDelegateUnlessBlocked(in: ctx) {
+        delegate.parser(parser, didEndElement: elementName, namespaceURI: namespaceURI, qualifiedName: qualifiedName)
+    }
 
     // Pop the last namespaces that were pushed (safe since XML is balanced)
     if parser.shouldReportNamespacePrefixes {
-        parser._popNamespaces()
+        parser._popNamespaces(in: ctx)
     }
 }
 
 internal func _NSXMLParserCharacters(_ ctx: _CFXMLInterface, ch: UnsafePointer<UInt8>, len: Int32) -> Void {
     let parser = ctx.parser
-    let context = parser._parserContext!
-    if _CFXMLInterfaceInRecursiveState(context) != 0 {
-        _CFXMLInterfaceResetRecursiveState(context)
-    } else {
-        if let delegate = parser.delegate {
-            let str = String(decoding: UnsafeBufferPointer(start: ch, count: Int(len)), as: UTF8.self)
-            delegate.parser(parser, foundCharacters: str)
-        }
+    if let delegate = parser._getDelegateUnlessBlocked(in: ctx) {
+        let str = String(decoding: UnsafeBufferPointer(start: ch, count: Int(len)), as: UTF8.self)
+        delegate.parser(parser, foundCharacters: str)
     }
 }
 
-internal func _NSXMLParserProcessingInstruction(_ ctx: _CFXMLInterface, target: UnsafePointer<UInt8>, data: UnsafePointer<UInt8>) -> Void {
+internal func _NSXMLParserIgnorableWhitespace(_ ctx: _CFXMLInterface, ch: UnsafePointer<UInt8>, len: Int32) -> Void {
     let parser = ctx.parser
-    if let delegate = parser.delegate {
+    if let delegate = parser._getDelegateUnlessBlocked(in: ctx) {
+        let str = String(decoding: UnsafeBufferPointer(start: ch, count: Int(len)), as: UTF8.self)
+        delegate.parser(parser, foundIgnorableWhitespace: str)
+    }
+}
+
+internal func _NSXMLParserProcessingInstruction(_ ctx: _CFXMLInterface, target: UnsafePointer<UInt8>, data: UnsafePointer<UInt8>?) -> Void {
+    let parser = ctx.parser
+    if let delegate = parser._getDelegateUnlessBlocked(in: ctx) {
         let targetString = UTF8STRING(target)!
         let dataString = UTF8STRING(data)
         delegate.parser(parser, foundProcessingInstructionWithTarget: targetString, data: dataString)
@@ -367,14 +452,14 @@ internal func _NSXMLParserProcessingInstruction(_ ctx: _CFXMLInterface, target: 
 
 internal func _NSXMLParserCdataBlock(_ ctx: _CFXMLInterface, value: UnsafePointer<UInt8>, len: Int32) -> Void {
     let parser = ctx.parser
-    if let delegate = parser.delegate {
+    if let delegate = parser._getDelegateUnlessBlocked(in: ctx) {
         delegate.parser(parser, foundCDATA: Data(bytes: value, count: Int(len)))
     }
 }
 
 internal func _NSXMLParserComment(_ ctx: _CFXMLInterface, value: UnsafePointer<UInt8>) -> Void {
     let parser = ctx.parser
-    if let delegate = parser.delegate {
+    if let delegate = parser._getDelegateUnlessBlocked(in: ctx) {
         let comment = UTF8STRING(value)!
         delegate.parser(parser, foundComment: comment)
     }
@@ -385,12 +470,17 @@ internal func _NSXMLParserExternalSubset(_ ctx: _CFXMLInterface, name: UnsafePoi
 }
 
 internal func _structuredErrorFunc(_ interface: _CFXMLInterface, error: _CFXMLInterfaceError) {
+    // FIXME: Reentrant calls will mix up what is seen as interface here.
+    //        As a workaround, we set the same callback for all XMLParser
+    //        instances and use XMLParser.currentParser() to get the instance.
+
     let cferr = _CFErrorCreateFromXMLInterface(error)
     let err = _CFErrorSPIForFoundationXMLUseOnly(unsafelyAssumingIsCFError: cferr)._nsObject
-    let parser = interface.parser
-    parser._parserError = err
-    if let delegate = parser.delegate {
-        delegate.parser(parser, parseErrorOccurred: err)
+    if let parser = XMLParser.currentParser() {
+        parser._parserError = err
+        if let delegate = parser.delegate {
+            delegate.parser(parser, parseErrorOccurred: err)
+        }
     }
 }
 
@@ -508,6 +598,8 @@ open class XMLParser : NSObject {
     }
 
     internal func parseData(_ data: Data, lastChunkOfData: Bool = false) -> Bool {
+        // FIXME: Reentrant calls will mix up the active interface here.
+        //        See _structuredErrorFunc for the workaround.
         _CFXMLInterfaceSetStructuredErrorFunc(interface, _structuredErrorFunc)
         defer { _CFXMLInterfaceSetStructuredErrorFunc(interface, nil) }
 
@@ -616,8 +708,9 @@ open class XMLParser : NSObject {
 #if os(WASI)
         return _data.map { parse(from: $0) } ?? false
 #else
+        let previousParser = XMLParser.currentParser()
         XMLParser.setCurrentParser(self)
-        defer { XMLParser.setCurrentParser(nil) }
+        defer { XMLParser.setCurrentParser(previousParser) }
 
         if _stream != nil {
             return parseFrom(_stream!)
@@ -665,20 +758,22 @@ open class XMLParser : NSObject {
         return Int(_CFXMLInterfaceSAX2GetColumnNumber(_parserContext))
     }
     
-    internal func _pushNamespaces(_ ns: [String:String]) {
+    internal func _pushNamespaces(_ ns: [String:String], in interface: _CFXMLInterface) {
         _namespaces.append(ns)
-        if let del = self.delegate {
+
+        if let delegate = self._getDelegateUnlessBlocked(in: interface) {
             ns.forEach {
-                del.parser(self, didStartMappingPrefix: $0.0, toURI: $0.1)
+                delegate.parser(self, didStartMappingPrefix: $0.0, toURI: $0.1)
             }
         }
     }
     
-    internal func _popNamespaces() {
+    internal func _popNamespaces(in interface: _CFXMLInterface) {
         let ns = _namespaces.removeLast()
-        if let del = self.delegate {
+
+        if let delegate = self._getDelegateUnlessBlocked(in: interface) {
             ns.forEach {
-                del.parser(self, didEndMappingPrefix: $0.0)
+                delegate.parser(self, didEndMappingPrefix: $0.0)
             }
         }
     }
@@ -1041,6 +1136,7 @@ func setupXMLParsing() {
         __CFSwiftXMLParserBridge.hasInternalSubset = _NSXMLParserHasInternalSubset
         __CFSwiftXMLParserBridge.hasExternalSubset = _NSXMLParserHasExternalSubset
         __CFSwiftXMLParserBridge.getEntity = _NSXMLParserGetEntity
+        __CFSwiftXMLParserBridge.entityDecl = _NSXMLParserEntityDecl
         __CFSwiftXMLParserBridge.notationDecl = _NSXMLParserNotationDecl
         __CFSwiftXMLParserBridge.attributeDecl = _NSXMLParserAttributeDecl
         __CFSwiftXMLParserBridge.elementDecl = _NSXMLParserElementDecl
@@ -1050,6 +1146,7 @@ func setupXMLParsing() {
         __CFSwiftXMLParserBridge.startElementNs = _NSXMLParserStartElementNs
         __CFSwiftXMLParserBridge.endElementNs = _NSXMLParserEndElementNs
         __CFSwiftXMLParserBridge.characters = _NSXMLParserCharacters
+        __CFSwiftXMLParserBridge.ignorableWhitespace = _NSXMLParserIgnorableWhitespace
         __CFSwiftXMLParserBridge.processingInstruction = _NSXMLParserProcessingInstruction
         __CFSwiftXMLParserBridge.cdataBlock = _NSXMLParserCdataBlock
         __CFSwiftXMLParserBridge.comment = _NSXMLParserComment
