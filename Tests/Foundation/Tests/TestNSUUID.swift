@@ -16,6 +16,7 @@ class TestNSUUID : XCTestCase {
             ("test_uuidString", test_uuidString),
             ("test_description", test_description),
             ("test_NSCoding", test_NSCoding),
+            ("test_compare", test_compare),
         ]
     }
     
@@ -51,5 +52,13 @@ class TestNSUUID : XCTestCase {
         let uuidA = NSUUID()
         let uuidB = NSKeyedUnarchiver.unarchiveObject(with: NSKeyedArchiver.archivedData(withRootObject: uuidA)) as! NSUUID
         XCTAssertEqual(uuidA, uuidB, "Archived then unarchived uuid must be equal.")
+    }
+
+    func test_compare() {
+        let uuidA = NSUUID(uuidBytes: [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01])
+        let uuidB = NSUUID(uuidBytes: [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02])
+        XCTAssertEqual(uuidA.compare(uuidA as UUID), .orderedSame)
+        XCTAssertEqual(uuidA.compare(uuidB as UUID), .orderedAscending)
+        XCTAssertEqual(uuidB.compare(uuidA as UUID), .orderedDescending)
     }
 }

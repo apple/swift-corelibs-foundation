@@ -113,7 +113,27 @@ open class NSUUID : NSObject, NSCopying, NSSecureCoding, NSCoding {
             return false
         }
     }
-    
+
+    open func compare(_ otherUUID: UUID) -> ComparisonResult {
+        if buffer[0] != otherUUID.uuid.0 { return buffer[0] < otherUUID.uuid.0 ? .orderedAscending : .orderedDescending }
+        if buffer[1] != otherUUID.uuid.1 { return buffer[1] < otherUUID.uuid.1 ? .orderedAscending : .orderedDescending }
+        if buffer[2] != otherUUID.uuid.2 { return buffer[2] < otherUUID.uuid.2 ? .orderedAscending : .orderedDescending }
+        if buffer[3] != otherUUID.uuid.3 { return buffer[3] < otherUUID.uuid.3 ? .orderedAscending : .orderedDescending }
+        if buffer[4] != otherUUID.uuid.4 { return buffer[4] < otherUUID.uuid.4 ? .orderedAscending : .orderedDescending }
+        if buffer[5] != otherUUID.uuid.5 { return buffer[5] < otherUUID.uuid.5 ? .orderedAscending : .orderedDescending }
+        if buffer[6] != otherUUID.uuid.6 { return buffer[6] < otherUUID.uuid.6 ? .orderedAscending : .orderedDescending }
+        if buffer[7] != otherUUID.uuid.7 { return buffer[7] < otherUUID.uuid.7 ? .orderedAscending : .orderedDescending }
+        if buffer[8] != otherUUID.uuid.8 { return buffer[8] < otherUUID.uuid.8 ? .orderedAscending : .orderedDescending }
+        if buffer[9] != otherUUID.uuid.9 { return buffer[9] < otherUUID.uuid.9 ? .orderedAscending : .orderedDescending }
+        if buffer[10] != otherUUID.uuid.10 { return buffer[10] < otherUUID.uuid.10 ? .orderedAscending : .orderedDescending }
+        if buffer[11] != otherUUID.uuid.11 { return buffer[11] < otherUUID.uuid.11 ? .orderedAscending : .orderedDescending }
+        if buffer[12] != otherUUID.uuid.12 { return buffer[12] < otherUUID.uuid.12 ? .orderedAscending : .orderedDescending }
+        if buffer[13] != otherUUID.uuid.13 { return buffer[13] < otherUUID.uuid.13 ? .orderedAscending : .orderedDescending }
+        if buffer[14] != otherUUID.uuid.14 { return buffer[14] < otherUUID.uuid.14 ? .orderedAscending : .orderedDescending }
+        if buffer[15] != otherUUID.uuid.15 { return buffer[15] < otherUUID.uuid.15 ? .orderedAscending : .orderedDescending }
+        return .orderedSame
+    }
+
     open override var hash: Int {
         return Int(bitPattern: CFHashBytes(buffer, 16))
     }
