@@ -220,7 +220,6 @@ internal func _NSErrorWithWindowsError(_ windowsError: DWORD, reading: Bool, pat
         case DWORD(ERROR_INVALID_EXE_SIGNATURE): cocoaError = .executableNotLoadable
         case DWORD(ERROR_EXE_MARKED_INVALID): cocoaError = .executableNotLoadable
         case DWORD(ERROR_BAD_EXE_FORMAT): cocoaError = .executableNotLoadable
-        case DWORD(ERROR_BAD_EXE_FORMAT): cocoaError = .executableNotLoadable
         case DWORD(ERROR_LOCKED): cocoaError = .fileLocking
         default:
             if reading {
