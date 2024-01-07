@@ -49,6 +49,7 @@ target_sources(TestFoundation PRIVATE
   Tests/TestNotification.swift
   Tests/TestNSArray.swift
   Tests/TestNSAttributedString.swift
+  Tests/TestNSByteOrder.swift
   Tests/TestNSCache.swift
   Tests/TestNSCalendar.swift
   Tests/TestNSCompoundPredicate.swift

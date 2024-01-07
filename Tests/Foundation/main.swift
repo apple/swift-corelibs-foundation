@@ -107,6 +107,7 @@ var allTestCases = [
     testCase(TestXMLParser.allTests),
     testCase(TestXMLDocument.allTests),
     testCase(TestNSAttributedString.allTests),
+    testCase(TestNSByteOrder.allTests),
     testCase(TestNSMutableAttributedString.allTests),
     testCase(TestFileHandle.allTests),
     testCase(TestUnitConverter.allTests),

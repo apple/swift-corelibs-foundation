@@ -56,6 +56,7 @@ add_library(Foundation
   NotificationQueue.swift
   NSArray.swift
   NSAttributedString.swift
+  NSByteOrder.swift
   NSCache.swift
   NSCalendar.swift
   NSCFArray.swift
