@@ -222,9 +222,7 @@ open class NumberFormatter : Formatter {
         _setFormatterAttribute(formatter, attributeName: kCFNumberFormatterMinIntegerDigits, value: _minimumIntegerDigits?._bridgeToObjectiveC()._cfObject)
         _setFormatterAttribute(formatter, attributeName: kCFNumberFormatterMaxIntegerDigits, value: _maximumIntegerDigits?._bridgeToObjectiveC()._cfObject)
         _setFormatterAttribute(formatter, attributeName: kCFNumberFormatterMinFractionDigits, value: _minimumFractionDigits?._bridgeToObjectiveC()._cfObject)
-        if minimumFractionDigits <= 0 {
-            _setFormatterAttribute(formatter, attributeName: kCFNumberFormatterMaxFractionDigits, value: maximumFractionDigits._bridgeToObjectiveC()._cfObject)
-        }
+        _setFormatterAttribute(formatter, attributeName: kCFNumberFormatterMaxFractionDigits, value: maximumFractionDigits._bridgeToObjectiveC()._cfObject)
         _setFormatterAttribute(formatter, attributeName: kCFNumberFormatterGroupingSize, value: groupingSize._bridgeToObjectiveC()._cfObject)
         _setFormatterAttribute(formatter, attributeName: kCFNumberFormatterSecondaryGroupingSize, value: _secondaryGroupingSize._bridgeToObjectiveC()._cfObject)
         _setFormatterAttribute(formatter, attributeName: kCFNumberFormatterRoundingMode, value: _roundingMode.rawValue._bridgeToObjectiveC()._cfObject)

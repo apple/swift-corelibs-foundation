@@ -696,6 +696,24 @@ class TestNumberFormatter: XCTestCase {
         let formattedString = numberFormatter.string(from: 42.4242)
         XCTAssertEqual(formattedString, "42-424")
     }
+
+    func test_bothFractionDigitsSet_longerThanMaximumFractionDigits() {
+        let numberFormatter = NumberFormatter()
+        numberFormatter.minimumFractionDigits = 3
+        numberFormatter.maximumFractionDigits = 4
+        numberFormatter.decimalSeparator = "-"
+        let formattedString = numberFormatter.string(from: 42.424242)
+        XCTAssertEqual(formattedString, "42-4242")
+    }
+
+    func test_bothFractionDigitsSet_shorterThanMinimumFractionDigits() {
+        let numberFormatter = NumberFormatter()
+        numberFormatter.minimumFractionDigits = 3
+        numberFormatter.maximumFractionDigits = 4
+        numberFormatter.decimalSeparator = "-"
+        let formattedString = numberFormatter.string(from: 42.42)
+        XCTAssertEqual(formattedString, "42-420")
+    }
     
     func test_groupingSize() {
         let numberFormatter = NumberFormatter()
