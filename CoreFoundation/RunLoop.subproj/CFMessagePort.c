@@ -827,7 +827,7 @@ static void __CFMessagePortReplyCallBack(CFMachPortRef port, void *msg, CFIndex 
 	    uintptr_t msgp_extent = (uintptr_t)((uint8_t *)msgp + msgp->header.msgh_size);
 	    uintptr_t data_extent = (uintptr_t)((uint8_t *)&(MSGP_INFO(replymsg, bytes)) + byteslen);
             if (byteslen < 0) byteslen = 0; // from here on, treat negative same as zero -- this is historical behavior: a NULL return from the callback on the other side results in empty data to the original requestor
-	    if (0 <= byteslen && data_extent <= msgp_extent) {
+	    if (data_extent <= msgp_extent) {
 		reply = CFDataCreate(kCFAllocatorSystemDefault, MSGP_INFO(replymsg, bytes), byteslen);
             } else {
                 reply = CFRetain(kCFBooleanFalse);    // means NULL data
