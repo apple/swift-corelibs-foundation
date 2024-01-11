@@ -183,7 +183,7 @@ _CF_EXPORT_SCOPE_BEGIN
 typedef struct {
     void *_Null_unspecified 	(*_Null_unspecified createDomain)(CFAllocatorRef _Nullable allocator, CFTypeRef context);
     void	(*_Null_unspecified freeDomain)(CFAllocatorRef _Nullable allocator, CFTypeRef context, void *domain);
-    CFTypeRef _Null_unspecified 	(*_Null_unspecified fetchValue)(CFTypeRef context, void *domain, CFStringRef key); // Caller releases
+    CFTypeRef _Null_unspecified 	(*_Null_unspecified copyValue)(CFTypeRef context, void *domain, CFStringRef key); // Caller releases
     void	(*_Null_unspecified writeValue)(CFTypeRef context, void *domain, CFStringRef key, CFTypeRef value);
     Boolean	(*_Null_unspecified synchronize)(CFTypeRef context, void *domain);
     void	(*_Null_unspecified getKeysAndValues)(CFAllocatorRef _Nullable alloc, CFTypeRef context, void *domain, void *_Null_unspecified * _Null_unspecified buf[_Null_unspecified], CFIndex *numKeyValuePairs);

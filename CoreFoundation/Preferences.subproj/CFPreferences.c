@@ -648,7 +648,7 @@ CF_PRIVATE CFArrayRef _CFPreferencesCreateDomainList(CFStringRef  userName, CFSt
 CFPreferencesDomainRef _CFPreferencesDomainCreate(CFTypeRef  context, const _CFPreferencesDomainCallBacks *callBacks) {
     CFAllocatorRef alloc = __CFPreferencesAllocator();
     CFPreferencesDomainRef newDomain;
-    CFAssert(callBacks != NULL && callBacks->createDomain != NULL && callBacks->freeDomain != NULL && callBacks->fetchValue != NULL && callBacks->writeValue != NULL, __kCFLogAssertion, "Cannot create a domain with NULL callbacks");
+    CFAssert(callBacks != NULL && callBacks->createDomain != NULL && callBacks->freeDomain != NULL && callBacks->copyValue != NULL && callBacks->writeValue != NULL, __kCFLogAssertion, "Cannot create a domain with NULL callbacks");
     newDomain = (CFPreferencesDomainRef)_CFRuntimeCreateInstance(alloc, _kCFRuntimeIDCFPreferencesDomain, sizeof(struct __CFPreferencesDomain) - sizeof(CFRuntimeBase), NULL);
     if (newDomain) {
         newDomain->_callBacks = callBacks;
@@ -660,7 +660,7 @@ CFPreferencesDomainRef _CFPreferencesDomainCreate(CFTypeRef  context, const _CFP
 }
 
 CFTypeRef  _CFPreferencesDomainCreateValueForKey(CFPreferencesDomainRef domain, CFStringRef key) {
-    return domain->_callBacks->fetchValue(domain->_context, domain->_domain, key);
+    return domain->_callBacks->copyValue(domain->_context, domain->_domain, key);
 }
 
 void _CFPreferencesDomainSet(CFPreferencesDomainRef domain, CFStringRef  key, CFTypeRef  value) {

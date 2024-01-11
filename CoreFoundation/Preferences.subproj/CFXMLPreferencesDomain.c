@@ -37,7 +37,7 @@ typedef struct {
 
 static void *createXMLDomain(CFAllocatorRef allocator, CFTypeRef context);
 static void freeXMLDomain(CFAllocatorRef allocator, CFTypeRef context, void *tDomain);
-static CFTypeRef fetchXMLValue(CFTypeRef context, void *xmlDomain, CFStringRef key);
+static CFTypeRef copyXMLValue(CFTypeRef context, void *xmlDomain, CFStringRef key);
 static void writeXMLValue(CFTypeRef context, void *xmlDomain, CFStringRef key, CFTypeRef value);
 static Boolean synchronizeXMLDomain(CFTypeRef context, void *xmlDomain);
 static void getXMLKeysAndValues(CFAllocatorRef alloc, CFTypeRef context, void *xmlDomain, void **buf[], CFIndex *numKeyValuePairs);
@@ -45,7 +45,7 @@ static CFDictionaryRef copyXMLDomainDictionary(CFTypeRef context, void *domain);
 static void setXMLDomainIsWorldReadable(CFTypeRef context, void *domain, Boolean isWorldReadable);
 
 CF_PRIVATE const _CFPreferencesDomainCallBacks __kCFXMLPropertyListDomainCallBacks;
-const _CFPreferencesDomainCallBacks __kCFXMLPropertyListDomainCallBacks = {createXMLDomain, freeXMLDomain, fetchXMLValue, writeXMLValue, synchronizeXMLDomain, getXMLKeysAndValues, copyXMLDomainDictionary, setXMLDomainIsWorldReadable};
+const _CFPreferencesDomainCallBacks __kCFXMLPropertyListDomainCallBacks = {createXMLDomain, freeXMLDomain, copyXMLValue, writeXMLValue, synchronizeXMLDomain, getXMLKeysAndValues, copyXMLDomainDictionary, setXMLDomainIsWorldReadable};
 
 CF_PRIVATE CFAllocatorRef __CFPreferencesAllocator(void);
 
@@ -198,7 +198,7 @@ static void _loadXMLDomainIfStale(CFURLRef url, _CFXMLPreferencesDomain *domain)
     domain->_lastReadTime = CFAbsoluteTimeGetCurrent();
 }
 
-static CFTypeRef fetchXMLValue(CFTypeRef context, void *xmlDomain, CFStringRef key) {
+static CFTypeRef copyXMLValue(CFTypeRef context, void *xmlDomain, CFStringRef key) {
     _CFXMLPreferencesDomain *domain = (_CFXMLPreferencesDomain *)xmlDomain;
     CFTypeRef result;
  
