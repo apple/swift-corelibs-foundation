@@ -33,6 +33,8 @@ extension timeval {
 open class NSDate : NSObject, NSCopying, NSSecureCoding, NSCoding {
     typealias CFType = CFDate
     
+    open class var now: Date { Date() }
+
     open override var hash: Int {
         return Int(bitPattern: CFHash(_cfObject))
     }
