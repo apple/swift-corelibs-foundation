@@ -238,13 +238,42 @@ public class NSKeyValueObservation : NSObject {
 }
 
 // Used for type-erase Optional type
-private protocol _OptionalForKVO {
+private protocol _AnyOptionalForKVO {
     static func _castForKVO(_ value: Any) -> Any?
+}
+
+// Used to allow conditional conformance based on wrapped type below
+private protocol _OptionalForKVO: _AnyOptionalForKVO {
+    associatedtype Wrapped
 }
 
 extension Optional: _OptionalForKVO {
     static func _castForKVO(_ value: Any) -> Any? {
         return value as? Wrapped
+    }
+}
+
+// Used to detect raw representable types
+private protocol _RawRepresentableForKVO {
+    static func _fromRawValueForKVO(_ rawValue: Any) -> Any?
+}
+
+// Marker only type used together with conditional conformances and casts
+private enum _KVORawRepresentableMarker<Target> {}
+
+// Directly raw-representable types
+extension _KVORawRepresentableMarker: _RawRepresentableForKVO where Target: RawRepresentable {
+    static func _fromRawValueForKVO(_ rawValue: Any) -> Any? {
+        guard let typedRawValue = rawValue as? Target.RawValue else { return nil }
+        return Target(rawValue: typedRawValue)
+    }
+}
+
+// Optional raw representable types
+extension _KVORawRepresentableMarker: _AnyOptionalForKVO where Target: _OptionalForKVO, Target.Wrapped: RawRepresentable {
+    static func _castForKVO(_ value: Any) -> Any? {
+        guard let rawValue = value as? Target.Wrapped.RawValue else { return nil }
+        return Target.Wrapped(rawValue: rawValue)
     }
 }
 
@@ -259,7 +288,7 @@ extension _KeyValueCodingAndObserving {
         return NSKeyValueObservation(object: self as! NSObject, keyPath: keyPath, options: options) { (obj, change) in
             
             let converter = { (changeValue: Any?) -> Value? in
-                if let optionalType = Value.self as? _OptionalForKVO.Type {
+                if let optionalType = Value.self as? _AnyOptionalForKVO.Type {
                     // Special logic for keyPath having a optional target value. When the keyPath referencing a nil value, the newValue/oldValue should be in the form .some(nil) instead of .none
                     // Solve https://bugs.swift.org/browse/SR-6066
                     
@@ -270,10 +299,17 @@ extension _KeyValueCodingAndObserving {
                     if let unwrapped = changeValue {
                         // We use _castForKVO to cast first.
                         // If Value != Optional<NSNull>.self, the NSNull value will be eliminated.
-                        let nullEliminatedValue = optionalType._castForKVO(unwrapped) as Any
+                        let nullEliminatedValue: Any
+                        if let rawReprentableType = _KVORawRepresentableMarker<Value>.self as? _AnyOptionalForKVO.Type {
+                            nullEliminatedValue = rawReprentableType._castForKVO(unwrapped) as Any
+                        } else {
+                            nullEliminatedValue = optionalType._castForKVO(unwrapped) as Any
+                        }
                         let transformedOptional: Any? = nullEliminatedValue
                         return transformedOptional as? Value
                     }
+                } else if let rawReprentableType = _KVORawRepresentableMarker<Value>.self as? _RawRepresentableForKVO.Type {
+                    return changeValue.flatMap { rawReprentableType._fromRawValueForKVO($0) } as? Value
                 }
                 return changeValue as? Value
             }
