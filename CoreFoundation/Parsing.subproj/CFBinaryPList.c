@@ -518,23 +518,47 @@ static void _flattenPlist(CFPropertyListRef plist, CFMutableArrayRef objlist, CF
 
 /* Get the number of bytes required to hold the value in 'count'. Will return a power of 2 value big enough to hold 'count'.
  */
-CF_INLINE uint8_t _byteCount(uint64_t count) {
+CF_INLINE uint8_t _byteCount(uint64_t count)
+{
+    if (count == 0)
+        return 1U; // Special case 0 since it is undefined for __builtin_clzll
+
+#if TARGET_OS_MAC
+    // Count the number of leading 0s and subtract from the max value, which is 64
+    unsigned int zeroCount = 64U - __builtin_clzll(count);
+
+    // Round to highest by 8 number
+    zeroCount += -zeroCount & 7U;
+
+    // Divide by 8
+    zeroCount >>= 3;
+
+    // Anything 8 or above just use the zeroCount
+    if (zeroCount >= 8)
+        return zeroCount;
+
+    // calculate nearest power of 2;
+    return 1U << (32U - __builtin_ctz(zeroCount - 1));
+#else
     uint64_t mask = ~(uint64_t)0;
     uint8_t size = 0;
 
     // Find something big enough to hold 'count'
-    while (count & mask) {
+    do
+    {
         size++;
         mask = mask << 8;
-    }
+    } while (count & mask);
 
     // Ensure that 'count' is a power of 2
     // For sizes bigger than 8, just use the required count
-    while ((size != 1 && size != 2 && size != 4 && size != 8) && size <= 8) {
+    while ((size != 2 && size != 4) && size <= 8)
+    {
         size++;
     }
 
     return size;
+#endif
 }
 
 // stream can be a CFWriteStreamRef (on supported platforms) or a CFMutableDataRef
