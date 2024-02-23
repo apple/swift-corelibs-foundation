@@ -1,0 +1,10 @@
+{
+  "name": "swift-corelibs-foundation",
+  "version-string": "0.1.0",
+  "dependencies": [
+    "curl",
+    "icu",
+    "libxml2",
+    "zlib"
+  ]
+}
