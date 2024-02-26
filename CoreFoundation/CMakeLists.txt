@@ -71,11 +71,21 @@ if(CF_DEPLOYMENT_SWIFT)
   add_compile_options($<$<COMPILE_LANGUAGE:C>:$<$<STREQUAL:${CMAKE_C_SIMULATE_ID},MSVC>:/clang:>-fcf-runtime-abi=swift>)
 endif()
 
+include(CheckSymbolExists)
+check_symbol_exists("strlcat" "string.h" HAVE_STRING_STRLCAT)
+if(HAVE_STRING_STRLCAT)
+  add_compile_definitions($<$<COMPILE_LANGUAGE:C>:HAVE_STRING_STRLCAT>)
+endif()
+
+check_symbol_exists("strlcpy" "string.h" HAVE_STRING_STRLCPY)
+if(HAVE_STRING_STRLCPY)
+  add_compile_definitions($<$<COMPILE_LANGUAGE:C>:HAVE_STRING_STRLCPY>)
+endif()
+
 if(CMAKE_SYSTEM_NAME STREQUAL Linux OR CMAKE_SYSTEM_NAME STREQUAL Android)
   add_compile_definitions($<$<COMPILE_LANGUAGE:C>:_GNU_SOURCE>)
 
   if(CMAKE_SYSTEM_NAME STREQUAL Linux)
-    include(CheckSymbolExists)
     include(CheckIncludeFile)
     list(APPEND CMAKE_REQUIRED_DEFINITIONS -D_GNU_SOURCE)
     check_include_file("sched.h" HAVE_SCHED_H)
