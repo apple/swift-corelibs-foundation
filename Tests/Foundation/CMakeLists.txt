@@ -108,6 +108,7 @@ target_sources(TestFoundation PRIVATE
   Tests/TestURLResponse.swift
   Tests/TestURLSession.swift
   Tests/TestURLSessionFTP.swift
+  Tests/TestURLQueryItem.swift
   Tests/TestURL.swift
   Tests/TestUserDefaults.swift
   Tests/TestUtils.swift

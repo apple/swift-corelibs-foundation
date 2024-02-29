@@ -27,6 +27,13 @@ open class NSURLQueryItem: NSObject, NSSecureCoding, NSCopying {
         return self
     }
 
+    open override var hash: Int {
+        var hasher = Hasher()
+        hasher.combine(name)
+        hasher.combine(value)
+        return hasher.finalize()
+    }
+
     public static var supportsSecureCoding: Bool {
         return true
     }

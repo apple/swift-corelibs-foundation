@@ -95,6 +95,7 @@ var allTestCases = [
     testCase(TestURLCredentialStorage.allTests),
     testCase(TestURLProtectionSpace.allTests),
     testCase(TestURLProtocol.allTests),
+    testCase(TestURLQueryItem.allTests),
     testCase(TestNSURLRequest.allTests),
     testCase(TestNSURL.allTests),
     testCase(TestURLRequest.allTests),
