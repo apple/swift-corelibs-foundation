@@ -741,20 +741,26 @@ extension FileManager {
             if rmdir(fsRep) == 0 {
                 return
             } else if errno == ENOTEMPTY {
+                #if os(Android)
+                let ps = UnsafeMutablePointer<UnsafeMutablePointer<Int8>>.allocate(capacity: 2)
+                ps.initialize(to: UnsafeMutablePointer(mutating: fsRep))
+                ps.advanced(by: 1).initialize(to: unsafeBitCast(0, to: UnsafeMutablePointer<Int8>.self))
+                #else
                 let ps = UnsafeMutablePointer<UnsafeMutablePointer<Int8>?>.allocate(capacity: 2)
                 ps.initialize(to: UnsafeMutablePointer(mutating: fsRep))
                 ps.advanced(by: 1).initialize(to: nil)
+                #endif
                 let stream = fts_open(ps, FTS_PHYSICAL | FTS_XDEV | FTS_NOCHDIR | FTS_NOSTAT, nil)
                 ps.deinitialize(count: 2)
                 ps.deallocate()
 
-                if stream != nil {
+                if let openStream = stream {
                     defer {
-                        fts_close(stream)
+                        fts_close(openStream)
                     }
 
-                    while let current = fts_read(stream)?.pointee {
-                        let itemPath = string(withFileSystemRepresentation: current.fts_path, length: Int(current.fts_pathlen))
+                    while let current = fts_read(openStream)?.pointee, let current_path = current.fts_path {
+                        let itemPath = string(withFileSystemRepresentation: current_path, length: Int(current.fts_pathlen))
                         guard alreadyConfirmed || shouldRemoveItemAtPath(itemPath, isURL: isURL) else {
                             continue
                         }
@@ -762,11 +768,11 @@ extension FileManager {
                         do {
                             switch Int32(current.fts_info) {
                             case FTS_DEFAULT, FTS_F, FTS_NSOK, FTS_SL, FTS_SLNONE:
-                                if unlink(current.fts_path) == -1 {
+                                if unlink(current_path) == -1 {
                                     throw _NSErrorWithErrno(errno, reading: false, path: itemPath)
                                 }
                             case FTS_DP:
-                                if rmdir(current.fts_path) == -1 {
+                                if rmdir(current_path) == -1 {
                                     throw _NSErrorWithErrno(errno, reading: false, path: itemPath)
                                 }
                             case FTS_DNR, FTS_ERR, FTS_NS:
@@ -1085,10 +1091,18 @@ extension FileManager {
             do {
                 guard fm.fileExists(atPath: _url.path) else { throw _NSErrorWithErrno(ENOENT, reading: true, url: url) }
                 _stream = try FileManager.default._fileSystemRepresentation(withPath: _url.path) { fsRep in
+                    #if os(Android)
+                    let ps = UnsafeMutablePointer<UnsafeMutablePointer<Int8>>.allocate(capacity: 2)
+                    #else
                     let ps = UnsafeMutablePointer<UnsafeMutablePointer<Int8>?>.allocate(capacity: 2)
+                    #endif
                     defer { ps.deallocate() }
                     ps.initialize(to: UnsafeMutablePointer(mutating: fsRep))
+                    #if os(Android)
+                    ps.advanced(by: 1).initialize(to: unsafeBitCast(0, to: UnsafeMutablePointer<Int8>.self))
+                    #else
                     ps.advanced(by: 1).initialize(to: nil)
+                    #endif
                     return fts_open(ps, FTS_PHYSICAL | FTS_XDEV | FTS_NOCHDIR | FTS_NOSTAT, nil)
                 }
                 if _stream == nil {
@@ -1135,14 +1149,14 @@ extension FileManager {
                 }
 
                 _current = fts_read(stream)
-                while let current = _current {
-                    let filename = FileManager.default.string(withFileSystemRepresentation: current.pointee.fts_path, length: Int(current.pointee.fts_pathlen))
+                while let current = _current, let current_path = current.pointee.fts_path {
+                    let filename = FileManager.default.string(withFileSystemRepresentation: current_path, length: Int(current.pointee.fts_pathlen))
 
                     switch Int32(current.pointee.fts_info) {
                         case FTS_D:
                             let (showFile, skipDescendants) = match(filename: filename, to: _options, isDir: true)
                             if skipDescendants {
-                                fts_set(_stream, _current, FTS_SKIP)
+                                fts_set(stream, current, FTS_SKIP)
                             }
                             if showFile {
                                  return URL(fileURLWithPath: filename, isDirectory: true)
@@ -1315,7 +1329,7 @@ extension FileManager {
             let finalErrno = originalItemURL.withUnsafeFileSystemRepresentation { (originalFS) -> Int32? in
                 return newItemURL.withUnsafeFileSystemRepresentation { (newItemFS) -> Int32? in
                     // This is an atomic operation in many OSes, but is not guaranteed to be atomic by the standard.
-                    if rename(newItemFS, originalFS) == 0 {
+                    if let newFS = newItemFS, let origFS = originalFS, rename(newFS, origFS) == 0 {
                         return nil
                     } else {
                         return errno

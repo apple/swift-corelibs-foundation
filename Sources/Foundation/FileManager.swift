@@ -568,13 +568,13 @@ open class FileManager : NSObject {
         let attributes = try windowsFileAttributes(atPath: path)
         let type = FileAttributeType(attributes: attributes, atPath: path)
 #else
-        if let pwd = getpwuid(s.st_uid), pwd.pointee.pw_name != nil {
-            let name = String(cString: pwd.pointee.pw_name)
+        if let pwd = getpwuid(s.st_uid), let pwd_name = pwd.pointee.pw_name {
+            let name = String(cString: pwd_name)
             result[.ownerAccountName] = name
         }
 
-        if let grd = getgrgid(s.st_gid), grd.pointee.gr_name != nil {
-            let name = String(cString: grd.pointee.gr_name)
+        if let grd = getgrgid(s.st_gid), let grd_name = grd.pointee.gr_name {
+            let name = String(cString: grd_name)
             result[.groupOwnerAccountName] = name
         }
 

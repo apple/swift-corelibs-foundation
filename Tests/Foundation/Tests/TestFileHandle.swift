@@ -111,7 +111,7 @@ class TestFileHandle : XCTestCase {
 #else
         var fds: [Int32] = [-1, -1]
         fds.withUnsafeMutableBufferPointer { (pointer) -> Void in
-            pipe(pointer.baseAddress)
+            pipe(pointer.baseAddress!)
         }
         
         close(fds[1])
