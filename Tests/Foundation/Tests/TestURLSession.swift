@@ -495,20 +495,101 @@ class TestURLSession: LoopbackServerTest {
         waitForExpectations(timeout: 30)
     }
     
-    func test_timeoutInterval() {
+    func test_httpTimeout() {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 10
-        let urlString = "http://127.0.0.1:-1/Peru"
+        let urlString = "http://127.0.0.1:\(TestURLSession.serverPort)/Peru"
         let session = URLSession(configuration: config, delegate: nil, delegateQueue: nil)
         let expect = expectation(description: "GET \(urlString): will timeout")
-        var req = URLRequest(url: URL(string: "http://127.0.0.1:-1/Peru")!)
+        var req = URLRequest(url: URL(string: urlString)!)
+        req.setValue("3", forHTTPHeaderField: "x-pause")
         req.timeoutInterval = 1
         let task = session.dataTask(with: req) { (data, _, error) -> Void in
             defer { expect.fulfill() }
-            XCTAssertNotNil(error)
+            XCTAssertEqual((error as? URLError)?.code, .timedOut, "Task should fail with URLError.timedOut error")
         }
         task.resume()
+        waitForExpectations(timeout: 30)
+    }
+
+    func test_connectTimeout() {
+        // Reconfigure http server for this specific scenario:
+        // a slow request keeps web server busy, while other
+        // request times out on connection attempt.
+        Self.stopServer()
+        Self.options = Options(serverBacklog: 1, isAsynchronous: false)
+        Self.startServer()
         
+        let config = URLSessionConfiguration.default
+        let slowUrlString = "http://127.0.0.1:\(TestURLSession.serverPort)/Peru"
+        let fastUrlString = "http://127.0.0.1:\(TestURLSession.serverPort)/Italy"
+        let session = URLSession(configuration: config, delegate: nil, delegateQueue: nil)
+        let slowReqExpect = expectation(description: "GET \(slowUrlString): will complete")
+        let fastReqExpect = expectation(description: "GET \(fastUrlString): will timeout")
+        
+        var slowReq = URLRequest(url: URL(string: slowUrlString)!)
+        slowReq.setValue("3", forHTTPHeaderField: "x-pause")
+        
+        var fastReq = URLRequest(url: URL(string: fastUrlString)!)
+        fastReq.timeoutInterval = 1
+        
+        let slowTask = session.dataTask(with: slowReq) { (data, _, error) -> Void in
+            slowReqExpect.fulfill()
+        }
+        let fastTask = session.dataTask(with: fastReq) { (data, _, error) -> Void in
+            defer { fastReqExpect.fulfill() }
+            XCTAssertEqual((error as? URLError)?.code, .timedOut, "Task should fail with URLError.timedOut error")
+        }
+        slowTask.resume()
+        Thread.sleep(forTimeInterval: 0.1) // Give slow task some time to start
+        fastTask.resume()
+        
+        waitForExpectations(timeout: 30)
+
+        // Reconfigure http server back to default settings
+        Self.stopServer()
+        Self.options = .default
+        Self.startServer()
+    }
+    
+    func test_repeatedRequestsStress() throws {
+        let config = URLSessionConfiguration.default
+        let urlString = "http://127.0.0.1:\(TestURLSession.serverPort)/Peru"
+        let session = URLSession(configuration: config, delegate: nil, delegateQueue: nil)
+        let req = URLRequest(url: URL(string: urlString)!)
+        
+        var requestsLeft = 3000
+        let expect = expectation(description: "\(requestsLeft) x GET \(urlString)")
+        
+        func doRequests(completion: @escaping () -> Void) {
+            // We only care about completion of one of the tasks,
+            // so we could move to next cycle.
+            // Some overlapping would happen and that's what we
+            // want actually to provoke issue with socket reuse
+            // on Windows.
+            let task = session.dataTask(with: req) { (_, _, _) -> Void in
+            }
+            task.resume()
+            let task2 = session.dataTask(with: req) { (_, _, _) -> Void in
+            }
+            task2.resume()
+            let task3 = session.dataTask(with: req) { (_, _, _) -> Void in
+                completion()
+            }
+            task3.resume()
+        }
+
+        func checkCountAndRunNext() {
+            guard requestsLeft > 0 else {
+                expect.fulfill()
+                return
+            }
+            requestsLeft -= 1
+            doRequests(completion: checkCountAndRunNext)
+        }
+        
+        checkCountAndRunNext()
+
         waitForExpectations(timeout: 30)
     }
 
@@ -2049,7 +2130,6 @@ class TestURLSession: LoopbackServerTest {
             ("test_taskTimeout", test_taskTimeout),
             ("test_verifyRequestHeaders", test_verifyRequestHeaders),
             ("test_verifyHttpAdditionalHeaders", test_verifyHttpAdditionalHeaders),
-            ("test_timeoutInterval", test_timeoutInterval),
             ("test_httpRedirectionWithCode300", test_httpRedirectionWithCode300),
             ("test_httpRedirectionWithCode301_302", test_httpRedirectionWithCode301_302),
             ("test_httpRedirectionWithCode303", test_httpRedirectionWithCode303),
@@ -2098,6 +2178,7 @@ class TestURLSession: LoopbackServerTest {
             /* ⚠️ */      testExpectedToFail(test_noDoubleCallbackWhenCancellingAndProtocolFailsFast, "This test crashes nondeterministically: https://bugs.swift.org/browse/SR-11310")),
             /* ⚠️ */ ("test_cancelledTasksCannotBeResumed", testExpectedToFail(test_cancelledTasksCannotBeResumed, "Breaks on Ubuntu 18.04")),
         ]
+        #if NS_FOUNDATION_ALLOWS_TESTABLE_IMPORT
         if #available(macOS 12.0, *) {
             retVal.append(contentsOf: [
                 ("test_webSocket", asyncTest(test_webSocket)),
@@ -2106,6 +2187,19 @@ class TestURLSession: LoopbackServerTest {
                 ("test_webSocketSemiAbruptClose", asyncTest(test_webSocketSemiAbruptClose)),
             ])
         }
+        #endif
+        #if os(Windows)
+            retVal.append(contentsOf: [
+                ("test_httpTimeout", testExpectedToFail(test_httpTimeout, "Crashes: https://github.com/apple/swift-corelibs-foundation/issues/4791")),
+                ("test_connectTimeout", testExpectedToFail(test_connectTimeout, "Crashes: https://github.com/apple/swift-corelibs-foundation/issues/4791")),
+                ("test_repeatedRequestsStress", testExpectedToFail(test_repeatedRequestsStress, "Crashes: https://github.com/apple/swift-corelibs-foundation/issues/4791")),
+            ])
+        #else
+        retVal.append(contentsOf: [
+            ("test_httpTimeout", test_httpTimeout),
+            ("test_connectTimeout", test_connectTimeout),
+        ])
+        #endif
         return retVal
     }
     
