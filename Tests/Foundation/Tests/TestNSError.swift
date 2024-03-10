@@ -221,6 +221,7 @@ class TestCocoaError: XCTestCase {
             ("test_url", TestCocoaError.test_url),
             ("test_stringEncoding", TestCocoaError.test_stringEncoding),
             ("test_underlying", TestCocoaError.test_underlying),
+            ("test_underlyingErrors", TestCocoaError.test_underlyingErrors),
         ]
     }
 
@@ -229,6 +230,7 @@ class TestCocoaError: XCTestCase {
         NSURLErrorKey: TestCocoaError.testURL,
         NSFilePathErrorKey: TestCocoaError.testURL.path,
         NSUnderlyingErrorKey: POSIXError(.EACCES),
+        NSMultipleUnderlyingErrorsKey: [POSIXError(.EFAULT)],
         NSStringEncodingErrorKey: String.Encoding.utf16.rawValue,
     ]
 
@@ -268,5 +270,10 @@ class TestCocoaError: XCTestCase {
         let e = CocoaError(.fileWriteNoPermission, userInfo: userInfo)
         XCTAssertNotNil(e.underlying as? POSIXError)
         XCTAssertEqual(e.underlying as? POSIXError, POSIXError.init(.EACCES))
+    }
+
+    func test_underlyingErrors() {
+        let e = CocoaError(.fileWriteNoPermission, userInfo: userInfo)
+        XCTAssertEqual(e.underlyingErrors as? [POSIXError], [POSIXError(.EACCES), POSIXError(.EFAULT)])
     }
 }

@@ -33,6 +33,9 @@ public let NSMachErrorDomain: String = "NSMachErrorDomain"
 // Key in userInfo. A recommended standard way to embed NSErrors from underlying calls. The value of this key should be an NSError.
 public let NSUnderlyingErrorKey: String = "NSUnderlyingError"
 
+// Key in userInfo. A recommended standard way to embed a list of several NSErrors from underlying calls. The value of this key should be an NSArray of NSError. This value is independent from the value of `NSUnderlyingErrorKey` - neither, one, or both may be set.
+public let NSMultipleUnderlyingErrorsKey: String = "NSMultipleUnderlyingError"
+
 // Keys in userInfo, for subsystems wishing to provide their error messages up-front. Note that NSError will also consult the userInfoValueProvider for the domain when these values are not present in the userInfo dictionary.
 public let NSLocalizedDescriptionKey: String = "NSLocalizedDescription"
 public let NSLocalizedFailureReasonErrorKey: String = "NSLocalizedFailureReason"
@@ -736,6 +739,18 @@ public extension CocoaError {
     /// The underlying error behind this error, if any.
     var underlying: Error? {
         return _nsUserInfo[NSUnderlyingErrorKey] as? Error
+    }
+
+    /// Return a list of underlying errors, if any. It includes the values of both NSUnderlyingErrorKey and NSMultipleUnderlyingErrorsKey. If there are no underlying errors, returns an empty array.
+    var underlyingErrors: [Error] {
+        var errors = [Error]()
+        if let underlyingError = _nsUserInfo[NSUnderlyingErrorKey] as? Error {
+            errors.append(underlyingError)
+        }
+        if let underlyingErrors = _nsUserInfo[NSMultipleUnderlyingErrorsKey] as? [Error] {
+            errors.append(contentsOf: underlyingErrors)
+        }
+        return errors
     }
 
     /// The URL associated with this error, if any.
