@@ -1092,25 +1092,27 @@ public final class UnitFrequency : Dimension {
      */
     
     private struct Symbol {
-        static let terahertz    = "THz"
-        static let gigahertz    = "GHz"
-        static let megahertz    = "MHz"
-        static let kilohertz    = "kHz"
-        static let hertz        = "Hz"
-        static let millihertz   = "mHz"
-        static let microhertz   = "µHz"
-        static let nanohertz    = "nHz"
+        static let terahertz       = "THz"
+        static let gigahertz       = "GHz"
+        static let megahertz       = "MHz"
+        static let kilohertz       = "kHz"
+        static let hertz           = "Hz"
+        static let millihertz      = "mHz"
+        static let microhertz      = "µHz"
+        static let nanohertz       = "nHz"
+        static let framesPerSecond = "fps"
     }
     
     private struct Coefficient {
-        static let terahertz    = 1e12
-        static let gigahertz    = 1e9
-        static let megahertz    = 1e6
-        static let kilohertz    = 1e3
-        static let hertz        = 1.0
-        static let millihertz   = 1e-3
-        static let microhertz   = 1e-6
-        static let nanohertz    = 1e-9
+        static let terahertz       = 1e12
+        static let gigahertz       = 1e9
+        static let megahertz       = 1e6
+        static let kilohertz       = 1e3
+        static let hertz           = 1.0
+        static let millihertz      = 1e-3
+        static let microhertz      = 1e-6
+        static let nanohertz       = 1e-9
+        static let framesPerSecond = 1.0
     }
     
     private convenience init(symbol: String, coefficient: Double) {
@@ -1164,7 +1166,13 @@ public final class UnitFrequency : Dimension {
             return UnitFrequency(symbol: Symbol.nanohertz, coefficient: Coefficient.nanohertz)
         }
     }
-    
+
+    public class var framesPerSecond: UnitFrequency {
+        get {
+            return UnitFrequency(symbol: Symbol.framesPerSecond, coefficient: Coefficient.framesPerSecond)
+        }
+    }
+
     public override class func baseUnit() -> UnitFrequency {
         return .hertz
     }
