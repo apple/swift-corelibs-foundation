@@ -17,9 +17,22 @@
 #define BUFFER_SIZE 256
 #define RESULT_BUFFER_SIZE 768
 
+#if TARGET_OS_WASI
+#define LOCK() do {} while (0)
+#define UNLOCK() do {} while (0)
+#else
+#include <dispatch/dispatch.h>
+
+#define LOCK() do { dispatch_semaphore_wait(formatter->_lock, DISPATCH_TIME_FOREVER); } while(0)
+#define UNLOCK() do { dispatch_semaphore_signal(formatter->_lock); } while(0)
+#endif
+
 struct __CFListFormatter {
     CFRuntimeBase _base;
     CFLocaleRef _locale;
+#if !TARGET_OS_WASI
+    dispatch_semaphore_t _lock;
+#endif
 };
 
 static void __CFListFormatterDeallocate(CFTypeRef cf) {
@@ -64,8 +77,22 @@ CFListFormatterRef _CFListFormatterCreate(CFAllocatorRef allocator, CFLocaleRef 
     }
 
     memory->_locale = CFRetain(locale);
+#if !TARGET_OS_WASI
+    memory->_lock = dispatch_semaphore_create(1);
+#endif
 
     return memory;
+}
+
+void _CFListFormatterSetLocale(CFListFormatterRef formatter, CFLocaleRef locale) {
+    assert(locale != NULL);
+
+    LOCK();
+    if (locale != formatter->_locale) {
+        CFRelease(formatter->_locale);
+        formatter->_locale = CFLocaleCreateCopy(kCFAllocatorSystemDefault, locale);
+    }
+    UNLOCK();
 }
 
 CFStringRef _CFListFormatterCreateStringByJoiningStrings(CFAllocatorRef allocator, const CFListFormatterRef formatter, const CFArrayRef strings) {

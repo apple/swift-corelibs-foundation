@@ -47,6 +47,7 @@ add_library(Foundation
   JSONSerialization.swift
   JSONSerialization+Parser.swift
   LengthFormatter.swift
+  ListFormatter.swift
   Locale.swift
   MassFormatter.swift
   Measurement.swift

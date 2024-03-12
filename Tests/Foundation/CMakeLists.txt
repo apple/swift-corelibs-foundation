@@ -42,6 +42,7 @@ target_sources(TestFoundation PRIVATE
   Tests/TestJSONEncoder.swift
   Tests/TestJSONSerialization.swift
   Tests/TestLengthFormatter.swift
+  Tests/TestListFormatter.swift
   Tests/TestMassFormatter.swift
   Tests/TestMeasurement.swift
   Tests/TestNotificationCenter.swift

@@ -404,6 +404,8 @@
 		90E645DF1E4C89A400D0D47C /* TestNSCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90E645DE1E4C89A400D0D47C /* TestNSCache.swift */; };
 		91B668A32252B3C5001487A1 /* FileManager+POSIX.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91B668A22252B3C5001487A1 /* FileManager+POSIX.swift */; };
 		91B668A52252B3E7001487A1 /* FileManager+Win32.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91B668A42252B3E7001487A1 /* FileManager+Win32.swift */; };
+		9ED688592A5CD6F000CEBE96 /* ListFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ED688582A5CD6F000CEBE96 /* ListFormatter.swift */; };
+		9ED6885B2A5CD71400CEBE96 /* TestListFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ED6885A2A5CD71400CEBE96 /* TestListFormatter.swift */; };
 		9F0DD3521ECD73D000F68030 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F0041781ECD5962004138BD /* main.swift */; };
 		9F0DD3571ECD783500F68030 /* SwiftFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5B5D885D1BBC938800234F36 /* SwiftFoundation.framework */; };
 		A058C2021E529CF100B07AA1 /* TestMassFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A058C2011E529CF100B07AA1 /* TestMassFormatter.swift */; };
@@ -1134,6 +1136,8 @@
 		90E645DE1E4C89A400D0D47C /* TestNSCache.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TestNSCache.swift; sourceTree = "<group>"; };
 		91B668A22252B3C5001487A1 /* FileManager+POSIX.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FileManager+POSIX.swift"; sourceTree = "<group>"; };
 		91B668A42252B3E7001487A1 /* FileManager+Win32.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FileManager+Win32.swift"; sourceTree = "<group>"; };
+		9ED688582A5CD6F000CEBE96 /* ListFormatter.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ListFormatter.swift; sourceTree = "<group>"; };
+		9ED6885A2A5CD71400CEBE96 /* TestListFormatter.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TestListFormatter.swift; sourceTree = "<group>"; };
 		9F0041781ECD5962004138BD /* main.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		9F0DD33F1ECD734200F68030 /* xdgTestHelper.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = xdgTestHelper.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9F0DD34F1ECD737B00F68030 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -1893,6 +1897,7 @@
 				3EA9D66F1EF0532D00B362D6 /* TestJSONEncoder.swift */,
 				5EB6A15C1C188FC40037DCB8 /* TestJSONSerialization.swift */,
 				BD8042151E09857800487EB8 /* TestLengthFormatter.swift */,
+				9ED6885A2A5CD71400CEBE96 /* TestListFormatter.swift */,
 				A058C2011E529CF100B07AA1 /* TestMassFormatter.swift */,
 				7D8BD738225ED1480057CF37 /* TestMeasurement.swift */,
 				BF8E65301DC3B3CB005AB5C3 /* TestNotification.swift */,
@@ -2159,6 +2164,7 @@
 				EADE0B641BD15DFF00C49C64 /* JSONSerialization.swift */,
 				49D55FA025E84FE5007BD3B3 /* JSONSerialization+Parser.swift */,
 				EADE0B661BD15DFF00C49C64 /* LengthFormatter.swift */,
+				9ED688582A5CD6F000CEBE96 /* ListFormatter.swift */,
 				5BD70FB11D3D4CDC003B9BF8 /* Locale.swift */,
 				EADE0B681BD15DFF00C49C64 /* MassFormatter.swift */,
 				5BECBA371D1CAD7000B39B1F /* Measurement.swift */,
@@ -2991,6 +2997,7 @@
 				AA9E0E0B21FA6C5600963F4C /* PropertyListEncoder.swift in Sources */,
 				5BD70FB41D3D4F8B003B9BF8 /* Calendar.swift in Sources */,
 				5BA9BEBD1CF4F3B8009DBD6C /* Notification.swift in Sources */,
+				9ED6885B2A5CD71400CEBE96 /* TestListFormatter.swift in Sources */,
 				5BD70FB21D3D4CDC003B9BF8 /* Locale.swift in Sources */,
 				EADE0BB71BD15E0000C49C64 /* Stream.swift in Sources */,
 				5BF7AEBF1BCD51F9008F214A /* NSURL.swift in Sources */,
@@ -3013,6 +3020,7 @@
 				EADE0BB31BD15E0000C49C64 /* NSRegularExpression.swift in Sources */,
 				EADE0BA41BD15E0000C49C64 /* LengthFormatter.swift in Sources */,
 				5BDC3FCA1BCF176100ED97BB /* NSCFArray.swift in Sources */,
+				9ED688592A5CD6F000CEBE96 /* ListFormatter.swift in Sources */,
 				EADE0BB21BD15E0000C49C64 /* Progress.swift in Sources */,
 				EADE0B961BD15DFF00C49C64 /* DateIntervalFormatter.swift in Sources */,
 				5B5BFEAC1E6CC0C200AC8D9E /* NSCFBoolean.swift in Sources */,

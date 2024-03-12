@@ -60,6 +60,7 @@ var allTestCases = [
     testCase(TestNSKeyedArchiver.allTests),
     testCase(TestNSKeyedUnarchiver.allTests),
     testCase(TestLengthFormatter.allTests),
+    testCase(TestListFormatter.allTests),
     testCase(TestNSLocale.allTests),
     testCase(TestNotificationCenter.allTests),
     testCase(TestNotificationQueue.allTests),

@@ -30,6 +30,7 @@
 #include <CoreFoundation/CFURLComponents.h>
 #include <CoreFoundation/CFRunArray.h>
 #include <CoreFoundation/CFDateComponents.h>
+#include <CoreFoundation/CFListFormatter.h>
 
 #if TARGET_OS_WIN32
 #define NOMINMAX
