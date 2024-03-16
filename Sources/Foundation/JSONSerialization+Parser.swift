@@ -89,7 +89,8 @@ internal struct JSONParser {
     // MARK: - Parse Array -
 
     mutating func parseArray() throws -> [JSONValue] {
-        precondition(self.reader.read() == ._openbracket)
+        let startByte = self.reader.read()
+        precondition(startByte == ._openbracket)
         guard self.depth < 512 else {
             throw JSONError.tooManyNestedArraysOrDictionaries(characterIndex: self.reader.readerIndex - 1)
         }
@@ -143,7 +144,8 @@ internal struct JSONParser {
     // MARK: - Object parsing -
 
     mutating func parseObject() throws -> [String: JSONValue] {
-        precondition(self.reader.read() == ._openbrace)
+        let startByte = self.reader.read()
+        precondition(startByte == ._openbrace)
         guard self.depth < 512 else {
             throw JSONError.tooManyNestedArraysOrDictionaries(characterIndex: self.reader.readerIndex - 1)
         }
@@ -401,7 +403,8 @@ extension JSONParser {
         }
 
         private mutating func parseEscapeSequence() throws -> String {
-            precondition(self.read() == ._backslash, "Expected to have an backslash first")
+            let startByte = self.read()
+            precondition(startByte == ._backslash, "Expected to have an backslash first")
             guard let ascii = self.read() else {
                 throw JSONError.unexpectedEndOfFile
             }
