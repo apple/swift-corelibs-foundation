@@ -929,6 +929,13 @@ open class Process: NSObject {
 #else
         var spawnAttrs: posix_spawnattr_t = posix_spawnattr_t()
 #endif
+#if os(Android)
+        guard var spawnAttrs else {
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno), userInfo: [
+                    NSURLErrorKey:self.executableURL!
+            ])
+        }
+#endif
         try _throwIfPosixError(posix_spawnattr_init(&spawnAttrs))
         try _throwIfPosixError(posix_spawnattr_setflags(&spawnAttrs, .init(POSIX_SPAWN_SETPGROUP)))
 #if canImport(Darwin)
