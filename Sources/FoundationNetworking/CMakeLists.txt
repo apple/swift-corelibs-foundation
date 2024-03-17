@@ -15,6 +15,10 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
   if((NS_CURL_ASSUME_FEATURES_MISSING) OR (CURL_VERSION_STRING VERSION_LESS "7.30.0"))
     add_compile_definitions(NS_CURL_MISSING_MAX_HOST_CONNECTIONS)
   endif()
+
+  if((NS_CURL_ASSUME_FEATURES_MISSING) OR (CURL_VERSION_STRING VERSION_LESS "7.84.0"))
+    add_compile_definitions(NS_CURL_MISSING_CURLINFO_CAINFO)
+  endif()
 endif()
 
 add_library(FoundationNetworking
