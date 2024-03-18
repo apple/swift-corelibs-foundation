@@ -1801,7 +1801,7 @@ public func NSDecimalPower(_ result: UnsafeMutablePointer<Decimal>, _ number: Un
         return .overflow
     }
     NSDecimalCopy(result,number)
-    return result.pointee.power(UInt(power), roundingMode:roundingMode)
+    return result.pointee.power(power, roundingMode:roundingMode)
 }
 
 public func NSDecimalMultiplyByPowerOf10(_ result: UnsafeMutablePointer<Decimal>, _ number: UnsafePointer<Decimal>, _ power: Int16, _ roundingMode: NSDecimalNumber.RoundingMode) -> NSDecimalNumber.CalculationError {
@@ -2242,27 +2242,27 @@ extension Decimal {
         _exponent = newExponent
         return .noError
     }
-    fileprivate mutating func power(_ p:UInt, roundingMode:RoundingMode) -> CalculationError {
+    fileprivate mutating func power(_ p:Int, roundingMode:RoundingMode) -> CalculationError {
         if isNaN {
             return .overflow
         }
-        var power = p
-        if power == 0 {
+        if p == 0 {
             _exponent = 0
             _length = 1
             _isNegative = 0
             self[0] = 1
             _isCompact = 1
             return .noError
-        } else if power == 1 {
+        } else if p == 1 || isZero {
             return .noError
         }
 
+        var absPower = abs(p)
         var temporary = Decimal(1)
         var error:CalculationError = .noError
 
-        while power > 1 {
-            if power % 2 == 1 {
+        while absPower > 1 {
+            if absPower % 2 == 1 {
                 let previousError = error
                 var leftOp = temporary
                 error = NSDecimalMultiply(&temporary, &leftOp, &self, roundingMode)
@@ -2275,9 +2275,9 @@ extension Decimal {
                     setNaN()
                     return error
                 }
-                power -= 1
+                absPower -= 1
             }
-            if power != 0 {
+            if absPower != 0 {
                 let previousError = error
                 var leftOp = self
                 var rightOp = self
@@ -2291,13 +2291,26 @@ extension Decimal {
                     setNaN()
                     return error
                 }
-                power /= 2
+                absPower /= 2
             }
         }
         let previousError = error
         var rightOp = self
         error = NSDecimalMultiply(&self, &temporary, &rightOp, roundingMode)
-
+        
+        // if power is negative, use multiplicative inverse
+        if p < 0 {
+            var leftOp = Decimal(1)
+            var rightOp = self
+            
+            error = NSDecimalDivide(
+                &self,
+                &leftOp,
+                &rightOp,
+                roundingMode
+            )
+        }
+        
         if previousError != .noError { // FIXME is this the intent?
             error = previousError
         }
