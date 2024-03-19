@@ -10,7 +10,7 @@
 public var NSDecimalMaxSize: Int32 { 8 }
 public var NSDecimalNoScale: Int32 { Int32(Int16.max) }
 
-public struct Decimal {
+public struct Decimal: Sendable {
     fileprivate var __exponent: Int8
     fileprivate var __lengthAndFlags: UInt8
     fileprivate var __reserved: UInt16
