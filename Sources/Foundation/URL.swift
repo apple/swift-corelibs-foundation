@@ -1046,6 +1046,111 @@ extension URL : Codable {
     }
 }
 
+private func _pathIsDirectory<S>(_ path: S, directoryHint: URL.DirectoryHint) -> Bool where S: StringProtocol {
+    switch directoryHint {
+    case .isDirectory:
+        return true
+    case .notDirectory:
+        return false
+    case .checkFileSystem:
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: String(path), isDirectory: &isDir) else {
+            return false
+        }
+        return isDir.boolValue
+    case .inferFromPath:
+        let standardizedPath = _standardizedPath(String(path))
+        return validPathSeps.contains(where: { standardizedPath.hasSuffix(String($0)) })
+    }
+}
+
+private func _joinPathComponents<S>(_ components: [S]) -> String where S: StringProtocol {
+    return components.joined(separator: String(validPathSeps.first!))
+}
+
+
+extension URL {
+    public enum DirectoryHint: Sendable, Equatable, Hashable {
+        /// Specifies that the `URL` does reference a directory
+        case isDirectory
+
+        /// Specifies that the `URL` does **not** reference a directory
+        case notDirectory
+
+        /// Specifies that `URL` should check with the file system to determine whether it references a directory
+        case checkFileSystem
+
+        /// Specifies that `URL` should infer whether is references a directory based on whether it has a trialing slash
+        case inferFromPath
+    }
+
+    // TODO: Implement a new initializer depending on both `FilePath` and `DirectoryHint`:
+    //       `init?(filePath: FilePath, directoryHint: DirectoryHint)`.
+    // There's no conclusion how we should handle cross-import overlays.
+    // See https://github.com/apple/swift-system/issues/7
+
+    public init(
+        filePath path: String,
+        directoryHint: DirectoryHint = .inferFromPath,
+        relativeTo base: URL? = nil
+    ) {
+        let newPath = base.map({ _joinPathComponents([$0.path, path]) }) ?? path
+        let isDir = _pathIsDirectory(newPath, directoryHint: directoryHint)
+        _url = NSURL(fileURLWithPath: newPath, isDirectory: isDir)
+    }
+
+    public mutating func append<S>(
+        component: S,
+        directoryHint: DirectoryHint = .inferFromPath
+    ) where S: StringProtocol {
+        append(components: component, directoryHint: directoryHint)
+    }
+
+    public mutating func append<S>(
+        components: S...,
+        directoryHint: DirectoryHint = .inferFromPath
+    ) where S: StringProtocol {
+        append(path: _joinPathComponents(components), directoryHint: directoryHint)
+    }
+
+    public mutating func append<S>(
+        path: S,
+        directoryHint: DirectoryHint = .inferFromPath
+    ) where S: StringProtocol {
+        self = appending(path: path, directoryHint: directoryHint)
+    }
+
+    public func appending<S>(
+        component: S,
+        directoryHint: DirectoryHint = .inferFromPath
+    ) -> URL where S: StringProtocol {
+        return appending(components: component, directoryHint: directoryHint)
+    }
+
+    public func appending<S>(
+        components: S...,
+        directoryHint: DirectoryHint = .inferFromPath
+    ) -> URL where S: StringProtocol {
+        return appending(path: _joinPathComponents(components), directoryHint: directoryHint)
+    }
+
+    public func appending<S>(
+        path: S,
+        directoryHint: DirectoryHint = .inferFromPath
+    ) -> URL where S: StringProtocol {
+        if isFileURL {
+            return URL(filePath: String(path), directoryHint: directoryHint, relativeTo: self)
+        }
+
+        if case .checkFileSystem = directoryHint {
+            return _url.appendingPathComponent(String(path))!
+        }
+        return _url.appendingPathComponent(
+            String(path),
+            isDirectory: _pathIsDirectory(path, directoryHint: directoryHint)
+        )!
+    }
+}
 
 //===----------------------------------------------------------------------===//
 // File references, for playgrounds.
