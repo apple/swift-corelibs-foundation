@@ -442,6 +442,34 @@ open class URLSession : NSObject {
     open func dataTask(with url: URL, completionHandler: @escaping (Data?, URLResponse?, Error?) -> Void) -> URLSessionDataTask {
         return dataTask(with: _Request(url), behaviour: .dataCompletionHandler(completionHandler))
     }
+
+    @available(macOS 12.0, iOS 15.0, watchOS 8.0, tvOS 15.0, *)
+    open func data(from url: URL, delegate: URLSessionTaskDelegate? = nil) async throws -> (Data, URLResponse) {
+        var task: URLSessionTask? = nil
+
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                let completionHandler: URLSession._TaskRegistry.DataTaskCompletion = { data, response, error in
+                    if let data, let response {
+                        continuation.resume(returning: (data, response))
+                    } else if let error {
+                        continuation.resume(throwing: error)
+                    } else {
+                        fatalError()
+                    }
+                }
+                task = dataTask(with: _Request(url), behaviour: .dataCompletionHandlerWithTaskDelegate(completionHandler, delegate))
+
+                if Task.isCancelled {
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
+                task?.resume()
+            }
+        } onCancel: { [weak task] in
+            task?.cancel()
+        }
+    }
     
     /* Creates an upload task with the given request.  The body of the request will be created from the file referenced by fileURL */
     open func uploadTask(with request: URLRequest, fromFile fileURL: URL) -> URLSessionUploadTask {
@@ -648,6 +676,9 @@ internal extension URLSession {
         /// Default action for all events, except for completion.
         /// - SeeAlso: URLSession.TaskRegistry.Behaviour.dataCompletionHandler
         case dataCompletionHandler(URLSession._TaskRegistry.DataTaskCompletion)
+        /// Default action for all asynchronous events.
+        /// - SeeAlso: URLsession.TaskRegistry.Behaviour.dataCompletionHandlerWithTaskDelegate
+        case dataCompletionHandlerWithTaskDelegate(URLSession._TaskRegistry.DataTaskCompletion, URLSessionTaskDelegate)
         /// Default action for all events, except for completion.
         /// - SeeAlso: URLSession.TaskRegistry.Behaviour.downloadCompletionHandler
         case downloadCompletionHandler(URLSession._TaskRegistry.DownloadTaskCompletion)
@@ -656,6 +687,11 @@ internal extension URLSession {
     func behaviour(for task: URLSessionTask) -> _TaskBehaviour {
         switch taskRegistry.behaviour(for: task) {
         case .dataCompletionHandler(let c): return .dataCompletionHandler(c)
+        case .dataCompletionHandlerWithTaskDelegate(let c, let d):
+            guard let d else {
+                return .dataCompletionHandler(c)
+            }
+            return .dataCompletionHandlerWithTaskDelegate(c, d)
         case .downloadCompletionHandler(let c): return .downloadCompletionHandler(c)
         case .callDelegate:
             guard let d = delegate as? URLSessionTaskDelegate else {

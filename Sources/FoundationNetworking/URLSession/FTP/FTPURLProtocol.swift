@@ -123,6 +123,8 @@ internal extension _FTPURLProtocol {
             self.client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         case .dataCompletionHandler:
             break
+        case .dataCompletionHandlerWithTaskDelegate:
+            break
         case .downloadCompletionHandler:
             break
         }

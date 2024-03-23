@@ -92,6 +92,16 @@ class TestURLSession: LoopbackServerTest {
         task.resume()
         waitForExpectations(timeout: 12)
     }
+
+    func test_dataFromURLDelegate() async throws {
+        guard #available(macOS 12.0, iOS 15.0, watchOS 8.0, tvOS 15.0, *) else { return }
+        let urlString = "http://127.0.0.1:\(TestURLSession.serverPort)/UK"
+        let (data, response) = try await URLSession.shared.data(from: URL(string: urlString)!, delegate: nil)
+        guard let httpResponse = response as? HTTPURLResponse else { return }
+        XCTAssertEqual(200, httpResponse.statusCode, "HTTP response code is not 200")
+        let expectedResult = String(data: data, encoding: .utf8) ?? ""
+        XCTAssertEqual("London", expectedResult, "Did not receive expected value")
+    }
     
     func test_dataTaskWithHttpInputStream() throws {
         let urlString = "http://127.0.0.1:\(TestURLSession.serverPort)/jsonBody"
@@ -2100,6 +2110,7 @@ class TestURLSession: LoopbackServerTest {
         ]
         if #available(macOS 12.0, *) {
             retVal.append(contentsOf: [
+                ("test_dataFromURLDelegate", asyncTest(test_dataFromURLDelegate)),
                 ("test_webSocket", asyncTest(test_webSocket)),
                 ("test_webSocketSpecificProtocol", asyncTest(test_webSocketSpecificProtocol)),
                 ("test_webSocketAbruptClose", asyncTest(test_webSocketAbruptClose)),

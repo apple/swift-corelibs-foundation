@@ -28,7 +28,7 @@ private class Bag<Element> {
 
 /// A cancelable object that refers to the lifetime
 /// of processing a given request.
-open class URLSessionTask : NSObject, NSCopying {
+open class URLSessionTask : NSObject, NSCopying, @unchecked Sendable {
     
     // These properties aren't heeded in swift-corelibs-foundation, but we may heed them in the future. They exist for source compatibility.
     open var countOfBytesClientExpectsToReceive: Int64 = NSURLSessionTransferSizeUnknown {
@@ -1058,7 +1058,7 @@ extension _ProtocolClient : URLProtocolClient {
                     webSocketDelegate.urlSession(session, webSocketTask: webSocketTask, didOpenWithProtocol: webSocketTask.protocolPicked)
                 }
             }
-        case .noDelegate, .dataCompletionHandler, .downloadCompletionHandler:
+        case .noDelegate, .dataCompletionHandler, .dataCompletionHandlerWithTaskDelegate, .downloadCompletionHandler:
             break
         }
     }
@@ -1157,7 +1157,8 @@ extension _ProtocolClient : URLProtocolClient {
             session.workQueue.async {
                 session.taskRegistry.remove(task)
             }
-        case .dataCompletionHandler(let completion):
+        case .dataCompletionHandler(let completion),
+             .dataCompletionHandlerWithTaskDelegate(let completion, _):
             session.delegateQueue.addOperation {
                 guard task.state != .completed else { return }
                 completion(urlProtocol.properties[URLProtocol._PropertyKey.responseData] as? Data ?? Data(), task.response, nil)
@@ -1297,7 +1298,8 @@ extension _ProtocolClient : URLProtocolClient {
             session.workQueue.async {
                 session.taskRegistry.remove(task)
             }
-        case .dataCompletionHandler(let completion):
+        case .dataCompletionHandler(let completion),
+             .dataCompletionHandlerWithTaskDelegate(let completion, _):
             session.delegateQueue.addOperation {
                 guard task.state != .completed else { return }
                 completion(nil, nil, error)
