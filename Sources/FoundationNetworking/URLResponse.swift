@@ -87,7 +87,12 @@ open class URLResponse : NSObject, NSSecureCoding, NSCopying {
         let c = url.lastPathComponent
         self.suggestedFilename = c.isEmpty ? "Unknown" : c
     }
-    
+
+    public override init() {
+        self.expectedContentLength = -1
+        self.suggestedFilename = "Unknown"
+    }
+
     /// The URL of the receiver.
     /*@NSCopying*/ open private(set) var url: URL?
 
