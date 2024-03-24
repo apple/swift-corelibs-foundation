@@ -72,13 +72,14 @@ public var NSURLErrorNoPermissionsToReadFile: Int { return -1102 }
 public var NSURLErrorDataLengthExceedsMaximum: Int { return -1103 }
 
 // SSL errors
-public var NSURLErrorSecureConnectionFailed: Int { return -1201 }
-public var NSURLErrorServerCertificateHasBadDate: Int { return -1202 }
-public var NSURLErrorServerCertificateUntrusted: Int { return -1203 }
-public var NSURLErrorServerCertificateHasUnknownRoot: Int { return -1204 }
-public var NSURLErrorServerCertificateNotYetValid: Int { return -1205 }
-public var NSURLErrorClientCertificateRejected: Int { return -1206 }
-public var NSURLErrorClientCertificateRequired: Int { return -1207 }
+public var NSURLErrorFileOutsideSafeArea: Int { return -1104 }
+public var NSURLErrorSecureConnectionFailed: Int { return -1200 }
+public var NSURLErrorServerCertificateHasBadDate: Int { return -1201 }
+public var NSURLErrorServerCertificateUntrusted: Int { return -1202 }
+public var NSURLErrorServerCertificateHasUnknownRoot: Int { return -1203 }
+public var NSURLErrorServerCertificateNotYetValid: Int { return -1204 }
+public var NSURLErrorClientCertificateRejected: Int { return -1205 }
+public var NSURLErrorClientCertificateRequired: Int { return -1206 }
 public var NSURLErrorCannotLoadFromNetwork: Int { return -2000 }
 
 // Download and file I/O errors
