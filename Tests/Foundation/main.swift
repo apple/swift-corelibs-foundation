@@ -66,6 +66,7 @@ var allTestCases = [
     testCase(TestNSNull.allTests),
     testCase(TestNSNumber.allTests),
     testCase(TestNSNumberBridging.allTests),
+    testCase(TestNSObject.allTests),
     testCase(TestNumberFormatter.allTests),
     testCase(TestOperationQueue.allTests),
     testCase(TestNSOrderedSet.allTests),

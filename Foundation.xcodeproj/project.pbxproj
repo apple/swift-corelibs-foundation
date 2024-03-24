@@ -84,6 +84,7 @@
 		15FF00CC22934AD7004AD205 /* libCFURLSessionInterface.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 15FF00CA229348F2004AD205 /* libCFURLSessionInterface.a */; };
 		15FF00CE22934B78004AD205 /* module.map in Headers */ = {isa = PBXBuildFile; fileRef = 15FF00CD22934B49004AD205 /* module.map */; settings = {ATTRIBUTES = (Public, ); }; };
 		231503DB1D8AEE5D0061694D /* TestDecimal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 231503DA1D8AEE5D0061694D /* TestDecimal.swift */; };
+		2763AC2C2B8BBF64002D79A4 /* TestNSObject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2763AC2B2B8BBF64002D79A4 /* TestNSObject.swift */; };
 		294E3C1D1CC5E19300E4F44C /* TestNSAttributedString.swift in Sources */ = {isa = PBXBuildFile; fileRef = 294E3C1C1CC5E19300E4F44C /* TestNSAttributedString.swift */; };
 		2EBE67A51C77BF0E006583D5 /* TestDateFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EBE67A31C77BF05006583D5 /* TestDateFormatter.swift */; };
 		316577C425214A8400492943 /* URLSessionTaskMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 316577C325214A8400492943 /* URLSessionTaskMetrics.swift */; };
@@ -823,6 +824,7 @@
 		15FF00CD22934B49004AD205 /* module.map */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.module-map"; name = module.map; path = CoreFoundation/URL.subproj/module.map; sourceTree = SOURCE_ROOT; };
 		22B9C1E01C165D7A00DECFF9 /* TestDate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TestDate.swift; sourceTree = "<group>"; };
 		231503DA1D8AEE5D0061694D /* TestDecimal.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TestDecimal.swift; sourceTree = "<group>"; };
+		2763AC2B2B8BBF64002D79A4 /* TestNSObject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestNSObject.swift; sourceTree = "<group>"; };
 		294E3C1C1CC5E19300E4F44C /* TestNSAttributedString.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TestNSAttributedString.swift; sourceTree = "<group>"; };
 		2EBE67A31C77BF05006583D5 /* TestDateFormatter.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TestDateFormatter.swift; sourceTree = "<group>"; };
 		316577C325214A8400492943 /* URLSessionTaskMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = URLSessionTaskMetrics.swift; path = URLSession/URLSessionTaskMetrics.swift; sourceTree = "<group>"; };
@@ -1915,6 +1917,7 @@
 				5B6F17921C48631C00935030 /* TestNSNull.swift */,
 				EA66F63F1BF1619600136161 /* TestNSNumber.swift */,
 				684C79001F62B611005BD73E /* TestNSNumberBridging.swift */,
+				2763AC2B2B8BBF64002D79A4 /* TestNSObject.swift */,
 				D834F9931C31C4060023812A /* TestNSOrderedSet.swift */,
 				7900433A1CACD33E00ECCBF1 /* TestNSPredicate.swift */,
 				E876A73D1C1180E000F279EC /* TestNSRange.swift */,
@@ -3215,6 +3218,7 @@
 				5B13B33F1C582D4C00651CE2 /* TestPropertyListSerialization.swift in Sources */,
 				5B13B32C1C582D4C00651CE2 /* TestDate.swift in Sources */,
 				C7DE1FCC21EEE67200174F35 /* TestUUID.swift in Sources */,
+				2763AC2C2B8BBF64002D79A4 /* TestNSObject.swift in Sources */,
 				231503DB1D8AEE5D0061694D /* TestDecimal.swift in Sources */,
 				7900433C1CACD33E00ECCBF1 /* TestNSPredicate.swift in Sources */,
 				5B13B33B1C582D4C00651CE2 /* TestNumberFormatter.swift in Sources */,

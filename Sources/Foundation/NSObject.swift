@@ -154,7 +154,7 @@ open class NSObject : NSObjectProtocol, Equatable, Hashable {
     
     /// Implemented by subclasses to initialize a new object immediately after memory
     /// for it has been allocated.
-    public init() {}
+    public required init() {}
     
     /// Returns the object returned by `copy(with:)`.
     ///
