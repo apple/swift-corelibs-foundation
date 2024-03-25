@@ -14,7 +14,7 @@
 /// [ m21  m22  0 ]
 /// [  tX   tY  1 ]
 /// ```
-public struct AffineTransform: ReferenceConvertible {
+public struct AffineTransform: ReferenceConvertible, Sendable {
     public typealias ReferenceType = NSAffineTransform
 
     public var m11: CGFloat
@@ -382,7 +382,7 @@ extension AffineTransform: CustomStringConvertible {
 
 
 /// A structure that defines the three-by-three matrix that performs an affine transform between two coordinate systems.
-public struct NSAffineTransformStruct {
+public struct NSAffineTransformStruct: Sendable {
     public var m11: CGFloat
     public var m12: CGFloat
     public var m21: CGFloat

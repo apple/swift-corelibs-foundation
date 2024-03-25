@@ -16,7 +16,7 @@
 
 private let ε: CGFloat = 2.22045e-16
 
-public struct AffineTransform : ReferenceConvertible, Hashable, CustomStringConvertible {
+public struct AffineTransform : ReferenceConvertible, Hashable, CustomStringConvertible, Sendable {
     public var m11, m12, m21, m22, tX, tY: CGFloat
     
     public typealias ReferenceType = NSAffineTransform
