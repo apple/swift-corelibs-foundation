@@ -75,7 +75,7 @@ static NSInteger _NSWriteToFileDescriptor(int32_t fd, const void *buffer, NSUInt
 
 static NSError *_NSErrorWithFilePath(NSInteger code, id pathOrURL) {
     NSString *key = [pathOrURL isKindOfClass:[NSURL self]] ? NSURLErrorKey : NSFilePathErrorKey;
-    return [NSError errorWithDomain:NSCocoaErrorDomain code:code userInfo:[NSDictionary dictionaryWithObjectsAndKeys:pathOrURL, key, nil]];
+    return [NSError errorWithDomain:NSCocoaErrorDomain code:code userInfo:@{pathOrURL: key}];
 }
 
 static NSError *_NSErrorWithFilePathAndErrno(NSInteger posixErrno, id pathOrURL, BOOL reading) {
@@ -106,7 +106,7 @@ static NSError *_NSErrorWithFilePathAndErrno(NSInteger posixErrno, id pathOrURL,
     }
     
     NSString *key = [pathOrURL isKindOfClass:[NSURL self]] ? NSURLErrorKey : NSFilePathErrorKey;
-    NSDictionary *userInfo = [[NSDictionary alloc] initWithObjectsAndKeys:pathOrURL, key, [NSError errorWithDomain:NSPOSIXErrorDomain code:posixErrno userInfo:nil], NSUnderlyingErrorKey, nil];
+    NSDictionary *userInfo = @{pathOrURL : key, [NSError errorWithDomain:NSPOSIXErrorDomain code:posixErrno userInfo:nil] : NSUnderlyingErrorKey};
     NSError *error = [NSError errorWithDomain:NSCocoaErrorDomain code:code userInfo:userInfo];
     [userInfo release];
     return error;
