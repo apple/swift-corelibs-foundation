@@ -392,6 +392,12 @@
 		61E011821C1B599A000037DD /* CFMachPort.c in Sources */ = {isa = PBXBuildFile; fileRef = 5B5D88D01BBC9AAC00234F36 /* CFMachPort.c */; };
 		63DCE9D21EAA430100E9CB02 /* ISO8601DateFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63DCE9D11EAA430100E9CB02 /* ISO8601DateFormatter.swift */; };
 		63DCE9D41EAA432400E9CB02 /* TestISO8601DateFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63DCE9D31EAA432400E9CB02 /* TestISO8601DateFormatter.swift */; };
+		63FAA81926C3398400EE3DAD /* AsyncUnicodeScalarSequence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63FAA81426C3398300EE3DAD /* AsyncUnicodeScalarSequence.swift */; };
+		63FAA81A26C3398400EE3DAD /* AsyncLineSequence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63FAA81526C3398400EE3DAD /* AsyncLineSequence.swift */; };
+		63FAA81B26C3398400EE3DAD /* AsyncCharacterSequence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63FAA81626C3398400EE3DAD /* AsyncCharacterSequence.swift */; };
+		63FAA81C26C3398400EE3DAD /* FileHandle+Async.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63FAA81726C3398400EE3DAD /* FileHandle+Async.swift */; };
+		63FAA81D26C3398400EE3DAD /* URL+AsyncBytes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63FAA81826C3398400EE3DAD /* URL+AsyncBytes.swift */; };
+		63FAA81F26C33DE500EE3DAD /* TestFileHandle+Async.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63FAA81E26C33DE500EE3DAD /* TestFileHandle+Async.swift */; };
 		659FB6DE2405E5E300F5F63F /* TestBridging.swift in Sources */ = {isa = PBXBuildFile; fileRef = 659FB6DD2405E5E200F5F63F /* TestBridging.swift */; };
 		684C79011F62B611005BD73E /* TestNSNumberBridging.swift in Sources */ = {isa = PBXBuildFile; fileRef = 684C79001F62B611005BD73E /* TestNSNumberBridging.swift */; };
 		6EB768281D18C12C00D4B719 /* UUID.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EB768271D18C12C00D4B719 /* UUID.swift */; };
@@ -1115,6 +1121,12 @@
 		61F8AE7C1C180FC600FB62F0 /* TestNotificationCenter.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TestNotificationCenter.swift; sourceTree = "<group>"; };
 		63DCE9D11EAA430100E9CB02 /* ISO8601DateFormatter.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ISO8601DateFormatter.swift; sourceTree = "<group>"; };
 		63DCE9D31EAA432400E9CB02 /* TestISO8601DateFormatter.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TestISO8601DateFormatter.swift; sourceTree = "<group>"; };
+		63FAA81426C3398300EE3DAD /* AsyncUnicodeScalarSequence.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AsyncUnicodeScalarSequence.swift; sourceTree = "<group>"; };
+		63FAA81526C3398400EE3DAD /* AsyncLineSequence.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AsyncLineSequence.swift; sourceTree = "<group>"; };
+		63FAA81626C3398400EE3DAD /* AsyncCharacterSequence.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AsyncCharacterSequence.swift; sourceTree = "<group>"; };
+		63FAA81726C3398400EE3DAD /* FileHandle+Async.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "FileHandle+Async.swift"; sourceTree = "<group>"; };
+		63FAA81826C3398400EE3DAD /* URL+AsyncBytes.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "URL+AsyncBytes.swift"; sourceTree = "<group>"; };
+		63FAA81E26C33DE500EE3DAD /* TestFileHandle+Async.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TestFileHandle+Async.swift"; sourceTree = "<group>"; };
 		659FB6DD2405E5E200F5F63F /* TestBridging.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TestBridging.swift; sourceTree = "<group>"; };
 		684C79001F62B611005BD73E /* TestNSNumberBridging.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TestNSNumberBridging.swift; sourceTree = "<group>"; };
 		6E203B8C1C1303BB003B2576 /* TestBundle.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TestBundle.swift; sourceTree = "<group>"; };
@@ -1882,6 +1894,7 @@
 				B9D9733E23D19D3900AB249C /* TestDimension.swift */,
 				BDBB658F1E256BFA001A7286 /* TestEnergyFormatter.swift */,
 				D512D17B1CD883F00032E6A5 /* TestFileHandle.swift */,
+				63FAA81E26C33DE500EE3DAD /* TestFileHandle+Async.swift */,
 				525AECEB1BF2C96400D15BB0 /* TestFileManager.swift */,
 				BF85E9D71FBDCC2000A79793 /* TestHost.swift */,
 				848A30571C137B3500C83206 /* TestHTTPCookie.swift */,
@@ -2144,6 +2157,11 @@
 				EADE0B5B1BD15DFF00C49C64 /* EnergyFormatter.swift */,
 				5B4092111D1B30B40022B067 /* ExtraStringAPIs.swift */,
 				EADE0B5D1BD15DFF00C49C64 /* FileHandle.swift */,
+				63FAA81626C3398400EE3DAD /* AsyncCharacterSequence.swift */,
+				63FAA81526C3398400EE3DAD /* AsyncLineSequence.swift */,
+				63FAA81426C3398300EE3DAD /* AsyncUnicodeScalarSequence.swift */,
+				63FAA81726C3398400EE3DAD /* FileHandle+Async.swift */,
+				63FAA81826C3398400EE3DAD /* URL+AsyncBytes.swift */,
 				EADE0B5E1BD15DFF00C49C64 /* FileManager.swift */,
 				91B668A22252B3C5001487A1 /* FileManager+POSIX.swift */,
 				91B668A42252B3E7001487A1 /* FileManager+Win32.swift */,
@@ -3002,6 +3020,7 @@
 				5BF7AEA81BCD51F9008F214A /* NSData.swift in Sources */,
 				5B424C761D0B6E5B007B39C8 /* IndexPath.swift in Sources */,
 				EADE0BB51BD15E0000C49C64 /* Scanner.swift in Sources */,
+				63FAA81A26C3398400EE3DAD /* AsyncLineSequence.swift in Sources */,
 				EADE0BA01BD15DFF00C49C64 /* NSIndexPath.swift in Sources */,
 				5BF7AEB51BCD51F9008F214A /* NSPathUtilities.swift in Sources */,
 				B96C113725BA376D00985A32 /* NSDateComponents.swift in Sources */,
@@ -3048,8 +3067,10 @@
 				5BA0106E1DF212B300E56898 /* NSPlatform.swift in Sources */,
 				D3BCEB9E1C2EDED800295652 /* NSLog.swift in Sources */,
 				15CA750A24F8336A007DF6C1 /* NSCFTypeShims.swift in Sources */,
+				63FAA81D26C3398400EE3DAD /* URL+AsyncBytes.swift in Sources */,
 				61E0117D1C1B5590000037DD /* RunLoop.swift in Sources */,
 				B96C110025BA20A600985A32 /* NSURLQueryItem.swift in Sources */,
+				63FAA81C26C3398400EE3DAD /* FileHandle+Async.swift in Sources */,
 				5B23AB8B1CE62F9B000DB898 /* PersonNameComponents.swift in Sources */,
 				EADE0BA61BD15E0000C49C64 /* MassFormatter.swift in Sources */,
 				5BECBA3A1D1CAE9A00B39B1F /* NSMeasurement.swift in Sources */,
@@ -3073,6 +3094,8 @@
 				EADE0BAC1BD15E0000C49C64 /* NSOrderedSet.swift in Sources */,
 				474E124D26BCD6D00016C28A /* AttributedString+Locking.swift in Sources */,
 				5BC1B9A421F2757F00524D8C /* ContiguousBytes.swift in Sources */,
+				63FAA81926C3398400EE3DAD /* AsyncUnicodeScalarSequence.swift in Sources */,
+				63FAA81B26C3398400EE3DAD /* AsyncCharacterSequence.swift in Sources */,
 				EADE0B971BD15DFF00C49C64 /* Decimal.swift in Sources */,
 				5B78185B1D6CB5D2004A01F2 /* CGFloat.swift in Sources */,
 				5BF7AEB71BCD51F9008F214A /* PropertyListSerialization.swift in Sources */,
@@ -3252,6 +3275,7 @@
 				ABB1293526D4736B00401E6C /* TestUnitInformationStorage.swift in Sources */,
 				F9E0BB371CA70B8000F7FF3C /* TestURLCredential.swift in Sources */,
 				5B13B3341C582D4C00651CE2 /* TestNSKeyedArchiver.swift in Sources */,
+				63FAA81F26C33DE500EE3DAD /* TestFileHandle+Async.swift in Sources */,
 				5B13B3441C582D4C00651CE2 /* TestNSSet.swift in Sources */,
 				3E55A2331F52463B00082000 /* TestUnit.swift in Sources */,
 				5B13B3321C582D4C00651CE2 /* TestIndexSet.swift in Sources */,

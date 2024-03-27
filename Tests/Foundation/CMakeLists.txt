@@ -31,6 +31,7 @@ target_sources(TestFoundation PRIVATE
   Tests/TestDimension.swift
   Tests/TestEnergyFormatter.swift
   Tests/TestFileHandle.swift
+  Tests/TestFileHandle+Async.swift
   Tests/TestFileManager.swift
   Tests/TestHost.swift
   Tests/TestHTTPCookieStorage.swift

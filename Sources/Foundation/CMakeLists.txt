@@ -1,6 +1,9 @@
 add_library(Foundation
   AffineTransform.swift
   Array.swift
+  AsyncCharacterSequence.swift
+  AsyncLineSequence.swift
+  AsyncUnicodeScalarSequence.swift
   AttributedString/AttributedString.swift
   AttributedString/AttributedStringAttribute.swift
   AttributedString/AttributedStringCodable.swift
@@ -31,6 +34,7 @@ add_library(Foundation
   EnergyFormatter.swift
   ExtraStringAPIs.swift
   FileHandle.swift
+  FileHandle+Async.swift
   FileManager.swift
   FileManager+POSIX.swift
   FileManager+Win32.swift
@@ -142,6 +146,7 @@ add_library(Foundation
   TimeZone.swift
   Unit.swift
   URL.swift
+  URL+AsyncBytes.swift
   URLComponents.swift
   URLQueryItem.swift
   URLResourceKey.swift

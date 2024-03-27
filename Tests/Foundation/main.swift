@@ -125,6 +125,7 @@ var allTestCases = [
     testCase(TestUnitInformationStorage.allTests),
     testCase(TestNSLock.allTests),
     testCase(TestNSSortDescriptor.allTests),
+    testCase(TestFileHandleAsync.allTests),
 ]
 
 if #available(macOS 12, *) {
