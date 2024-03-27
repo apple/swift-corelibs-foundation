@@ -45,6 +45,7 @@ extension URLSession {
         let queue: DispatchQueue
         let group = DispatchGroup()
         fileprivate var easyHandles: [_EasyHandle] = []
+        fileprivate var socketReferences: [CFURLSession_socket_t: _SocketReference] = [:]
         fileprivate var timeoutSource: _TimeoutSource? = nil
         private var reentrantInUpdateTimeoutTimer = false
         
@@ -127,13 +128,14 @@ fileprivate extension URLSession._MultiHandle {
             if let opaque = socketSourcePtr {
                 Unmanaged<_SocketSources>.fromOpaque(opaque).release()
             }
+            socketSources?.tearDown(handle: self, socket: socket, queue: queue)
             socketSources = nil
         }
         if let ss = socketSources {
             let handler = DispatchWorkItem { [weak self] in
                 self?.performAction(for: socket)
             }
-            ss.createSources(with: action, socket: socket, queue: queue, handler: handler)
+            ss.createSources(with: action, handle: self, socket: socket, queue: queue, handler: handler)
         }
         return 0
     }
@@ -161,9 +163,104 @@ extension Collection where Element == _EasyHandle {
   }
 }
 
+private extension URLSession._MultiHandle {
+    class _SocketReference {
+        let socket: CFURLSession_socket_t
+        var shouldClose: Bool
+        var workItem: DispatchWorkItem?
+        
+        init(socket: CFURLSession_socket_t) {
+            self.socket = socket
+            shouldClose = false
+        }
+        
+        deinit {
+            if shouldClose {
+                #if os(Windows)
+                closesocket(socket)
+                #else
+                close(socket)
+                #endif
+            }
+        }
+    }
+
+    /// Creates and stores socket reference. Reentrancy is not supported.
+    /// Trying to begin operation for same socket twice would mean something
+    /// went horribly wrong, or our assumptions about CURL register/unregister
+    /// action flow are nor correct.
+    func beginOperation(for socket: CFURLSession_socket_t) -> _SocketReference {
+        let reference = _SocketReference(socket: socket)
+        precondition(socketReferences.updateValue(reference, forKey: socket) == nil, "Reentrancy is not supported for socket operations")
+        return reference
+    }
+
+    /// Removes socket reference from the shared store. If there is work item scheduled,
+    /// executes it on the current thread.
+    func endOperation(for socketReference: _SocketReference) {
+        precondition(socketReferences.removeValue(forKey: socketReference.socket) != nil, "No operation associated with the socket")
+        if let workItem = socketReference.workItem, !workItem.isCancelled {
+            // CURL never asks for socket close without unregistering first, and
+            // we should cancel pending work when unregister action is requested.
+            precondition(!socketReference.shouldClose, "Socket close was scheduled, but there is some pending work left")
+            workItem.perform()
+        }
+    }
+
+    /// Marks this reference to close socket on deinit. This allows us
+    /// to extend socket lifecycle by keeping the reference alive.
+    func scheduleClose(for socket: CFURLSession_socket_t) {
+        let reference = socketReferences[socket] ?? _SocketReference(socket: socket)
+        reference.shouldClose = true
+    }
+
+    /// Schedules work to be performed when an operation ends for the socket,
+    /// or performs it immediately if there is no operation in progress.
+    /// 
+    /// We're using this to postpone Dispatch Source creation when
+    /// previous Dispatch Source is not cancelled yet.
+    func schedule(_ workItem: DispatchWorkItem, for socket: CFURLSession_socket_t) {
+        guard let socketReference = socketReferences[socket] else { 
+            workItem.perform()
+            return
+        }
+        // CURL never asks for register without pairing it with unregister later,
+        // and we're cancelling pending work item on unregister.
+        // But it is safe to just drop existing work item anyway,
+        // and replace it with the new one.
+        socketReference.workItem = workItem
+    }
+
+    /// Cancels pending work for socket operation. Does nothing if
+    /// there is no operation in progress or no pending work item.
+    /// 
+    /// CURL may become not interested in Dispatch Sources
+    /// we have planned to create. In this case we should just cancel
+    /// scheduled work. 
+    func cancelWorkItem(for socket: CFURLSession_socket_t) {
+        guard let socketReference = socketReferences[socket] else { 
+            return
+        }
+        socketReference.workItem?.cancel()
+        socketReference.workItem = nil
+    }
+
+}
+
 internal extension URLSession._MultiHandle {
     /// Add an easy handle -- start its transfer.
     func add(_ handle: _EasyHandle) {
+        // Set CLOSESOCKETFUNCTION. Note that while the option belongs to easy_handle,
+        // the connection cache is managed by CURL multi_handle, and sockets can actually
+        // outlive easy_handle (even after curl_easy_cleanup call). That's why
+        // socket management lives in _MultiHandle.
+        try! CFURLSession_easy_setopt_ptr(handle.rawHandle, CFURLSessionOptionCLOSESOCKETDATA, UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque())).asError()
+        try! CFURLSession_easy_setopt_scl(handle.rawHandle, CFURLSessionOptionCLOSESOCKETFUNCTION) {  (clientp: UnsafeMutableRawPointer?, item: CFURLSession_socket_t) in
+            guard let handle = URLSession._MultiHandle.from(callbackUserData: clientp) else { fatalError() }
+            handle.scheduleClose(for: item)
+            return 0
+        }.asError()
+        
         // If this is the first handle being added, we need to `kick` the
         // underlying multi handle by calling `timeoutTimerFired` as
         // described in
@@ -359,7 +456,7 @@ class _TimeoutSource {
         let delay = UInt64(max(1, milliseconds - 1)) 
         let start = DispatchTime.now() + DispatchTimeInterval.milliseconds(Int(delay))
         
-        rawSource.schedule(deadline: start, repeating: .milliseconds(Int(delay)), leeway: (milliseconds == 1) ? .microseconds(Int(1)) : .milliseconds(Int(1)))
+        rawSource.schedule(deadline: start, repeating: .never, leeway: (milliseconds == 1) ? .microseconds(Int(1)) : .milliseconds(Int(1)))
         rawSource.setEventHandler(handler: handler)
         rawSource.resume() 
     }
@@ -384,13 +481,12 @@ fileprivate extension URLSession._MultiHandle {
             timeoutSource = nil
             queue.async { self.timeoutTimerFired() }
         case .milliseconds(let milliseconds):
-            if (timeoutSource == nil) || timeoutSource!.milliseconds != milliseconds {
-                //TODO: Could simply change the existing timer by using DispatchSourceTimer again.
-                let block = DispatchWorkItem { [weak self] in
-                    self?.timeoutTimerFired()
-                }
-                timeoutSource = _TimeoutSource(queue: queue, milliseconds: milliseconds, handler: block)
+            //TODO: Could simply change the existing timer by using DispatchSourceTimer again.
+            let block = DispatchWorkItem { [weak self] in
+                self?.timeoutTimerFired()
             }
+            // Note: Previous timer instance would cancel internal Dispatch timer in deinit
+            timeoutSource = _TimeoutSource(queue: queue, milliseconds: milliseconds, handler: block)
         }
     }
     enum _Timeout {
@@ -449,25 +545,56 @@ fileprivate class _SocketSources {
         s.resume()
     }
 
-    func tearDown() {
-        if let s = readSource {
-            s.cancel()
+    func tearDown(handle: URLSession._MultiHandle, socket: CFURLSession_socket_t, queue: DispatchQueue) {
+        handle.cancelWorkItem(for: socket) // There could be pending register action which needs to be cancelled
+        
+        guard readSource != nil || writeSource != nil else {
+            // This means that we have posponed (and already abandoned)
+            // sources creation.
+            return
         }
+        
+        // Socket is guaranteed to not to be closed as long as we keeping
+        // the reference.
+        let socketReference = handle.beginOperation(for: socket)
+        let cancelHandlerGroup = DispatchGroup()
+        [readSource, writeSource].compactMap({ $0 }).forEach { source in
+            cancelHandlerGroup.enter()
+            source.setCancelHandler {   
+                cancelHandlerGroup.leave()
+            }
+            source.cancel()
+        }
+        cancelHandlerGroup.notify(queue: queue) {
+            handle.endOperation(for: socketReference)
+        }
+        
         readSource = nil
-        if let s = writeSource {
-            s.cancel()
-        }
         writeSource = nil
     }
 }
 extension _SocketSources {
     /// Create a read and/or write source as specified by the action.
-    func createSources(with action: URLSession._MultiHandle._SocketRegisterAction, socket: CFURLSession_socket_t, queue: DispatchQueue, handler: DispatchWorkItem) {
-        if action.needsReadSource {
-            createReadSource(socket: socket, queue: queue, handler: handler)
+    func createSources(with action: URLSession._MultiHandle._SocketRegisterAction, handle: URLSession._MultiHandle, socket: CFURLSession_socket_t, queue: DispatchQueue, handler: DispatchWorkItem) {
+        // CURL casually requests to unregister and register handlers for same 
+        // socket in a row. There is (pretty low) chance of overlapping tear-down operation
+        // with "register" request. Bad things could happen if we create 
+        // a new Dispatch Source while other is being cancelled for the same socket.
+        // We're using `_MultiHandle.schedule(_:for:)` here to postpone sources creation until
+        // pending operation is finished (if there is none, submitted work item is performed
+        // immediately).
+        // Also, CURL may request unregister even before we perform any postponed work,
+        // so we have to cancel such work in such case. See 
+        let createSources = DispatchWorkItem {
+            if action.needsReadSource {
+                self.createReadSource(socket: socket, queue: queue, handler: handler)
+            }
+            if action.needsWriteSource {
+                self.createWriteSource(socket: socket, queue: queue, handler: handler)
+            }
         }
-        if action.needsWriteSource {
-            createWriteSource(socket: socket, queue: queue, handler: handler)
+        if action.needsReadSource || action.needsWriteSource {
+            handle.schedule(createSources, for: socket)
         }
     }
 }

@@ -111,6 +111,10 @@ CFURLSessionEasyCode CFURLSession_easy_setopt_tc(CFURLSessionEasyHandle _Nonnull
     return MakeEasyCode(curl_easy_setopt(curl,  option.value, a));
 }
 
+CFURLSessionEasyCode CFURLSession_easy_setopt_scl(CFURLSessionEasyHandle _Nonnull curl, CFURLSessionOption option, CFURLSessionCloseSocketCallback * _Nullable a) {
+    return MakeEasyCode(curl_easy_setopt(curl, option.value, a));
+}
+
 CFURLSessionEasyCode CFURLSession_easy_getinfo_long(CFURLSessionEasyHandle _Nonnull curl, CFURLSessionInfo info, long *_Nonnull a) {
     return MakeEasyCode(curl_easy_getinfo(curl, info.value, a));
 }
