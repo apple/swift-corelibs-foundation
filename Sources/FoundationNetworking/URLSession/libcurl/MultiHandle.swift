@@ -359,7 +359,7 @@ class _TimeoutSource {
         let delay = UInt64(max(1, milliseconds - 1)) 
         let start = DispatchTime.now() + DispatchTimeInterval.milliseconds(Int(delay))
         
-        rawSource.schedule(deadline: start, repeating: .milliseconds(Int(delay)), leeway: (milliseconds == 1) ? .microseconds(Int(1)) : .milliseconds(Int(1)))
+        rawSource.schedule(deadline: start, repeating: .never, leeway: (milliseconds == 1) ? .microseconds(Int(1)) : .milliseconds(Int(1)))
         rawSource.setEventHandler(handler: handler)
         rawSource.resume() 
     }
@@ -384,13 +384,12 @@ fileprivate extension URLSession._MultiHandle {
             timeoutSource = nil
             queue.async { self.timeoutTimerFired() }
         case .milliseconds(let milliseconds):
-            if (timeoutSource == nil) || timeoutSource!.milliseconds != milliseconds {
-                //TODO: Could simply change the existing timer by using DispatchSourceTimer again.
-                let block = DispatchWorkItem { [weak self] in
-                    self?.timeoutTimerFired()
-                }
-                timeoutSource = _TimeoutSource(queue: queue, milliseconds: milliseconds, handler: block)
+            //TODO: Could simply change the existing timer by using DispatchSourceTimer again.
+            let block = DispatchWorkItem { [weak self] in
+                self?.timeoutTimerFired()
             }
+            // Note: Previous timer instance would cancel internal Dispatch timer in deinit
+            timeoutSource = _TimeoutSource(queue: queue, milliseconds: milliseconds, handler: block)
         }
     }
     enum _Timeout {
