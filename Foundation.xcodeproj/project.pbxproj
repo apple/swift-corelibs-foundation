@@ -404,6 +404,7 @@
 		90E645DF1E4C89A400D0D47C /* TestNSCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90E645DE1E4C89A400D0D47C /* TestNSCache.swift */; };
 		91B668A32252B3C5001487A1 /* FileManager+POSIX.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91B668A22252B3C5001487A1 /* FileManager+POSIX.swift */; };
 		91B668A52252B3E7001487A1 /* FileManager+Win32.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91B668A42252B3E7001487A1 /* FileManager+Win32.swift */; };
+		9E42D5332A317FE40076FC6B /* TestURLQueryItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E42D5322A317FE40076FC6B /* TestURLQueryItem.swift */; };
 		9F0DD3521ECD73D000F68030 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F0041781ECD5962004138BD /* main.swift */; };
 		9F0DD3571ECD783500F68030 /* SwiftFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5B5D885D1BBC938800234F36 /* SwiftFoundation.framework */; };
 		A058C2021E529CF100B07AA1 /* TestMassFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A058C2011E529CF100B07AA1 /* TestMassFormatter.swift */; };
@@ -1134,6 +1135,7 @@
 		90E645DE1E4C89A400D0D47C /* TestNSCache.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TestNSCache.swift; sourceTree = "<group>"; };
 		91B668A22252B3C5001487A1 /* FileManager+POSIX.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FileManager+POSIX.swift"; sourceTree = "<group>"; };
 		91B668A42252B3E7001487A1 /* FileManager+Win32.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FileManager+Win32.swift"; sourceTree = "<group>"; };
+		9E42D5322A317FE40076FC6B /* TestURLQueryItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestURLQueryItem.swift; sourceTree = "<group>"; };
 		9F0041781ECD5962004138BD /* main.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		9F0DD33F1ECD734200F68030 /* xdgTestHelper.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = xdgTestHelper.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9F0DD34F1ECD737B00F68030 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -1960,6 +1962,7 @@
 				7A7D6FBA1C16439400957E2E /* TestURLResponse.swift */,
 				5B1FD9E21D6D17B80080E83C /* TestURLSession.swift */,
 				616068F4225DE606004FCC54 /* TestURLSessionFTP.swift */,
+				9E42D5322A317FE40076FC6B /* TestURLQueryItem.swift */,
 				555683BC1C1250E70041D4C6 /* TestUserDefaults.swift */,
 				5B6F17961C48631C00935030 /* TestUtils.swift */,
 				C7DE1FCB21EEE67200174F35 /* TestUUID.swift */,
@@ -3235,6 +3238,7 @@
 				0383A1751D2E558A0052E5D1 /* TestStream.swift in Sources */,
 				5B13B3481C582D4C00651CE2 /* TestTimer.swift in Sources */,
 				5B13B32D1C582D4C00651CE2 /* TestNSDictionary.swift in Sources */,
+				9E42D5332A317FE40076FC6B /* TestURLQueryItem.swift in Sources */,
 				5B13B3261C582D4C00651CE2 /* TestAffineTransform.swift in Sources */,
 				2EBE67A51C77BF0E006583D5 /* TestDateFormatter.swift in Sources */,
 				5B13B3291C582D4C00651CE2 /* TestCalendar.swift in Sources */,
