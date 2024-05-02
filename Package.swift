@@ -3,6 +3,16 @@
 
 import PackageDescription
 
+let platformsWithThreads: [Platform] = [
+    .iOS,
+    .macOS,
+    .tvOS,
+    .watchOS,
+    .macCatalyst,
+    .driverKit,
+    .android,
+    .linux,
+]
 let buildSettings: [CSetting] = [
     .headerSearchPath("internalInclude"),
     .define("DEBUG", .when(configuration: .debug)),
@@ -10,12 +20,15 @@ let buildSettings: [CSetting] = [
     .define("DEPLOYMENT_RUNTIME_SWIFT"),
     .define("DEPLOYMENT_ENABLE_LIBDISPATCH"),
     .define("HAVE_STRUCT_TIMESPEC"),
-    .define("SWIFT_CORELIBS_FOUNDATION_HAS_THREADS"),
+    .define("SWIFT_CORELIBS_FOUNDATION_HAS_THREADS", .when(platforms: platformsWithThreads)),
     .define("_GNU_SOURCE", .when(platforms: [.linux, .android])),
     .define("CF_CHARACTERSET_UNICODE_DATA_L", to: "\"\(Context.packageDirectory)/Sources/CoreFoundation/CFUnicodeData-L.mapping\""),
     .define("CF_CHARACTERSET_UNICODE_DATA_B", to: "\"\(Context.packageDirectory)/Sources/CoreFoundation/CFUnicodeData-B.mapping\""),
     .define("CF_CHARACTERSET_UNICHAR_DB", to: "\"\(Context.packageDirectory)/Sources/CoreFoundation/CFUniCharPropertyDatabase.data\""),
     .define("CF_CHARACTERSET_BITMAP", to: "\"\(Context.packageDirectory)/Sources/CoreFoundation/CFCharacterSetBitmaps.bitmap\""),
+    .define("_WASI_EMULATED_SIGNAL", .when(platforms: [.wasi])),
+    .define("HAVE_STRLCPY", .when(platforms: [.wasi])),
+    .define("HAVE_STRLCAT", .when(platforms: [.wasi])),
     .unsafeFlags([
         "-Wno-shorten-64-to-32",
         "-Wno-deprecated-declarations",
@@ -43,8 +56,11 @@ let interfaceBuildSettings: [CSetting] = [
     .define("DEPLOYMENT_RUNTIME_SWIFT"),
     .define("DEPLOYMENT_ENABLE_LIBDISPATCH"),
     .define("HAVE_STRUCT_TIMESPEC"),
-    .define("SWIFT_CORELIBS_FOUNDATION_HAS_THREADS"),
+    .define("SWIFT_CORELIBS_FOUNDATION_HAS_THREADS", .when(platforms: platformsWithThreads)),
     .define("_GNU_SOURCE", .when(platforms: [.linux, .android])),
+    .define("_WASI_EMULATED_SIGNAL", .when(platforms: [.wasi])),
+    .define("HAVE_STRLCPY", .when(platforms: [.wasi])),
+    .define("HAVE_STRLCAT", .when(platforms: [.wasi])),
     .unsafeFlags([
         "-Wno-shorten-64-to-32",
         "-Wno-deprecated-declarations",
@@ -90,7 +106,10 @@ let package = Package(
                 "_CoreFoundation"
             ],
             path: "Sources/Foundation",
-            swiftSettings:  [.define("DEPLOYMENT_RUNTIME_SWIFT"), .define("SWIFT_CORELIBS_FOUNDATION_HAS_THREADS")]
+            swiftSettings: [
+              .define("DEPLOYMENT_RUNTIME_SWIFT"),
+              .define("SWIFT_CORELIBS_FOUNDATION_HAS_THREADS", .when(platforms: platformsWithThreads))
+            ]
         ),
         .target(
             name: "FoundationXML",
@@ -101,7 +120,10 @@ let package = Package(
                 "_CFXMLInterface"
             ],
             path: "Sources/FoundationXML",
-            swiftSettings:  [.define("DEPLOYMENT_RUNTIME_SWIFT"), .define("SWIFT_CORELIBS_FOUNDATION_HAS_THREADS")]
+            swiftSettings: [
+              .define("DEPLOYMENT_RUNTIME_SWIFT"),
+              .define("SWIFT_CORELIBS_FOUNDATION_HAS_THREADS", .when(platforms: platformsWithThreads))
+            ]
         ),
         .target(
             name: "FoundationNetworking",
@@ -112,7 +134,10 @@ let package = Package(
                 "_CFURLSessionInterface"
             ],
             path: "Sources/FoundationNetworking",
-            swiftSettings: [.define("DEPLOYMENT_RUNTIME_SWIFT"), .define("SWIFT_CORELIBS_FOUNDATION_HAS_THREADS")]
+            swiftSettings: [
+              .define("DEPLOYMENT_RUNTIME_SWIFT"),
+              .define("SWIFT_CORELIBS_FOUNDATION_HAS_THREADS", .when(platforms: platformsWithThreads))
+            ]
         ),
         .target(
             name: "_CoreFoundation",
