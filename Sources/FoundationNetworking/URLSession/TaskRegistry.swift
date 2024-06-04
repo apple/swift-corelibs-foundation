@@ -45,6 +45,8 @@ extension URLSession {
             case callDelegate
             /// Default action for all events, except for completion.
             case dataCompletionHandler(DataTaskCompletion)
+            /// Default action for all asynchronous events.
+            case dataCompletionHandlerWithTaskDelegate(DataTaskCompletion, URLSessionTaskDelegate?)
             /// Default action for all events, except for completion.
             case downloadCompletionHandler(DownloadTaskCompletion)
         }

@@ -338,7 +338,8 @@ internal class _NativeProtocol: URLProtocol, _EasyHandleDelegate {
             // Data will be forwarded to the delegate as we receive it, we don't
             // need to do anything about it.
             return .ignore
-        case .dataCompletionHandler:
+        case .dataCompletionHandler,
+             .dataCompletionHandlerWithTaskDelegate:
             // Data needs to be concatenated in-memory such that we can pass it
             // to the completion handler upon completion.
             return .inMemory(nil)
