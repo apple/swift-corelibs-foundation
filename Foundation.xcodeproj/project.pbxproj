@@ -3955,7 +3955,6 @@
 					/usr/include/libxml2,
 				);
 				INFOPLIST_FILE = Sources/Foundation/Resources/Info.plist;
-				INIT_ROUTINE = "___CFInitialize";
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -4033,7 +4032,6 @@
 					/usr/include/libxml2,
 				);
 				INFOPLIST_FILE = Sources/Foundation/Resources/Info.plist;
-				INIT_ROUTINE = "___CFInitialize";
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
