@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0707255E27441215004ED264 /* TestNSObject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0707255D27441215004ED264 /* TestNSObject.swift */; };
 		15F987BD2475AB6E00451F92 /* Combine.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 15F987BC2475AB6E00451F92 /* Combine.framework */; };
 		7D0AE23323886AE9001948BD /* magic-symbols-for-install-name.c in Sources */ = {isa = PBXBuildFile; fileRef = 7D0AE23223886AE9001948BD /* magic-symbols-for-install-name.c */; };
 		7D0AE23A23886B53001948BD /* BundleLookup.mm in Sources */ = {isa = PBXBuildFile; fileRef = 7D0AE23423886B50001948BD /* BundleLookup.mm */; };
@@ -137,6 +138,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		0707255D27441215004ED264 /* TestNSObject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestNSObject.swift; sourceTree = "<group>"; };
 		15F987BC2475AB6E00451F92 /* Combine.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Combine.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.16.Internal.sdk/System/Library/Frameworks/Combine.framework; sourceTree = DEVELOPER_DIR; };
 		7D0AE23223886AE9001948BD /* magic-symbols-for-install-name.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = "magic-symbols-for-install-name.c"; sourceTree = "<group>"; };
 		7D0AE23423886B50001948BD /* BundleLookup.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = BundleLookup.mm; sourceTree = "<group>"; };
@@ -426,6 +428,7 @@
 				7DFB967123B174D200D8DB10 /* TestLocale.swift */,
 				7DFB968823B1752200D8DB10 /* TestMeasurement.swift */,
 				7DFB967023B174D200D8DB10 /* TestNotification.swift */,
+				0707255D27441215004ED264 /* TestNSObject.swift */,
 				7DFB967623B174E500D8DB10 /* TestNSRange.swift */,
 				7DFB968723B1752200D8DB10 /* TestNSString.swift */,
 				7DFB968223B1751100D8DB10 /* TestPersonNameComponents.swift */,
@@ -831,6 +834,7 @@
 				7DFB967E23B174FF00D8DB10 /* TestDate.swift in Sources */,
 				7DFB969323B1753600D8DB10 /* TestCharacterSet.swift in Sources */,
 				7DFB969A23B175A100D8DB10 /* CodableTests.swift in Sources */,
+				0707255E27441215004ED264 /* TestNSObject.swift in Sources */,
 				7DFB968C23B1752300D8DB10 /* TestMeasurement.swift in Sources */,
 				7DFB967323B174D200D8DB10 /* TestNotification.swift in Sources */,
 				7DFB969223B1753600D8DB10 /* TestAffineTransform.swift in Sources */,
