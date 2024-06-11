@@ -52,13 +52,82 @@ open class NSSortDescriptor: NSObject, NSCopying {
         }
         self.reversedSortDescriptorProducer = { return NSSortDescriptor(keyPath: keyPath, ascending: !ascending) }
     }
-    
+
     public init<Root, Value>(keyPath: KeyPath<Root, Value>, ascending: Bool, comparator cmptr: @escaping Comparator) {
         self.keyPath = keyPath
         self.ascending = ascending
         self.lens = { ($0 as! Root)[keyPath: keyPath] }
         self.comparator = cmptr
         self.reversedSortDescriptorProducer = { return NSSortDescriptor(keyPath: keyPath, ascending: !ascending, comparator: cmptr) }
+    }
+
+    private static func optionalComparator<Value>(for _: Value.Type,
+                                                  wrappedComparison: @escaping (Value, Value) -> ComparisonResult) -> Comparator {
+        return { a, b -> ComparisonResult in
+            let valueA = a as! Optional<Value>
+            let valueB = b as! Optional<Value>
+
+            switch (valueA, valueB) {
+            case (.none, .none): return .orderedSame
+            case (.none, .some(_)): return .orderedAscending
+            case (.some(_), .none): return .orderedDescending
+            case (.some(let unwrappedValueA), .some(let unwrappedValueB)):
+                return wrappedComparison(unwrappedValueA, unwrappedValueB)
+            }
+        }
+    }
+
+    // These overloads are necessary for supporting `SortDescriptor` which relies on `NSSortDescriptor` handling optionals (like on Darwin).
+    internal init<Root, Value: Comparable>(keyPath: KeyPath<Root, Value?>, ascending: Bool) {
+        self.keyPath = keyPath
+        self.ascending = ascending
+        self.lens = { ($0 as! Root)[keyPath: keyPath] as Any }
+        self.comparator = NSSortDescriptor.optionalComparator(for: Value.self, wrappedComparison: { valueA, valueB -> ComparisonResult in
+            if valueA < valueB {
+                return .orderedAscending
+            } else if valueB < valueA {
+                return .orderedDescending
+            } else {
+                return .orderedSame
+            }
+        })
+        self.reversedSortDescriptorProducer = { return NSSortDescriptor(keyPath: keyPath, ascending: !ascending) }
+    }
+
+    internal init<Root, Value>(keyPath: KeyPath<Root, Value>,
+                               ascending: Bool,
+                               typedComparator: @escaping (Value, Value) -> ComparisonResult) {
+        self.keyPath = keyPath
+        self.ascending = ascending
+        self.lens = { ($0 as! Root)[keyPath: keyPath] as Any }
+        self.comparator = { a, b -> ComparisonResult in
+            let valueA = a as! Value
+            let valueB = b as! Value
+            return typedComparator(valueA, valueB)
+        }
+        self.reversedSortDescriptorProducer = {
+            return NSSortDescriptor(keyPath: keyPath, ascending: !ascending, typedComparator: typedComparator)
+        }
+    }
+
+    internal init<Root, Value>(keyPath: KeyPath<Root, Value?>,
+                               ascending: Bool,
+                               typedComparator: @escaping (Value, Value) -> ComparisonResult) {
+        self.keyPath = keyPath
+        self.ascending = ascending
+        self.lens = { ($0 as! Root)[keyPath: keyPath] as Any }
+        self.comparator = NSSortDescriptor.optionalComparator(for: Value.self, wrappedComparison: typedComparator)
+        self.reversedSortDescriptorProducer = {
+            return NSSortDescriptor(keyPath: keyPath, ascending: !ascending, typedComparator: typedComparator)
+        }
+    }
+
+    internal init(_sortDescriptor: NSSortDescriptor, ascending: Bool) {
+        self.lens = _sortDescriptor.lens
+        self.reversedSortDescriptorProducer = _sortDescriptor.reversedSortDescriptorProducer
+        self.ascending = ascending
+        self.keyPath = _sortDescriptor.keyPath
+        self.comparator = _sortDescriptor.comparator
     }
     
     private let lens: (Any) -> Any
