@@ -249,10 +249,14 @@ static const uint8_t daysInMonth[16] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 3
 static const uint16_t daysBeforeMonth[16] = {INVALID_MONTH_RESULT, 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365, INVALID_MONTH_RESULT, INVALID_MONTH_RESULT};
 static const uint16_t daysAfterMonth[16] = {365, 334, 306, 275, 245, 214, 184, 153, 122, 92, 61, 31, 0, 0, 0, 0};
 
-CF_INLINE bool isleap(int64_t year) {
-    int64_t y = (year + 1) % 400;	/* correct to nearest multiple-of-400 year, then find the remainder */
-    if (y < 0) y = -y;
-    return (0 == (y & 3) && 100 != y && 200 != y && 300 != y);
+CF_INLINE bool isleap(int64_t year)
+{
+    year++; // year is current year minus 1, so add 1 back
+    if (year < 0) year = -year;
+    if ((year & 3) != 0) return false;
+    if (year % 400) return true;
+    if (year % 100) return false;
+    return true;
 }
 
 /* year arg is absolute year; Gregorian 2001 == year 0; 2001/1/1 = absolute date 0 */
