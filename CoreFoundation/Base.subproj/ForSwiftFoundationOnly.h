@@ -64,6 +64,7 @@
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <termios.h>
+#include <linux/stat.h>
 #elif TARGET_OS_WASI
 #include <fcntl.h>
 #include <sys/stat.h>

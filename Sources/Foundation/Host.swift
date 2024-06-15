@@ -12,8 +12,9 @@
 import WinSDK
 #endif
 
-#if os(Android)
-    // Android Glibc differs a little with respect to the Linux Glibc.
+#if canImport(Android)
+    import Android
+    // Android Bionic differs a little with respect to the Linux Glibc.
 
     // IFF_LOOPBACK is part of the enumeration net_device_flags, which needs to
     // convert to UInt32.
@@ -24,8 +25,8 @@ import WinSDK
     }
 
     // getnameinfo uses size_t for its 4th and 6th arguments.
-    private func getnameinfo(_ addr: UnsafePointer<sockaddr>?, _ addrlen: socklen_t, _ host: UnsafeMutablePointer<Int8>?, _ hostlen: socklen_t, _ serv: UnsafeMutablePointer<Int8>?, _ servlen: socklen_t, _ flags: Int32) -> Int32 {
-        return Glibc.getnameinfo(addr, addrlen, host, Int(hostlen), serv, Int(servlen), flags)
+    private func getnameinfo(_ addr: UnsafePointer<sockaddr>, _ addrlen: socklen_t, _ host: UnsafeMutablePointer<Int8>?, _ hostlen: socklen_t, _ serv: UnsafeMutablePointer<Int8>?, _ servlen: socklen_t, _ flags: Int32) -> Int32 {
+        return Android.getnameinfo(addr, addrlen, host, Int(hostlen), serv, Int(servlen), flags)
     }
 
     // getifaddrs and freeifaddrs are not available in Android 6.0 or earlier, so call these functions dynamically.

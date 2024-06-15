@@ -17,6 +17,10 @@ import CoreFoundation
     #endif
 #endif
 
+#if canImport(Android)
+import Android
+#endif
+
 class TestNSData: LoopbackServerTest {
     
     class AllOnesImmutableData : NSData {
@@ -589,6 +593,8 @@ class TestNSData: LoopbackServerTest {
                 let permission = try fileManager._permissionsOfItem(atPath: url.path)
 #if canImport(Darwin)
                 let expected = Int(S_IRUSR) | Int(S_IWUSR) | Int(S_IRGRP) | Int(S_IWGRP) | Int(S_IROTH) | Int(S_IWOTH)
+#elseif canImport(Android)
+                let expected = Int(Android.S_IRUSR) | Int(Android.S_IWUSR) | Int(Android.S_IRGRP) | Int(Android.S_IWGRP) | Int(Android.S_IROTH) | Int(Android.S_IWOTH)
 #else
                 let expected = Int(Glibc.S_IRUSR) | Int(Glibc.S_IWUSR) | Int(Glibc.S_IRGRP) | Int(Glibc.S_IWGRP) | Int(Glibc.S_IROTH) | Int(Glibc.S_IWOTH)
 #endif
@@ -612,6 +618,8 @@ class TestNSData: LoopbackServerTest {
                 let permission = try fileManager._permissionsOfItem(atPath: url.path)
 #if canImport(Darwin)
                 let expected = Int(S_IRUSR) | Int(S_IWUSR) | Int(S_IRGRP) | Int(S_IWGRP) | Int(S_IROTH) | Int(S_IWOTH)
+#elseif canImport(Android)
+                let expected = Int(Android.S_IRUSR) | Int(Android.S_IWUSR) | Int(Android.S_IRGRP) | Int(Android.S_IWGRP) | Int(Android.S_IROTH) | Int(Android.S_IWOTH)
 #else
                 let expected = Int(Glibc.S_IRUSR) | Int(Glibc.S_IWUSR) | Int(Glibc.S_IRGRP) | Int(Glibc.S_IWGRP) | Int(Glibc.S_IROTH) | Int(Glibc.S_IWOTH)
 #endif

@@ -42,6 +42,13 @@
 @usableFromInline let memset = WASILibc.memset
 @usableFromInline let memcpy = WASILibc.memcpy
 @usableFromInline let memcmp = WASILibc.memcmp
+#elseif canImport(Android)
+@usableFromInline let calloc = Android.calloc
+@usableFromInline let malloc = Android.malloc
+@usableFromInline let free = Android.free
+@usableFromInline let memset = Android.memset
+@usableFromInline let memcpy = Android.memcpy
+@usableFromInline let memcmp = Android.memcmp
 #endif
 
 #if !canImport(Darwin)
@@ -57,6 +64,8 @@ internal func malloc_good_size(_ size: Int) -> Int {
 import Glibc
 #elseif canImport(Musl)
 import Musl
+#elseif canImport(Android)
+import Android
 #elseif canImport(WASILibc)
 import WASILibc
 #endif

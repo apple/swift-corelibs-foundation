@@ -15,6 +15,8 @@ import Dispatch
     import Glibc
 #elseif canImport(Darwin)
     import Darwin
+#elseif canImport(Android)
+    import Android
 #endif
 
 public class ServerSemaphore {

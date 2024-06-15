@@ -8,6 +8,8 @@
 //
 #if os(Windows)
 import WinSDK
+#elseif canImport(Android)
+import Android
 #endif
 
 class TestPortDelegateWithBlock: NSObject, PortDelegate {
