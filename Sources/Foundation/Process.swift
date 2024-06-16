@@ -923,6 +923,9 @@ open class Process: NSObject {
         for fd in addclose.filter({ $0 >= 0 }) {
             try _throwIfPosixError(_CFPosixSpawnFileActionsAddClose(fileActions, fd))
         }
+        if let dir = currentDirectoryURL?.path {
+            try _throwIfPosixError(_CFPosixSpawnFileActionsChdir(fileActions, dir))
+        }
 
 #if canImport(Darwin) || os(Android) || os(OpenBSD)
         var spawnAttrs: posix_spawnattr_t? = nil
@@ -944,17 +947,6 @@ open class Process: NSObject {
             try _throwIfPosixError(_CFPosixSpawnFileActionsAddClose(fileActions, fd))
         }
 #endif
-
-        let fileManager = FileManager()
-        let previousDirectoryPath = fileManager.currentDirectoryPath
-        if let dir = currentDirectoryURL?.path, !fileManager.changeCurrentDirectoryPath(dir) {
-            throw _NSErrorWithErrno(errno, reading: true, url: currentDirectoryURL)
-        }
-
-        defer {
-            // Reset the previous working directory path.
-            fileManager.changeCurrentDirectoryPath(previousDirectoryPath)
-        }
 
         // Launch
         var pid = pid_t()

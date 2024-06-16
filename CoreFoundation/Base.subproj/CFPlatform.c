@@ -2251,6 +2251,13 @@ CF_EXPORT int _CFPosixSpawnFileActionsAddClose(_CFPosixSpawnFileActionsRef file_
   return posix_spawn_file_actions_addclose((posix_spawn_file_actions_t *)file_actions, filedes);
 }
 
+CF_EXPORT int _CFPosixSpawnFileActionsChdir(_CFPosixSpawnFileActionsRef file_actions, const char *path) {
+    if (__builtin_available(macOS 10.15, *)) {
+        return posix_spawn_file_actions_addchdir_np((posix_spawn_file_actions_t *)file_actions, path);
+    }
+    return ENOTSUP; // unreachable
+}
+
 CF_EXPORT int _CFPosixSpawn(pid_t *_CF_RESTRICT pid, const char *_CF_RESTRICT path, _CFPosixSpawnFileActionsRef file_actions, _CFPosixSpawnAttrRef _Nullable _CF_RESTRICT attrp, char *_Nullable const argv[_Nullable _CF_RESTRICT], char *_Nullable const envp[_Nullable _CF_RESTRICT]) {
   return posix_spawn(pid, path, (posix_spawn_file_actions_t *)file_actions, (posix_spawnattr_t *)attrp, argv, envp);
 }
