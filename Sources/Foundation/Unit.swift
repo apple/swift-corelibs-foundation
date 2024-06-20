@@ -1843,7 +1843,7 @@ public final class UnitMass : Dimension {
         static let nanograms    = 1e-12
         static let picograms    = 1e-15
         static let ounces       = 0.0283495
-        static let pounds       = 0.453592
+        static let pounds       = 0.45359237
         static let stones       = 0.157473
         static let metricTons   = 1000.0
         static let shortTons    = 907.185
