@@ -222,10 +222,10 @@ open class NSDecimalNumber : NSNumber {
         return NSDecimalNumber(integerLiteral: 1)
     }
     open class var minimum: NSDecimalNumber {
-        return NSDecimalNumber(decimal:Decimal.leastFiniteMagnitude)
+        return NSDecimalNumber(decimal: -Decimal.greatestFiniteMagnitude)
     }
     open class var maximum: NSDecimalNumber {
-        return NSDecimalNumber(decimal:Decimal.greatestFiniteMagnitude)
+        return NSDecimalNumber(decimal: Decimal.greatestFiniteMagnitude)
 
     }
     open class var notANumber: NSDecimalNumber {

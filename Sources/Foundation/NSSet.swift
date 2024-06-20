@@ -70,13 +70,7 @@ open class NSSet : NSObject, NSCopying, NSMutableCopying, NSSecureCoding, NSCodi
 
     public convenience init(set: Set<AnyHashable>, copyItems flag: Bool) {
         if flag {
-            self.init(array: set.map {
-                if let item = $0 as? NSObject {
-                    return item.copy()
-                } else {
-                    return $0
-                }
-            })
+            self.init(array: set.map{ ($0 as NSObject).copy() })
         } else {
             self.init(array: Array(set))
         }

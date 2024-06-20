@@ -655,13 +655,7 @@ public struct URL : ReferenceConvertible, Equatable {
     /// - note: This function will resolve against the base `URL`.
     /// - returns: The path, or an empty string if the URL has an empty path.
     public var path: String {
-        if let parameterString = _url.parameterString {
-            if let path = _url.path {
-                return path + ";" + parameterString
-            } else {
-                return ";" + parameterString
-            }
-        } else if let path = _url.path {
+        if let path = _url.path {
             return path
         } else {
             return ""
@@ -676,13 +670,7 @@ public struct URL : ReferenceConvertible, Equatable {
     /// - note: This function will resolve against the base `URL`.
     /// - returns: The relative path, or an empty string if the URL has an empty path.
     public var relativePath: String {
-        if let parameterString = _url.parameterString {
-            if let path = _url.relativePath {
-                return path + ";" + parameterString
-            } else {
-                return ";" + parameterString
-            }
-        } else if let path = _url.relativePath {
+        if let path = _url.relativePath {
             return path
         } else {
             return ""
