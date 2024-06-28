@@ -826,7 +826,8 @@ extension FileHandle {
             return _CFOpenFile(fsRep, flags)
         })
         if fd < 0 {
-            throw _NSErrorWithErrno(errno, reading: reading, url: url)
+            print("_openFileDescriptorForURL(\(url), flags: \(flags), reading: \(reading)) Failed: \(fd)")
+            throw _NSErrorWithErrno(errno, reading: reading, url: url, extraUserInfo: [NSLocalizedFailureReasonErrorKey:"_openFileDescriptorForURL(\(url), flags: \(flags), reading: \(reading)) Failed: \(fd)"])
         }
         return fd
     }

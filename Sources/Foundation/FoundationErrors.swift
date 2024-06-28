@@ -211,7 +211,7 @@ internal func _NSErrorWithErrno(_ posixErrno : Int32, reading : Bool, path : Str
 // https://docs.microsoft.com/en-us/windows/desktop/Debug/system-error-codes
 internal let _NSWindowsErrorDomain = "org.swift.Foundation.WindowsError"
 
-internal func _NSErrorWithWindowsError(_ windowsError: DWORD, reading: Bool, paths: [String]? = nil) -> NSError {
+internal func _NSErrorWithWindowsError(_ windowsError: DWORD, reading: Bool, paths: [String]? = nil, extraUserInfo: [String : Any] = [:]) -> NSError {
     var cocoaError : CocoaError.Code
     switch windowsError {
         case DWORD(ERROR_LOCK_VIOLATION): cocoaError = .fileLocking
@@ -269,9 +269,10 @@ internal func _NSErrorWithWindowsError(_ windowsError: DWORD, reading: Bool, pat
                 }
             }
         }
+    
+    var info = extraUserInfo
+    info[NSUnderlyingErrorKey] = NSError(domain: _NSWindowsErrorDomain, code: Int(windowsError))
 
-    return NSError(domain: NSCocoaErrorDomain, code: cocoaError.rawValue, userInfo: [
-            NSUnderlyingErrorKey: NSError(domain: _NSWindowsErrorDomain, code: Int(windowsError))
-    ])
+    return NSError(domain: NSCocoaErrorDomain, code: cocoaError.rawValue, userInfo: info)
 }
 #endif

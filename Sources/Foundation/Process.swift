@@ -517,10 +517,10 @@ open class Process: NSObject {
         var modifiedPipes: [(handle: HANDLE, prevValue: DWORD)] = []
         defer { modifiedPipes.forEach { SetHandleInformation($0.handle, DWORD(HANDLE_FLAG_INHERIT), $0.prevValue) } }
 
-        func deferReset(handle: HANDLE) throws {
+        func deferReset(handle: HANDLE, description: String) throws {
             var handleInfo: DWORD = 0
             guard GetHandleInformation(handle, &handleInfo) else {
-                throw _NSErrorWithWindowsError(GetLastError(), reading: false)
+                throw _NSErrorWithWindowsError(GetLastError(), reading: false, extraUserInfo: [NSLocalizedFailureReasonErrorKey:"deferReset(\(handle), \(description)): GetHandleInformation failed"])
             }
             modifiedPipes.append((handle: handle, prevValue: handleInfo & DWORD(HANDLE_FLAG_INHERIT)))
         }
@@ -528,7 +528,7 @@ open class Process: NSObject {
         switch standardInput {
         case let pipe as Pipe:
             siStartupInfo.hStdInput = pipe.fileHandleForReading._handle
-            try deferReset(handle: pipe.fileHandleForWriting._handle)
+            try deferReset(handle: pipe.fileHandleForWriting._handle, description: "standardInput as Pipe .fileHandleForReading")
             SetHandleInformation(pipe.fileHandleForWriting._handle, DWORD(HANDLE_FLAG_INHERIT), 0)
 
         // nil or NullDevice maps to NUL
@@ -538,7 +538,7 @@ open class Process: NSObject {
 
         case let handle as FileHandle:
             siStartupInfo.hStdInput = handle._handle
-            try deferReset(handle: handle._handle)
+            try deferReset(handle: handle._handle, description: "standardInput as FileHandle")
             SetHandleInformation(handle._handle, DWORD(HANDLE_FLAG_INHERIT), 1)
         default: break
         }
@@ -546,7 +546,7 @@ open class Process: NSObject {
         switch standardOutput {
         case let pipe as Pipe:
             siStartupInfo.hStdOutput = pipe.fileHandleForWriting._handle
-            try deferReset(handle: pipe.fileHandleForReading._handle)
+            try deferReset(handle: pipe.fileHandleForReading._handle, description: "standardOutput as Pipe .fileHandleForReading")
             SetHandleInformation(pipe.fileHandleForReading._handle, DWORD(HANDLE_FLAG_INHERIT), 0)
 
         // nil or NullDevice maps to NUL
@@ -556,7 +556,7 @@ open class Process: NSObject {
 
         case let handle as FileHandle:
             siStartupInfo.hStdOutput = handle._handle
-            try deferReset(handle: handle._handle)
+            try deferReset(handle: handle._handle, description: "standardOutput as FileHandle")
             SetHandleInformation(handle._handle, DWORD(HANDLE_FLAG_INHERIT), 1)
         default: break
         }
@@ -564,7 +564,7 @@ open class Process: NSObject {
         switch standardError {
         case let pipe as Pipe:
             siStartupInfo.hStdError = pipe.fileHandleForWriting._handle
-            try deferReset(handle: pipe.fileHandleForReading._handle)
+            try deferReset(handle: pipe.fileHandleForReading._handle, description: "standardError as Pipe .fileHandleForReading")
             SetHandleInformation(pipe.fileHandleForReading._handle, DWORD(HANDLE_FLAG_INHERIT), 0)
 
         // nil or NullDevice maps to NUL
@@ -574,7 +574,7 @@ open class Process: NSObject {
 
         case let handle as FileHandle:
             siStartupInfo.hStdError = handle._handle
-            try deferReset(handle: handle._handle)
+            try deferReset(handle: handle._handle, description: "standardError as FileHandle")
             SetHandleInformation(handle._handle, DWORD(HANDLE_FLAG_INHERIT), 1)
         default: break
         }
@@ -674,9 +674,9 @@ open class Process: NSObject {
                 // ENOENT, we intercept the error to match the POSIX
                 // behaviour
                 if error == ERROR_DIRECTORY {
-                    throw _NSErrorWithWindowsError(DWORD(ERROR_FILE_NOT_FOUND), reading: true)
+                    throw _NSErrorWithWindowsError(DWORD(ERROR_FILE_NOT_FOUND), reading: true, extraUserInfo: [NSLocalizedFailureReasonErrorKey:"CreateProcessW(nil, \(quoteWindowsCommandLine(command)), nil, nil, true, CREATE_UNICODE_ENVIRONMENT, \(szEnvironment), \(workingDirectory), <ptr>, <ptr>) failed with \(error)"])
                 }
-                throw _NSErrorWithWindowsError(GetLastError(), reading: true)
+                  throw _NSErrorWithWindowsError(GetLastError(), reading: true, extraUserInfo: [NSLocalizedFailureReasonErrorKey:"CreateProcessW(nil, \(quoteWindowsCommandLine(command)), nil, nil, true, CREATE_UNICODE_ENVIRONMENT, \(szEnvironment), \(workingDirectory), <ptr>, <ptr>) failed with \(error)"])
               }
             }
           }
