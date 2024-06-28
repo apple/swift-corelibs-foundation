@@ -102,6 +102,7 @@ CFURLRef _Nullable _CFKnownLocationCreatePreferencesURLForUser(CFKnownLocationUs
             wchar_t* path = NULL;
             SHGetKnownFolderPath(&FOLDERID_LocalAppData, 0, NULL, &path);
             location = CFURLCreateWithFileSystemPath(kCFAllocatorSystemDefault, path, kCFURLWindowsPathStyle, true);
+            CoTaskMemFree(path);
             break;
         }
     }
