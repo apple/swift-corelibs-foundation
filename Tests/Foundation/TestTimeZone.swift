@@ -163,7 +163,7 @@ class TestTimeZone: XCTestCase {
         var lt = tm()
         localtime_r(&t, &lt)
         let zoneName = NSTimeZone.system.abbreviation() ?? "Invalid Abbreviation"
-        let expectedName = String(cString: lt.tm_zone, encoding: .ascii) ?? "Invalid Zone"
+        let expectedName = String(cString: lt.tm_zone!, encoding: .ascii) ?? "Invalid Zone"
         XCTAssertEqual(zoneName, expectedName, "expected name \"\(expectedName)\" is not equal to \"\(zoneName)\"")
     }
 #endif

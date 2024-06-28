@@ -7,6 +7,10 @@
 // See http://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 //
 
+#if canImport(Android)
+import Android
+#endif
+
 class TestProcess : XCTestCase {
     
     func test_exit0() throws {
