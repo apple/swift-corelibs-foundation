@@ -1124,7 +1124,11 @@ open class Process: NSObject {
     // convenience; create and launch
     open class func launchedProcess(launchPath path: String, arguments: [String]) -> Process {
         let process = Process()
-        process.launchPath = path
+        if #available(macOS 10.13, *) {
+            process.executableURL = URL(fileURLWithPath:path)
+        } else {
+            process.launchPath = path
+        }
         process.arguments = arguments
         process.launch()
     
