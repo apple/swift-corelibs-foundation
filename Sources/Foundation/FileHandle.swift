@@ -321,10 +321,15 @@ open class FileHandle : NSObject {
             if options.contains(.alwaysMapped) {
                 // Filesizes are often 64bit even on 32bit systems
                 let mapSize = min(length, Int(clamping: statbuf.st_size))
+              #if canImport(Android)
+                // Bionic mmap() now returns _Nonnull, so the force unwrap below isn't needed.
                 let data = mmap(nil, mapSize, PROT_READ, MAP_PRIVATE, _fd, 0)
+              #else
+                let data = mmap(nil, mapSize, PROT_READ, MAP_PRIVATE, _fd, 0)!
+              #endif
                 // Swift does not currently expose MAP_FAILURE
                 if data != UnsafeMutableRawPointer(bitPattern: -1) {
-                    return NSData.NSDataReadResult(bytes: data!, length: mapSize) { buffer, length in
+                    return NSData.NSDataReadResult(bytes: data, length: mapSize) { buffer, length in
                         munmap(buffer, length)
                     }
                 }

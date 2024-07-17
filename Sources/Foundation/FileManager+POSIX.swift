@@ -812,8 +812,8 @@ extension FileManager {
                         fts_close(stream)
                     }
 
-                    while let current = fts_read(stream)?.pointee {
-                        let itemPath = string(withFileSystemRepresentation: current.fts_path, length: Int(current.fts_pathlen))
+                    while let current = fts_read(stream)?.pointee, let current_path = current.fts_path {
+                        let itemPath = string(withFileSystemRepresentation: current_path, length: Int(current.fts_pathlen))
                         guard alreadyConfirmed || shouldRemoveItemAtPath(itemPath, isURL: isURL) else {
                             continue
                         }
@@ -821,11 +821,11 @@ extension FileManager {
                         do {
                             switch Int32(current.fts_info) {
                             case FTS_DEFAULT, FTS_F, FTS_NSOK, FTS_SL, FTS_SLNONE:
-                                if unlink(current.fts_path) == -1 {
+                                if unlink(current_path) == -1 {
                                     throw _NSErrorWithErrno(errno, reading: false, path: itemPath)
                                 }
                             case FTS_DP:
-                                if rmdir(current.fts_path) == -1 {
+                                if rmdir(current_path) == -1 {
                                     throw _NSErrorWithErrno(errno, reading: false, path: itemPath)
                                 }
                             case FTS_DNR, FTS_ERR, FTS_NS:
@@ -1217,14 +1217,14 @@ extension FileManager {
                 }
 
                 _current = fts_read(stream)
-                while let current = _current {
-                    let filename = FileManager.default.string(withFileSystemRepresentation: current.pointee.fts_path, length: Int(current.pointee.fts_pathlen))
+                while let current = _current, let current_path = current.pointee.fts_path {
+                    let filename = FileManager.default.string(withFileSystemRepresentation: current_path, length: Int(current.pointee.fts_pathlen))
 
                     switch Int32(current.pointee.fts_info) {
                         case FTS_D:
                             let (showFile, skipDescendants) = match(filename: filename, to: _options, isDir: true)
                             if skipDescendants {
-                                fts_set(_stream, _current, FTS_SKIP)
+                                fts_set(stream, current, FTS_SKIP)
                             }
                             if showFile {
                                  return URL(fileURLWithPath: filename, isDirectory: true)
