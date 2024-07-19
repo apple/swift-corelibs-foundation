@@ -270,29 +270,24 @@ extension JSONParser {
         mutating func readBool() throws -> Bool {
             switch self.read() {
             case UInt8(ascii: "t"):
-                guard self.read() == UInt8(ascii: "r"),
-                      self.read() == UInt8(ascii: "u"),
-                      self.read() == UInt8(ascii: "e")
-                else {
-                    guard !self.isEOF else {
+                for target in [UInt8]._true.dropFirst(1) {
+                    guard let byte = self.read() else {
                         throw JSONError.unexpectedEndOfFile
                     }
-
-                    throw JSONError.unexpectedCharacter(ascii: self.peek(offset: -1)!, characterIndex: self.readerIndex - 1)
+                    guard byte == target else {
+                        throw JSONError.unexpectedCharacter(ascii: byte, characterIndex: self.readerIndex - 1)
+                    }
                 }
 
                 return true
             case UInt8(ascii: "f"):
-                guard self.read() == UInt8(ascii: "a"),
-                      self.read() == UInt8(ascii: "l"),
-                      self.read() == UInt8(ascii: "s"),
-                      self.read() == UInt8(ascii: "e")
-                else {
-                    guard !self.isEOF else {
+                for target in [UInt8]._false.dropFirst(1) {
+                    guard let byte = self.read() else {
                         throw JSONError.unexpectedEndOfFile
                     }
-
-                    throw JSONError.unexpectedCharacter(ascii: self.peek(offset: -1)!, characterIndex: self.readerIndex - 1)
+                    guard byte == target else {
+                        throw JSONError.unexpectedCharacter(ascii: byte, characterIndex: self.readerIndex - 1)
+                    }
                 }
 
                 return false
@@ -302,16 +297,13 @@ extension JSONParser {
         }
 
         mutating func readNull() throws {
-            guard self.read() == UInt8(ascii: "n"),
-                  self.read() == UInt8(ascii: "u"),
-                  self.read() == UInt8(ascii: "l"),
-                  self.read() == UInt8(ascii: "l")
-            else {
-                guard !self.isEOF else {
+            for target in [UInt8]._null {
+                guard let byte = self.read() else {
                     throw JSONError.unexpectedEndOfFile
                 }
-
-                throw JSONError.unexpectedCharacter(ascii: self.peek(offset: -1)!, characterIndex: self.readerIndex - 1)
+                guard byte == target else {
+                    throw JSONError.unexpectedCharacter(ascii: byte, characterIndex: self.readerIndex - 1)
+                }
             }
         }
 
