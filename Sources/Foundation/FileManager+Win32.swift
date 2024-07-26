@@ -286,6 +286,8 @@ extension FileManager {
                                modificationTime: Date? = nil) throws {
       let stat = try _lstatFile(atPath: path, withFileSystemRepresentation: fsr)
 
+      var ctime: FILETIME =
+          FILETIME(from: time_t((creationTime ?? stat.creationDate).timeIntervalSince1970))
       var atime: FILETIME =
           FILETIME(from: time_t((accessTime ?? stat.lastAccessDate).timeIntervalSince1970))
       var mtime: FILETIME =
@@ -299,7 +301,7 @@ extension FileManager {
       }
       defer { CloseHandle(hFile) }
 
-      if !SetFileTime(hFile, nil, &atime, &mtime) {
+      if !SetFileTime(hFile, &ctime, &atime, &mtime) {
           throw _NSErrorWithWindowsError(GetLastError(), reading: false, paths: [path])
       }
 
