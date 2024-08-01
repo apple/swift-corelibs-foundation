@@ -76,7 +76,9 @@ public protocol URLSessionDelegate : NSObjectProtocol, Sendable {
 
 extension URLSessionDelegate {
     public func urlSession(_ session: URLSession, didBecomeInvalidWithError error: Error?) { }
-    public func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge, completionHandler: @Sendable @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) { }
+    public func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge, completionHandler: @Sendable @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        completionHandler(.performDefaultHandling, nil)
+    }
 }
 
 /* If an application has received an
@@ -244,7 +246,13 @@ public protocol URLSessionDataDelegate : URLSessionTaskDelegate {
 
 extension URLSessionDataDelegate {
     
-    public func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse, completionHandler: @Sendable @escaping (URLSession.ResponseDisposition) -> Void) { }
+    public func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse, completionHandler: @Sendable @escaping (URLSession.ResponseDisposition) -> Void) {
+        if self === dataTask.delegate, let sessionDelegate = session.delegate as? URLSessionDataDelegate, self !== sessionDelegate {
+            sessionDelegate.urlSession(session, dataTask: dataTask, didReceive: response, completionHandler: completionHandler)
+        } else {
+            completionHandler(.allow)
+        }
+    }
     
     public func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didBecome downloadTask: URLSessionDownloadTask) { }
     
@@ -252,7 +260,13 @@ extension URLSessionDataDelegate {
     
     public func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) { }
     
-    public func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, willCacheResponse proposedResponse: CachedURLResponse, completionHandler: @Sendable @escaping (CachedURLResponse?) -> Void) { }
+    public func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, willCacheResponse proposedResponse: CachedURLResponse, completionHandler: @Sendable @escaping (CachedURLResponse?) -> Void) {
+        if self === dataTask.delegate, let sessionDelegate = session.delegate as? URLSessionDataDelegate, self !== sessionDelegate {
+            sessionDelegate.urlSession(session, dataTask: dataTask, willCacheResponse: proposedResponse, completionHandler: completionHandler)
+        } else {
+            completionHandler(proposedResponse)
+        }
+    }
 }
 
 /*
