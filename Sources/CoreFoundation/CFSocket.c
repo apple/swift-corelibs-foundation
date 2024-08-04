@@ -53,10 +53,6 @@
 #include <process.h>
 #endif
 
-#ifndef NBBY
-#define NBBY 8
-#endif
-
 #if TARGET_OS_WIN32
 
 // redefine this to the winsock error in this file
@@ -67,9 +63,6 @@
 #undef EBADF
 #define EBADF WSAENOTSOCK
 
-#define NFDBITS	(sizeof(int32_t) * NBBY)
-
-typedef int32_t fd_mask;
 typedef int socklen_t;
 
 #define gettimeofday _NS_gettimeofday
@@ -95,6 +88,12 @@ static void timeradd(struct timeval *a, struct timeval *b, struct timeval *res) 
     res->tv_usec -= 1e06;
   }
 }
+
+#else
+
+#ifndef NBBY
+#define NBBY 8
+#endif
 
 #endif // TARGET_OS_WIN32
 
@@ -216,10 +215,15 @@ CF_INLINE int __CFSocketLastError(void) {
 
 CF_INLINE CFIndex __CFSocketFdGetSize(CFDataRef fdSet) {
 #if TARGET_OS_WIN32
-    if (CFDataGetLength(fdSet) == 0) {
+    CFIndex dataLength = CFDataGetLength(fdSet);
+    if (dataLength == 0) {
         return 0;
     }
-    return FD_SETSIZE;
+    // The minimal possible capacity we could possibly have
+    // equals to FD_SETSIZE (as part of fd_set structure).
+    // All additional data length is the space for SOCKETs
+    // over fd_set static buffer limit.
+    return (dataLength - sizeof(fd_set)) / sizeof(SOCKET) + FD_SETSIZE;
 #else
     return NBBY * CFDataGetLength(fdSet);
 #endif
@@ -231,12 +235,26 @@ CF_INLINE Boolean __CFSocketFdSet(CFSocketNativeHandle sock, CFMutableDataRef fd
     if (INVALID_SOCKET != sock && 0 <= sock) {
         fd_set *fds;
 #if TARGET_OS_WIN32
+        // Allocate initial fd_set if there is none
         if (CFDataGetLength(fdSet) == 0) {
             CFDataIncreaseLength(fdSet, sizeof(fd_set));
             fds = (fd_set *)CFDataGetMutableBytePtr(fdSet);
             FD_ZERO(fds);
         } else {
             fds = (fd_set *)CFDataGetMutableBytePtr(fdSet);
+        }
+
+        // FD_SET macro replacement with growable storage
+        if (!FD_ISSET(sock, fds)) {
+            retval = true;
+            u_int count = fds->fd_count;
+            if (count >= __CFSocketFdGetSize(fdSet)) {
+                CFDataIncreaseLength(fdSet, FD_SETSIZE * sizeof(SOCKET));
+                fds = (fd_set *)CFDataGetMutableBytePtr(fdSet);
+            }
+
+            fds->fd_array[count] = sock;
+            fds->fd_count++;
         }
 #else
         CFIndex numFds = NBBY * CFDataGetLength(fdSet);
@@ -250,11 +268,11 @@ CF_INLINE Boolean __CFSocketFdSet(CFSocketNativeHandle sock, CFMutableDataRef fd
             fds_bits = (fd_mask *)CFDataGetMutableBytePtr(fdSet);
         }
         fds = (fd_set *)fds_bits;
-#endif
         if (!FD_ISSET(sock, fds)) {
             retval = true;
             FD_SET(sock, fds);
         }
+#endif
     }
     return retval;
 }
@@ -1225,20 +1243,20 @@ clearInvalidFileDescriptors(CFMutableDataRef d)
         }
 
         fd_set *fds = (fd_set *)CFDataGetMutableBytePtr(d);
-        fd_set invalidFds;
-        FD_ZERO(&invalidFds);
-        // Gather all invalid sockets into invalidFds set
+        u_int count = 0;
+        SOCKET *invalidFds = malloc(sizeof(SOCKET) * fds->fd_count);
+        // Gather all invalid sockets
         for (u_int idx = 0; idx < fds->fd_count; idx++) {
             SOCKET socket = fds->fd_array[idx];
             if (! __CFNativeSocketIsValid(socket)) {
-                FD_SET(socket, &invalidFds);
+                invalidFds[count++] = socket;
             }
         }
         // Remove invalid sockets from source set
-        for (u_int idx = 0; idx < invalidFds.fd_count; idx++) {
-            SOCKET socket = invalidFds.fd_array[idx];
-            FD_CLR(socket, fds);
+        for (u_int idx = 0; idx < count; idx++) {
+            FD_CLR(invalidFds[idx], fds);
         }
+        free(invalidFds);
 #else
         SInt32 count = __CFSocketFdGetSize(d);
         fd_set* s = (fd_set*) CFDataGetMutableBytePtr(d);
@@ -1311,15 +1329,19 @@ static void *__CFSocketManager(void * arg)
 #elif !TARGET_OS_CYGWIN && !TARGET_OS_BSD
     pthread_setname_np("com.apple.CFSocket.private");
 #endif
-    SInt32 nrfds, maxnrfds, fdentries = 1;
-    SInt32 rfds, wfds;
+    SInt32 nrfds, maxnrfds;
     fd_set *exceptfds = NULL;
 #if TARGET_OS_WIN32
-    fd_set *writefds = (fd_set *)CFAllocatorAllocate(kCFAllocatorSystemDefault, sizeof(fd_set), 0);
-    fd_set *readfds = (fd_set *)CFAllocatorAllocate(kCFAllocatorSystemDefault, sizeof(fd_set), 0);
+    CFMutableDataRef writeFdsData = CFDataCreateMutable(kCFAllocatorSystemDefault, 0);
+    CFMutableDataRef readFdsData = CFDataCreateMutable(kCFAllocatorSystemDefault, 0);
+    CFDataSetLength(writeFdsData, sizeof(fd_set));
+    CFDataSetLength(readFdsData, sizeof(fd_set));
+    fd_set *writefds = (fd_set *)CFDataGetMutableBytePtr(writeFdsData);
+    fd_set *readfds = (fd_set *)CFDataGetMutableBytePtr(readFdsData);
     FD_ZERO(writefds);
     FD_ZERO(readfds);
 #else
+    SInt32 rfds, wfds, fdentries = 1;
     fd_set *writefds = (fd_set *)CFAllocatorAllocate(kCFAllocatorSystemDefault, fdentries * sizeof(fd_mask), 0);
     fd_set *readfds = (fd_set *)CFAllocatorAllocate(kCFAllocatorSystemDefault, fdentries * sizeof(fd_mask), 0);
 #endif
@@ -1349,9 +1371,19 @@ static void *__CFSocketManager(void * arg)
         free(writeBuffer);
 #endif
 
+        CFIndex rfdsDataLendth = CFDataGetLength(__CFReadSocketsFds);
+        CFIndex wfdsDataLength = CFDataGetLength(__CFWriteSocketsFds);
 #if TARGET_OS_WIN32
         // This parameter is ignored by `select` from Winsock2 API
         maxnrfds = INT_MAX;
+        // Note that writeFdsData and rfdsDataLendth lengths are equal
+        CFIndex dataLengthDiff = __CFMax(rfdsDataLendth, wfdsDataLength) - CFDataGetLength(writeFdsData);
+        if (dataLengthDiff > 0) {
+            CFDataIncreaseLength(writeFdsData, dataLengthDiff);
+            CFDataIncreaseLength(readFdsData, dataLengthDiff);
+            writefds = (fd_set *)CFDataGetMutableBytePtr(writeFdsData);
+            readfds = (fd_set *)CFDataGetMutableBytePtr(readFdsData);
+        }
 #else
         rfds = __CFSocketFdGetSize(__CFReadSocketsFds);
         wfds = __CFSocketFdGetSize(__CFWriteSocketsFds);
@@ -1364,8 +1396,8 @@ static void *__CFSocketManager(void * arg)
         memset(writefds, 0, fdentries * sizeof(fd_mask)); 
         memset(readfds, 0, fdentries * sizeof(fd_mask));
 #endif
-        CFDataGetBytes(__CFWriteSocketsFds, CFRangeMake(0, CFDataGetLength(__CFWriteSocketsFds)), (UInt8 *)writefds);
-        CFDataGetBytes(__CFReadSocketsFds, CFRangeMake(0, CFDataGetLength(__CFReadSocketsFds)), (UInt8 *)readfds); 
+        CFDataGetBytes(__CFWriteSocketsFds, CFRangeMake(0, wfdsDataLength), (UInt8 *)writefds);
+        CFDataGetBytes(__CFReadSocketsFds, CFRangeMake(0, rfdsDataLendth), (UInt8 *)readfds); 
 		
         if (__CFReadSocketsTimeoutInvalid) {
             struct timeval* minTimeout = NULL;
