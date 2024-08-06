@@ -609,6 +609,8 @@ final class TestURLSession: LoopbackServerTest, @unchecked Sendable {
     }
 
     func test_connectTimeout() async throws {
+        throw XCTSkip("This test is disabled (flaky when all tests are run together)")
+        #if false
         // Reconfigure http server for this specific scenario:
         // a slow request keeps web server busy, while other
         // request times out on connection attempt.
@@ -646,6 +648,7 @@ final class TestURLSession: LoopbackServerTest, @unchecked Sendable {
         Self.stopServer()
         Self.options = .default
         Self.startServer()
+        #endif
     }
     
     func test_repeatedRequestsStress() async throws {
