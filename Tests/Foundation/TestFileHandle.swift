@@ -19,6 +19,8 @@
 import Dispatch
 #if os(Windows)
 import WinSDK
+#elseif canImport(Android)
+import Android
 #endif
 
 class TestFileHandle : XCTestCase {
@@ -111,7 +113,7 @@ class TestFileHandle : XCTestCase {
 #else
         var fds: [Int32] = [-1, -1]
         fds.withUnsafeMutableBufferPointer { (pointer) -> Void in
-            pipe(pointer.baseAddress)
+            pipe(pointer.baseAddress!)
         }
         
         close(fds[1])

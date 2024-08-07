@@ -109,6 +109,11 @@ typedef char * Class;
 #include <pthread.h>
 #endif
 
+#if TARGET_OS_ANDROID
+#define HAVE_STRLCPY 1
+#define HAVE_STRLCAT 1
+#endif
+
 #if TARGET_OS_WIN32
 #define BOOL WINDOWS_BOOL
 

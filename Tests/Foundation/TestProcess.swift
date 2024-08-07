@@ -8,6 +8,9 @@
 //
 
 import Synchronization
+#if canImport(Android)
+import Android
+#endif
 
 class TestProcess : XCTestCase {
     

@@ -11,6 +11,9 @@
 #if !os(WASI)
 import Dispatch
 #endif
+#if canImport(Android)
+import Android
+#endif
 
 extension NSData {
     public typealias ReadingOptions = Data.ReadingOptions
@@ -469,6 +472,8 @@ open class NSData : NSObject, NSCopying, NSMutableCopying, NSSecureCoding {
             let createMode = Int(Musl.S_IRUSR) | Int(Musl.S_IWUSR) | Int(Musl.S_IRGRP) | Int(Musl.S_IWGRP) | Int(Musl.S_IROTH) | Int(Musl.S_IWOTH)
 #elseif canImport(WASILibc)
             let createMode = Int(WASILibc.S_IRUSR) | Int(WASILibc.S_IWUSR) | Int(WASILibc.S_IRGRP) | Int(WASILibc.S_IWGRP) | Int(WASILibc.S_IROTH) | Int(WASILibc.S_IWOTH)
+#elseif canImport(Android)
+            let createMode = Int(Android.S_IRUSR) | Int(Android.S_IWUSR) | Int(Android.S_IRGRP) | Int(Android.S_IWGRP) | Int(Android.S_IROTH) | Int(Android.S_IWOTH)
 #endif
             guard let fh = FileHandle(path: path, flags: flags, createMode: createMode) else {
                 throw _NSErrorWithErrno(errno, reading: false, path: path)

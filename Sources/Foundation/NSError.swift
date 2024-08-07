@@ -16,6 +16,8 @@ import Darwin
 import Glibc
 #elseif canImport(CRT)
 import CRT
+#elseif canImport(Android)
+import Android
 #endif
 
 @_implementationOnly import CoreFoundation

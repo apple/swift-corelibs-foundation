@@ -34,6 +34,11 @@ import WASILibc
 fileprivate let _read = WASILibc.read(_:_:_:)
 fileprivate let _write = WASILibc.write(_:_:_:)
 fileprivate let _close = WASILibc.close(_:)
+#elseif canImport(Android)
+import Android
+fileprivate let _read = Android.read(_:_:_:)
+fileprivate let _write = Android.write(_:_:_:)
+fileprivate let _close = Android.close(_:)
 #endif
 
 #if canImport(WinSDK)
@@ -324,7 +329,7 @@ open class FileHandle : NSObject, @unchecked Sendable {
                 let data = mmap(nil, mapSize, PROT_READ, MAP_PRIVATE, _fd, 0)
                 // Swift does not currently expose MAP_FAILURE
                 if data != UnsafeMutableRawPointer(bitPattern: -1) {
-                    return NSData.NSDataReadResult(bytes: data!, length: mapSize) { buffer, length in
+                    return NSData.NSDataReadResult(bytes: data, length: mapSize) { buffer, length in
                         munmap(buffer, length)
                     }
                 }

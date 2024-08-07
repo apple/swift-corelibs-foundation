@@ -7,6 +7,10 @@
 //
 #if !os(Windows)
 
+#if canImport(Android)
+import Android
+#endif
+
 #if os(Android) && (arch(i386) || arch(arm)) // struct stat.st_mode is UInt32
 internal func &(left: UInt32, right: mode_t) -> mode_t {
     return mode_t(left) & right
@@ -398,13 +402,13 @@ extension FileManager {
 
                 _current = fts_read(stream)
                 while let current = _current {
-                    let filename = FileManager.default.string(withFileSystemRepresentation: current.pointee.fts_path, length: Int(current.pointee.fts_pathlen))
+                    let filename = FileManager.default.string(withFileSystemRepresentation: current.pointee.fts_path!, length: Int(current.pointee.fts_pathlen))
 
                     switch Int32(current.pointee.fts_info) {
                         case FTS_D:
                             let (showFile, skipDescendants) = match(filename: filename, to: _options, isDir: true)
                             if skipDescendants {
-                                fts_set(_stream, _current, FTS_SKIP)
+                                fts_set(stream, current, FTS_SKIP)
                             }
                             if showFile {
                                  return URL(fileURLWithPath: filename, isDirectory: true)
@@ -578,7 +582,7 @@ extension FileManager {
             let finalErrno = originalItemURL.withUnsafeFileSystemRepresentation { (originalFS) -> Int32? in
                 return newItemURL.withUnsafeFileSystemRepresentation { (newItemFS) -> Int32? in
                     // This is an atomic operation in many OSes, but is not guaranteed to be atomic by the standard.
-                    if rename(newItemFS, originalFS) == 0 {
+                    if rename(newItemFS!, originalFS!) == 0 {
                         return nil
                     } else {
                         return errno

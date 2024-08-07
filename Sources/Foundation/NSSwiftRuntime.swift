@@ -19,6 +19,8 @@ internal import Synchronization
 @_exported import Glibc
 #elseif canImport(Musl)
 @_exported import Musl
+#elseif canImport(Bionic)
+@_exported import Bionic
 #elseif os(WASI)
 @_exported import WASILibc
 #elseif os(Windows)

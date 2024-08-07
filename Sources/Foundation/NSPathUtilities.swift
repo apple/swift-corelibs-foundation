@@ -10,6 +10,8 @@
 @_implementationOnly import CoreFoundation
 #if os(Windows)
 import WinSDK
+#elseif canImport(Android)
+import Android
 #elseif os(WASI)
 import WASILibc
 // CoreFoundation brings <errno.h> but it conflicts with WASILibc.errno

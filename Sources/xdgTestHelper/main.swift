@@ -19,6 +19,8 @@ import FoundationNetworking
 #endif
 #if os(Windows)
 import WinSDK
+#elseif os(Android)
+import Android
 #endif
 
 enum HelperCheckStatus : Int32 {

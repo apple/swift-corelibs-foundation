@@ -7,6 +7,10 @@
 // See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 //
 
+#if canImport(Android)
+import Android
+#endif
+
 let kURLTestParsingTestsKey = "ParsingTests"
 
 let kURLTestTitleKey = "In-Title"
