@@ -198,5 +198,43 @@ class TestXMLParser : XCTestCase {
         ElementNameChecker("noPrefix").check()
         ElementNameChecker("myPrefix:myLocalName").check()
     }
-    
+
+    func testExternalEntity() throws {
+        class Delegate: XMLParserDelegateEventStream {
+            override func parserDidStartDocument(_ parser: XMLParser) {
+                // Start a child parser, updating `currentParser` to the child parser
+                // to ensure that `currentParser` won't be reset to `nil`, which would
+                // ignore any external entity related configuration.
+                let childParser = XMLParser(data: "<child />".data(using: .utf8)!)
+                XCTAssertTrue(childParser.parse())
+                super.parserDidStartDocument(childParser)
+            }
+        }
+        try withTemporaryDirectory { dir, _ in
+            let greetingDtdPath = dir.appendingPathComponent("greeting.dtd")
+            try Data("<hello />".utf8).write(to: greetingDtdPath)
+            let xml = """
+            <?xml version="1.0"?>
+            <!DOCTYPE doc [
+              <!ENTITY greeting SYSTEM "\(greetingDtdPath.absoluteString)">
+            ]>
+            <doc>&greeting;</doc>
+            """
+
+            let parser = XMLParser(data: xml.data(using: .utf8)!)
+            // Explicitly disable external entity resolving
+            parser.externalEntityResolvingPolicy = .never
+            let delegate = Delegate()
+            parser.delegate = delegate
+            XCTAssertTrue(parser.parse())
+            XCTAssertNil(parser.parserError)
+            XCTAssertEqual(delegate.events, [
+                .startDocument,
+                .didStartElement("doc", nil, nil, [:]),
+                // Should not have parsed the external entity
+                .didEndElement("doc", nil, nil),
+                .endDocument,
+            ])
+        }
+    }
 }
