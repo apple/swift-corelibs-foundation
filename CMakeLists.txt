@@ -93,6 +93,7 @@ if(NOT SwiftFoundation_MODULE_TRIPLE)
 endif()
 
 # System dependencies
+find_package(LibRT)
 find_package(dispatch CONFIG)
 if(NOT dispatch_FOUND)
     if(CMAKE_SYSTEM_NAME STREQUAL "Linux" OR CMAKE_SYSTEM_NAME STREQUAL "Android")

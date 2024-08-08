@@ -4,7 +4,7 @@
 #
 # Find librt library and headers.
 #
-# The mdoule defines the following variables:
+# The module defines the following variables:
 #
 # ::
 #
