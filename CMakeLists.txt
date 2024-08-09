@@ -41,6 +41,16 @@ if(NOT SWIFT_SYSTEM_NAME)
   endif()
 endif()
 
+# Don't enable WMO on Windows due to linker failures
+if(NOT CMAKE_SYSTEM_NAME STREQUAL Windows)
+    # Enable whole module optimization for release builds & incremental for debug builds
+    if(POLICY CMP0157)
+        set(CMAKE_Swift_COMPILATION_MODE "$<IF:$<CONFIG:Release>,wholemodule,incremental>")
+    else()
+        add_compile_options($<$<AND:$<COMPILE_LANGUAGE:Swift>,$<CONFIG:Release>>:-wmo>)
+    endif()
+endif()
+
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
