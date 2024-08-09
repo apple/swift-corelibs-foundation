@@ -204,8 +204,14 @@ static dispatch_queue_t __ ## PREFIX ## Queue(void) {			\
     #endif
 #endif
 
-#if !TARGET_OS_MAC
-#if !HAVE_STRLCPY
+#if TARGET_OS_MAC ||                                                           \
+    (TARGET_OS_LINUX &&                                                        \
+     (defined(__GLIBC__) &&                                                    \
+          (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 38)) ||      \
+      !defined(__GLIBC__)))
+// strlcat and strlcpy are available in the system
+#else
+// Define local versions of strlcpy and strlcat for glibc < 2.38
 CF_INLINE size_t
 strlcpy(char * dst, const char * src, size_t maxlen) {
     const size_t srclen = strlen(src);
@@ -217,9 +223,7 @@ strlcpy(char * dst, const char * src, size_t maxlen) {
     }
     return srclen;
 }
-#endif
 
-#if !HAVE_STRLCAT
 CF_INLINE size_t
 strlcat(char * dst, const char * src, size_t maxlen) {
     const size_t srclen = strlen(src);
@@ -233,8 +237,8 @@ strlcat(char * dst, const char * src, size_t maxlen) {
     }
     return dstlen + srclen;
 }
-#endif
-#endif // !TARGET_OS_MAC
+#endif // TARGET_OS_MAC || (TARGET_OS_LINUX && defined(__GLIBC__) && (__GLIBC__
+       // > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 38)))
 
 #if TARGET_OS_WIN32
 // Compatibility with boolean.h
