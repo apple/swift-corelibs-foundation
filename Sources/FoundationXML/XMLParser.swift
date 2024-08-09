@@ -398,9 +398,7 @@ extension XMLParser : @unchecked Sendable { }
 
 open class XMLParser : NSObject {
     private var _handler: _CFXMLInterfaceSAXHandler
-#if !os(WASI)
     internal var _stream: InputStream?
-#endif
     internal var _data: Data?
 
     internal var _chunkSize = Int(4096 * 32) // a suitably large number for a decent chunk size
@@ -414,9 +412,6 @@ open class XMLParser : NSObject {
     
     // initializes the parser with the specified URL.
     public convenience init?(contentsOf url: URL) {
-#if os(WASI)
-        return nil
-#else
         setupXMLParsing()
         if url.isFileURL {
             if let stream = InputStream(url: url) {
@@ -434,7 +429,6 @@ open class XMLParser : NSObject {
                 return nil
             }
         }
-#endif
     }
     
     // create the parser from data
@@ -450,7 +444,6 @@ open class XMLParser : NSObject {
         _CFXMLInterfaceDestroyContext(_parserContext)
     }
     
-#if !os(WASI)
     //create a parser that incrementally pulls data from the specified stream and parses it.
     public init(stream: InputStream) {
         setupXMLParsing()
@@ -458,7 +451,6 @@ open class XMLParser : NSObject {
         _handler = _CFXMLInterfaceCreateSAXHandler()
         _parserContext = nil
     }
-#endif
     
     open weak var delegate: XMLParserDelegate?
     
@@ -469,33 +461,35 @@ open class XMLParser : NSObject {
     open var externalEntityResolvingPolicy: ExternalEntityResolvingPolicy = .never
     
     open var allowedExternalEntityURLs: Set<URL>?
-    
-#if os(WASI)
-    private static var _currentParser: XMLParser?
-#endif
+
+    /// The current parser is stored in a task local variable to allow for
+    /// concurrent parsing in different tasks with different parsers.
+    ///
+    /// Rationale for `@unchecked Sendable`:
+    /// While the ``XMLParser`` class itself is not `Sendable`, `TaskLocal`
+    /// requires the value type to be `Sendable`. The sendability requirement
+    /// of `TaskLocal` is only for the "default" value and values set with
+    /// `withValue` will not be shared between tasks.
+    /// So as long as 1. the default value is safe to be shared between tasks
+    /// and 2. the `Sendable` conformance of `_CurrentParser` is not used
+    /// outside of `TaskLocal`, it is safe to mark it as `@unchecked Sendable`.
+    private struct _CurrentParser: @unchecked Sendable {
+        let parser: XMLParser?
+
+        static var `default`: _CurrentParser {
+            return _CurrentParser(parser: nil)
+        }
+    }
+
+    @TaskLocal
+    private static var _currentParser: _CurrentParser = .default
 
     internal static func currentParser() -> XMLParser? {
-#if os(WASI)
-        return _currentParser
-#else
-        if let current = Thread.current.threadDictionary["__CurrentNSXMLParser"] {
-            return current as? XMLParser
-        } else {
-            return nil
-        }
-#endif
+        return _currentParser.parser
     }
     
-    internal static func setCurrentParser(_ parser: XMLParser?) {
-#if os(WASI)
-        _currentParser = parser
-#else
-        if let p = parser {
-            Thread.current.threadDictionary["__CurrentNSXMLParser"] = p
-        } else {
-            Thread.current.threadDictionary.removeObject(forKey: "__CurrentNSXMLParser")
-        }
-#endif
+    internal static func withCurrentParser<R>(_ parser: XMLParser, _ body: () -> R) -> R {
+        return self.$_currentParser.withValue(_CurrentParser(parser: parser), operation: body)
     }
     
     internal func _handleParseResult(_ parseResult: Int32) -> Bool {
@@ -569,7 +563,6 @@ open class XMLParser : NSObject {
         return result
     }
 
-#if !os(WASI)
     internal func parseFrom(_ stream : InputStream) -> Bool {
         var result = true
 
@@ -598,37 +591,17 @@ open class XMLParser : NSObject {
 
         return result
     }
-#else
-    internal func parse(from data: Data) -> Bool {
-        var result = true
-        var chunkStart = 0
-        var chunkEnd = min(_chunkSize, data.count)
-        while result && chunkStart < chunkEnd {
-            let chunk = data[chunkStart..<chunkEnd]
-            result = parseData(chunk)
-            chunkStart = chunkEnd
-            chunkEnd = min(chunkEnd + _chunkSize, data.count)
-        }
-        return result
-    }
-#endif
 
     // called to start the event-driven parse. Returns YES in the event of a successful parse, and NO in case of error.
     open func parse() -> Bool {
-#if os(WASI)
-        return _data.map { parse(from: $0) } ?? false
-#else
-        XMLParser.setCurrentParser(self)
-        defer { XMLParser.setCurrentParser(nil) }
-
-        if _stream != nil {
-            return parseFrom(_stream!)
-        } else if _data != nil {
-            return parseData(_data!, lastChunkOfData: true)
+        return Self.withCurrentParser(self) {
+            if _stream != nil {
+                return parseFrom(_stream!)
+            } else if _data != nil {
+                return parseData(_data!, lastChunkOfData: true)
+            }
+            return false
         }
-
-        return false
-#endif
     }
     
     // called by the delegate to stop the parse. The delegate will get an error message sent to it.
