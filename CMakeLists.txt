@@ -115,7 +115,6 @@ list(APPEND _Foundation_common_build_flags
     "-DCF_BUILDING_CF"
     "-DDEPLOYMENT_ENABLE_LIBDISPATCH"
     "-DHAVE_STRUCT_TIMESPEC"
-    "-DSWIFT_CORELIBS_FOUNDATION_HAS_THREADS"
     "-Wno-shorten-64-to-32"
     "-Wno-deprecated-declarations"
     "-Wno-unreachable-code"
@@ -126,6 +125,18 @@ list(APPEND _Foundation_common_build_flags
     "-Wno-int-conversion"
     "-Wno-switch"
     "-fblocks")
+
+if(CMAKE_SYSTEM_NAME STREQUAL "WASI")
+  list(APPEND _Foundation_common_build_flags
+    "-D_WASI_EMULATED_SIGNAL"
+    "-DHAVE_STRLCPY"
+    "-DHAVE_STRLCAT"
+  )
+else()
+  list(APPEND _Foundation_common_build_flags
+    "-DSWIFT_CORELIBS_FOUNDATION_HAS_THREADS"
+  )
+endif()
 
 if(NOT "${CMAKE_C_SIMULATE_ID}" STREQUAL "MSVC")
     list(APPEND _Foundation_common_build_flags
@@ -154,9 +165,20 @@ set(_Foundation_swift_build_flags)
 list(APPEND _Foundation_swift_build_flags
     "-swift-version 6"
     "-DDEPLOYMENT_RUNTIME_SWIFT"
-    "-DSWIFT_CORELIBS_FOUNDATION_HAS_THREADS"
     "-Xfrontend"
     "-require-explicit-sendable")
+
+if(CMAKE_SYSTEM_NAME STREQUAL "WASI")
+  list(APPEND _Foundation_swift_build_flags
+    "-D_WASI_EMULATED_SIGNAL"
+    "-DHAVE_STRLCPY"
+    "-DHAVE_STRLCAT"
+  )
+else()
+  list(APPEND _Foundation_swift_build_flags
+    "-DSWIFT_CORELIBS_FOUNDATION_HAS_THREADS"
+  )
+endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux" OR CMAKE_SYSTEM_NAME STREQUAL "Android")
     list(APPEND _Foundation_common_build_flags

@@ -596,7 +596,13 @@ static CFBundleRef _CFBundleGetBundleWithIdentifier(CFStringRef bundleID, void *
 
 CFBundleRef CFBundleGetBundleWithIdentifier(CFStringRef bundleID) {
     // Use the frame that called this as a hint
-    return _CFBundleGetBundleWithIdentifier(bundleID, __builtin_return_address(0));
+    void *hint;
+#if TARGET_OS_WASI
+    hint = NULL;
+#else
+    hint = __builtin_frame_address(0);
+#endif
+    return _CFBundleGetBundleWithIdentifier(bundleID, hint);
 }
 
 CFBundleRef _CFBundleGetBundleWithIdentifierWithHint(CFStringRef bundleID, void *pointer) {

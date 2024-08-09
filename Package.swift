@@ -3,6 +3,17 @@
 
 import PackageDescription
 
+let platformsWithThreads: [Platform] = [
+    .iOS,
+    .macOS,
+    .tvOS,
+    .watchOS,
+    .macCatalyst,
+    .driverKit,
+    .android,
+    .linux,
+    .windows,
+]
 var dispatchIncludeFlags: [CSetting]
 if let environmentPath = Context.environment["DISPATCH_INCLUDE_PATH"] {
     dispatchIncludeFlags = [.unsafeFlags([
@@ -31,8 +42,11 @@ let coreFoundationBuildSettings: [CSetting] = [
     .define("DEPLOYMENT_ENABLE_LIBDISPATCH"),
     .define("DEPLOYMENT_RUNTIME_SWIFT"),
     .define("HAVE_STRUCT_TIMESPEC"),
-    .define("SWIFT_CORELIBS_FOUNDATION_HAS_THREADS"),
+    .define("SWIFT_CORELIBS_FOUNDATION_HAS_THREADS", .when(platforms: platformsWithThreads)),
     .define("_GNU_SOURCE", .when(platforms: [.linux, .android])),
+    .define("_WASI_EMULATED_SIGNAL", .when(platforms: [.wasi])),
+    .define("HAVE_STRLCPY", .when(platforms: [.wasi])),
+    .define("HAVE_STRLCAT", .when(platforms: [.wasi])),
     .unsafeFlags([
         "-Wno-shorten-64-to-32",
         "-Wno-deprecated-declarations",
@@ -61,8 +75,11 @@ let interfaceBuildSettings: [CSetting] = [
     .define("CF_BUILDING_CF"),
     .define("DEPLOYMENT_ENABLE_LIBDISPATCH"),
     .define("HAVE_STRUCT_TIMESPEC"),
-    .define("SWIFT_CORELIBS_FOUNDATION_HAS_THREADS"),
+    .define("SWIFT_CORELIBS_FOUNDATION_HAS_THREADS", .when(platforms: platformsWithThreads)),
     .define("_GNU_SOURCE", .when(platforms: [.linux, .android])),
+    .define("_WASI_EMULATED_SIGNAL", .when(platforms: [.wasi])),
+    .define("HAVE_STRLCPY", .when(platforms: [.wasi])),
+    .define("HAVE_STRLCAT", .when(platforms: [.wasi])),
     .unsafeFlags([
         "-Wno-shorten-64-to-32",
         "-Wno-deprecated-declarations",
