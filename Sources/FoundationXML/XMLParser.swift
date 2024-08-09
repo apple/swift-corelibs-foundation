@@ -412,9 +412,6 @@ open class XMLParser : NSObject {
     
     // initializes the parser with the specified URL.
     public convenience init?(contentsOf url: URL) {
-#if os(WASI)
-        return nil
-#else
         setupXMLParsing()
         if url.isFileURL {
             if let stream = InputStream(url: url) {
@@ -432,7 +429,6 @@ open class XMLParser : NSObject {
                 return nil
             }
         }
-#endif
     }
     
     // create the parser from data
@@ -448,7 +444,6 @@ open class XMLParser : NSObject {
         _CFXMLInterfaceDestroyContext(_parserContext)
     }
     
-#if !os(WASI)
     //create a parser that incrementally pulls data from the specified stream and parses it.
     public init(stream: InputStream) {
         setupXMLParsing()
@@ -456,7 +451,6 @@ open class XMLParser : NSObject {
         _handler = _CFXMLInterfaceCreateSAXHandler()
         _parserContext = nil
     }
-#endif
     
     open weak var delegate: XMLParserDelegate?
     
