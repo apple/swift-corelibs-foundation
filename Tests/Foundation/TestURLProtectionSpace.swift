@@ -42,7 +42,7 @@ class TestURLProtectionSpace : XCTestCase {
 
     #if NS_FOUNDATION_ALLOWS_TESTABLE_IMPORT
     func test_createWithHTTPURLresponse() throws {
-        // Real responce from outlook.office365.com
+        // Real response from outlook.office365.com
         let headerFields1 = [
             "Server": "Microsoft-IIS/10.0",
             "request-id": "c71c2202-4013-4d64-9319-d40aba6bbe5c",

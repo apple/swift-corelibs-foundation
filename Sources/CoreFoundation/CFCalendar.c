@@ -129,7 +129,7 @@ static void __CFCalendarSetToFirstInstant(CFCalendarRef calendar, CFCalendarUnit
                 int32_t qmonth[] = {0, 0, 0, 3, 3, 3, 6, 6, 6, 9, 9, 9, 9};
                 month = qmonth[month];
             }
-            // #warning if there is a lunar leap month of the same number *preceeding* month N,
+            // #warning if there is a lunar leap month of the same number *preceding* month N,
             // then we should set the calendar to the leap month, not the regular month.
             __cficu_ucal_set(calendar->_cal, UCAL_MONTH, month);
             __cficu_ucal_set(calendar->_cal, UCAL_IS_LEAP_MONTH, 0);

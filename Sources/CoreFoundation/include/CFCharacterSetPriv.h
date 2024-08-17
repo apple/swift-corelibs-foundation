@@ -47,7 +47,7 @@ CF_INLINE UTF32Char CFCharacterSetGetLongCharacterForSurrogatePair(UniChar surro
     return (UTF32Char)(((surrogateHigh - 0xD800UL) << 10) + (surrogateLow - 0xDC00UL) + 0x0010000UL);
 }
 
-/* Check to see if the character represented by the surrogate pair surrogateHigh & surrogateLow is in the chraracter set */
+/* Check to see if the character represented by the surrogate pair surrogateHigh & surrogateLow is in the character set */
 CF_EXPORT Boolean CFCharacterSetIsSurrogatePairMember(CFCharacterSetRef theSet, UniChar surrogateHigh, UniChar surrogateLow) ;
 
 /* Keyed-coding support

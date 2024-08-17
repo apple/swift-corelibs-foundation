@@ -547,7 +547,7 @@ extension NSString {
 
         // If we have a RFC8089 style path, e.g. `/[drive-letter]:/...`, drop
         // the leading '/', otherwise, a leading slash indicates a rooted path
-        // on the drive for the current working directoyr.
+        // on the drive for the current working directory.
         if fsr.count >= 3 {
             let index0 = fsr.startIndex
             let index1 = fsr.index(after: index0)

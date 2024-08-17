@@ -185,13 +185,13 @@ class _TCPSocket: CustomStringConvertible {
 
         var buffer = [CChar](repeating: 0, count: 4096)
 #if os(Windows)
-        var dwNumberOfBytesRecieved: DWORD = 0;
+        var dwNumberOfBytesReceived: DWORD = 0
         try buffer.withUnsafeMutableBufferPointer {
             var wsaBuffer: WSABUF = WSABUF(len: ULONG($0.count), buf: $0.baseAddress)
             var flags: DWORD = 0
-            _ = try attempt("WSARecv", valid: { $0 != SOCKET_ERROR }, WSARecv(connectionSocket, &wsaBuffer, 1, &dwNumberOfBytesRecieved, &flags, nil, nil))
+            _ = try attempt("WSARecv", valid: { $0 != SOCKET_ERROR }, WSARecv(connectionSocket, &wsaBuffer, 1, &dwNumberOfBytesReceived, &flags, nil, nil))
         }
-        let length = Int(dwNumberOfBytesRecieved)
+        let length = Int(dwNumberOfBytesReceived)
 #else
         let length = try attempt("read", valid: { $0 >= 0 }, read(connectionSocket, &buffer, buffer.count))
 #endif

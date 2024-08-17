@@ -562,7 +562,7 @@ CF_EXPORT CFHashCode _CFNonObjCHash(CFTypeRef cf);
  *langCode and/or *regCode to -1 if there is no appropriate legacy value for the locale.
  This is a replacement for the CFBundle SPI CFBundleGetLocalizationInfoForLocalization (which was intended to be temporary and transitional);
  this function is more up-to-date in its handling of locale strings, and is in CFLocale where this functionality should belong. Compared
- to CFBundleGetLocalizationInfoForLocalization, this function does not spcially interpret a NULL localeIdentifier to mean use the single most
+ to CFBundleGetLocalizationInfoForLocalization, this function does not specially interpret a NULL localeIdentifier to mean use the single most
  preferred localization in the current context (this function returns NO for a NULL localeIdentifier); and in this function
  langCode, regCode, and scriptCode are all SInt16* (not SInt32* like the equivalent parameters in CFBundleGetLocalizationInfoForLocalization).
 */
@@ -664,7 +664,7 @@ CF_EXPORT void _CFRunLoopSetWindowsMessageQueueHandler(CFRunLoopRef rl, CFString
 #endif
 
 
-CF_EXPORT CFArrayRef CFDateFormatterCreateDateFormatsFromTemplates(CFAllocatorRef allocator, CFArrayRef tmplates, CFOptionFlags options, CFLocaleRef locale);
+CF_EXPORT CFArrayRef CFDateFormatterCreateDateFormatsFromTemplates(CFAllocatorRef allocator, CFArrayRef templates, CFOptionFlags options, CFLocaleRef locale);
 
 #if TARGET_OS_IPHONE
 // Available for internal use on embedded

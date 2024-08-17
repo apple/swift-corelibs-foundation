@@ -152,7 +152,7 @@ a relative URL against its base).  The full URL is therefore
 
 If a given CFURL can be decomposed (that is, conforms to RFC 1808), you
 can ask for each of the four basic pieces (scheme, net location, path,
-and resource specifer) separately, as well as for its base URL.  The
+and resource specifier) separately, as well as for its base URL.  The
 basic pieces are returned with any percent-escape sequences still in
 place (although note that the scheme may not legally include any
 percent-escapes); this is to allow the caller to distinguish between
@@ -1209,7 +1209,7 @@ CFDataRef CFURLCreateBookmarkData ( CFAllocatorRef allocator, CFURLRef url, CFUR
 CF_EXPORT
 CFURLRef CFURLCreateByResolvingBookmarkData ( CFAllocatorRef allocator, CFDataRef bookmark, CFURLBookmarkResolutionOptions options, CFURLRef relativeToURL, CFArrayRef resourcePropertiesToInclude, Boolean* isStale, CFErrorRef* error ) API_AVAILABLE(macos(10.6), ios(4.0), watchos(2.0), tvos(9.0));
 
-/* Returns the resource propertyies identified by a specified array of keys contained in specified bookmark data. If the result dictionary does not contain a resource value for one or more of the requested resource keys, it means those resource properties are not available in the bookmark data.
+/* Returns the resource properties identified by a specified array of keys contained in specified bookmark data. If the result dictionary does not contain a resource value for one or more of the requested resource keys, it means those resource properties are not available in the bookmark data.
  */
 CF_EXPORT
 CFDictionaryRef CFURLCreateResourcePropertiesForKeysFromBookmarkData ( CFAllocatorRef allocator, CFArrayRef resourcePropertiesToReturn, CFDataRef bookmark ) API_AVAILABLE(macos(10.6), ios(4.0), watchos(2.0), tvos(9.0));

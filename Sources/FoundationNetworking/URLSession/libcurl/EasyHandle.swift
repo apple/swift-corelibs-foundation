@@ -56,7 +56,7 @@ internal func xferInfoFunctionSupported() -> Bool {
 /// TCP streams and HTTP transfers / easy handles. A single TCP stream and
 /// its socket may be shared by multiple easy handles.
 ///
-/// A single HTTP request-response exchange (refered to here as a
+/// A single HTTP request-response exchange (referred to here as a
 /// *transfer*) corresponds directly to an easy handle. Hence anything that
 /// needs to be configured for a specific transfer (e.g. the URL) will be
 /// configured on an easy handle.

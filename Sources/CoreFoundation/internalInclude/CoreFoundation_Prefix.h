@@ -169,14 +169,14 @@ static dispatch_queue_t __ ## PREFIX ## Queue(void) {			\
 #endif
     
     
-// hint to the analyzer that the caller is no longer responsable for the object and that it will be transfered to the reciver that is opaque to the caller
+// hint to the analyzer that the caller is no longer responsible for the object and that it will be transferred to the receiver that is opaque to the caller
 #if __clang_analyzer__
 #define CF_TRANSFER_OWNERSHIP(obj) (__typeof(obj))[(id)obj autorelease]
 #else
 #define CF_TRANSFER_OWNERSHIP(obj) obj
 #endif
     
-// hint to the analyzer that the retain/releases are balanced in other locations; the string should be searchable to identify the coorisponding location for the retain/release. These macros should be used with great caution in that they distort the actual retain/release nature of what is happening to the analyzer. Reasonable locations would be in the cases where a value needs to be retained over the lifespan of an external event like a remote machine/process etc.
+// hint to the analyzer that the retain/releases are balanced in other locations; the string should be searchable to identify the corresponding location for the retain/release. These macros should be used with great caution in that they distort the actual retain/release nature of what is happening to the analyzer. Reasonable locations would be in the cases where a value needs to be retained over the lifespan of an external event like a remote machine/process etc.
 // NOTE: these seem like they may be backwards - however they are intended to be promises to the analyzer of what will come to pass
 #if __clang_analyzer__
 #define CF_RELEASE_BALANCED_ELSEWHERE(obj, identified_location) if (obj) CFRetain(obj)

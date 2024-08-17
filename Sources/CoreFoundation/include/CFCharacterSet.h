@@ -27,7 +27,7 @@
         bitmap representation rarely has 136K byte.  For detailed
         discussion of the external bitmap representation, refer to the
         comments for CFCharacterSetCreateWithBitmapRepresentation below.
-        Note that the existance of non-BMP characters in a character set
+        Note that the existence of non-BMP characters in a character set
         does not imply the membership of the corresponding surrogate
         characters.  For example, a character set with U+10000 does not
         match with U+D800.
@@ -135,7 +135,7 @@ CFCharacterSetRef CFCharacterSetCreateWithCharactersInString(CFAllocatorRef allo
 
 /*!
 	@function CFCharacterSetCreateWithBitmapRepresentation
-	Creates a new immutable character set with the bitmap representtion in the given data.
+	Creates a new immutable character set with the bitmap representation in the given data.
 	@param alloc The CFAllocator which should be used to allocate
 		memory for the array and its storage for values. This
 		parameter may be NULL in which case the current default
@@ -181,10 +181,10 @@ CF_EXPORT CFCharacterSetRef CFCharacterSetCreateInvertedSet(CFAllocatorRef alloc
 	Reports whether or not the character set is a superset of the character set specified as the second parameter.
 	@param theSet  The character set to be checked for the membership of theOtherSet.
 		If this parameter is not a valid CFCharacterSet, the behavior is undefined.
-	@param theOtherset  The character set to be checked whether or not it is a subset of theSet.
+	@param theOtherSet  The character set to be checked whether or not it is a subset of theSet.
 		If this parameter is not a valid CFCharacterSet, the behavior is undefined.
 */
-CF_EXPORT Boolean CFCharacterSetIsSupersetOfSet(CFCharacterSetRef theSet, CFCharacterSetRef theOtherset);
+CF_EXPORT Boolean CFCharacterSetIsSupersetOfSet(CFCharacterSetRef theSet, CFCharacterSetRef theOtherSet);
 
 /*!
 	@function CFCharacterSetHasMemberInPlane
@@ -288,7 +288,7 @@ CFDataRef CFCharacterSetCreateBitmapRepresentation(CFAllocatorRef alloc, CFChara
 
 /*!
 	@function CFCharacterSetAddCharactersInRange
-	Adds the given range to the charaacter set.
+	Adds the given range to the character set.
 	@param theSet The character set to which the range is to be added.
                 If this parameter is not a valid mutable CFCharacterSet,
                 the behavior is undefined.

@@ -41,10 +41,10 @@ struct _CFStream {
 typedef Boolean (*_CFStreamCBOpenV1)(struct _CFStream *stream, CFStreamError *error, Boolean *openComplete, void *info);
 typedef Boolean (*_CFStreamCBOpenCompletedV1)(struct _CFStream *stream, CFStreamError *error, void *info);
 typedef CFIndex (*_CFStreamCBReadV1)(CFReadStreamRef stream, UInt8 *buffer, CFIndex bufferLength, CFStreamError *error, Boolean *atEOF, void *info);
-typedef const UInt8 *(*_CFStreamCBGetBufferV1)(CFReadStreamRef sream, CFIndex maxBytesToRead, CFIndex *numBytesRead, CFStreamError *error, Boolean *atEOF, void *info);
-typedef Boolean (*_CFStreamCBCanReadV1)(CFReadStreamRef, void *info);
-typedef CFIndex (*_CFStreamCBWriteV1)(CFWriteStreamRef, const UInt8 *buffer, CFIndex bufferLength, CFStreamError *error, void *info);
-typedef Boolean (*_CFStreamCBCanWriteV1)(CFWriteStreamRef, void *info);
+typedef const UInt8 *(*_CFStreamCBGetBufferV1)(CFReadStreamRef stream, CFIndex maxBytesToRead, CFIndex *numBytesRead, CFStreamError *error, Boolean *atEOF, void *info);
+typedef Boolean (*_CFStreamCBCanReadV1)(CFReadStreamRef stream, void *info);
+typedef CFIndex (*_CFStreamCBWriteV1)(CFWriteStreamRef stream, const UInt8 *buffer, CFIndex bufferLength, CFStreamError *error, void *info);
+typedef Boolean (*_CFStreamCBCanWriteV1)(CFWriteStreamRef stream, void *info);
 
 struct _CFStreamCallBacksV1 {
     CFIndex version;

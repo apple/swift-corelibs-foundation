@@ -49,11 +49,11 @@ CF_EXPORT const CFStringRef kCFDateFormatterCalendarIdentifierKey;
 
 static CFStringRef __CFDateFormatterCreateForcedTemplate(CFLocaleRef locale, CFStringRef inString, Boolean stripAMPM);
 
-// If you pass in a string in tmplate, you get back NULL (failure) or a CFStringRef.
-// If you pass in an array in tmplate, you get back NULL (global failure) or a CFArrayRef with CFStringRefs or kCFNulls (per-template failure) at each corresponding index.
+// If you pass in a string in template, you get back NULL (failure) or a CFStringRef.
+// If you pass in an array in template, you get back NULL (global failure) or a CFArrayRef with CFStringRefs or kCFNulls (per-template failure) at each corresponding index.
 
-CFArrayRef CFDateFormatterCreateDateFormatsFromTemplates(CFAllocatorRef allocator, CFArrayRef tmplates, CFOptionFlags options, CFLocaleRef locale) {
-    return (CFArrayRef)CFDateFormatterCreateDateFormatFromTemplate(allocator, (CFStringRef)tmplates, options, locale);
+CFArrayRef CFDateFormatterCreateDateFormatsFromTemplates(CFAllocatorRef allocator, CFArrayRef templates, CFOptionFlags options, CFLocaleRef locale) {
+    return (CFArrayRef)CFDateFormatterCreateDateFormatFromTemplate(allocator, (CFStringRef)templates, options, locale);
 }
 
 static Boolean useTemplatePatternGenerator(CFLocaleRef locale, void(^work)(UDateTimePatternGenerator *ptg)) {
@@ -122,12 +122,12 @@ static void _CFDateFormatterStripAMPMIndicators(UniChar **bpat, int32_t *bpatlen
     }
 }
 
-CFStringRef CFDateFormatterCreateDateFormatFromTemplate(CFAllocatorRef allocator, CFStringRef tmplate, CFOptionFlags options, CFLocaleRef locale) {
+CFStringRef CFDateFormatterCreateDateFormatFromTemplate(CFAllocatorRef allocator, CFStringRef template, CFOptionFlags options, CFLocaleRef locale) {
     if (allocator) __CFGenericValidateType(allocator, CFAllocatorGetTypeID());
     if (locale) __CFGenericValidateType(locale, CFLocaleGetTypeID());
-    Boolean tmplateIsString = (CFStringGetTypeID() == CFGetTypeID(tmplate));
+    Boolean tmplateIsString = (CFStringGetTypeID() == CFGetTypeID(template));
     if (!tmplateIsString) {
-        __CFGenericValidateType(tmplate, CFArrayGetTypeID());
+        __CFGenericValidateType(template, CFArrayGetTypeID());
     }
     
     __block CFTypeRef result = tmplateIsString ? NULL : (CFTypeRef)CFArrayCreateMutable(allocator, 0, &kCFTypeArrayCallBacks);
@@ -135,8 +135,8 @@ CFStringRef CFDateFormatterCreateDateFormatFromTemplate(CFAllocatorRef allocator
     Boolean success = useTemplatePatternGenerator(locale, ^(UDateTimePatternGenerator *ptg) {
         
         
-        for (CFIndex idx = 0, cnt = tmplateIsString ? 1 : CFArrayGetCount((CFArrayRef)tmplate); idx < cnt; idx++) {
-            CFStringRef tmplateString = tmplateIsString ? (CFStringRef)tmplate : (CFStringRef)CFArrayGetValueAtIndex((CFArrayRef)tmplate, idx);
+        for (CFIndex idx = 0, cnt = tmplateIsString ? 1 : CFArrayGetCount((CFArrayRef)template); idx < cnt; idx++) {
+            CFStringRef tmplateString = tmplateIsString ? (CFStringRef)template : (CFStringRef)CFArrayGetValueAtIndex((CFArrayRef)template, idx);
             CFStringRef resultString = NULL;
             
             Boolean stripAMPM = CFStringFind(tmplateString, CFSTR("J"), 0).location != kCFNotFound;
@@ -872,7 +872,7 @@ static CFMutableStringRef __createISO8601FormatString(CFISO8601DateFormatOptions
             CFStringAppendCString(resultStr, "HH:mm:ss", kCFStringEncodingUTF8);
         }
 
-        // Add support for fracional seconds
+        // Add support for fractional seconds
         if (includeFractionalSecs) {
             CFStringAppendCString(resultStr, ".SSS", kCFStringEncodingUTF8);
         }
@@ -2173,8 +2173,8 @@ CFTypeRef CFDateFormatterCopyProperty(CFDateFormatterRef formatter, CFStringRef 
     return NULL;
 }
 
-CFStringRef _CFDateFormatterCreateSkeletonFromTemplate(CFStringRef tmplateString, CFLocaleRef locale, UErrorCode *outErrorCode) {
-    CFIndex const tmpltLen = CFStringGetLength(tmplateString);
+CFStringRef _CFDateFormatterCreateSkeletonFromTemplate(CFStringRef templateString, CFLocaleRef locale, UErrorCode *outErrorCode) {
+    CFIndex const tmpltLen = CFStringGetLength(templateString);
     if (tmpltLen == 0) {
         if (outErrorCode) {
             *outErrorCode = U_ILLEGAL_ARGUMENT_ERROR;
@@ -2187,9 +2187,9 @@ CFStringRef _CFDateFormatterCreateSkeletonFromTemplate(CFStringRef tmplateString
 #define BUFFER_SIZE 768
 
         SAFE_STACK_BUFFER_DECL(UChar, ubuffer, tmpltLen, BUFFER_SIZE);
-        UChar const *ustr = (UChar *)CFStringGetCharactersPtr(tmplateString);
+        UChar const *ustr = (UChar *)CFStringGetCharactersPtr(templateString);
         if (ustr == NULL) {
-            CFStringGetCharacters(tmplateString, CFRangeMake(0, tmpltLen), (UniChar *)ubuffer);
+            CFStringGetCharacters(templateString, CFRangeMake(0, tmpltLen), (UniChar *)ubuffer);
             ustr = ubuffer;
         }
 

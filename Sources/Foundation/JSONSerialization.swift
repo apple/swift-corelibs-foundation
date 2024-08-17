@@ -339,7 +339,7 @@ private extension JSONSerialization {
         }
         
         // If there is no BOM present, we might be able to determine the encoding based on
-        // occurences of null bytes.
+        // occurrences of null bytes.
         if bytes.count >= 4 {
             switch (bytes[0], bytes[1], bytes[2], bytes[3]) {
             case (0, 0, 0, _):

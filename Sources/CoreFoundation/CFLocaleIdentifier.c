@@ -1950,7 +1950,7 @@ SPI:  CFLocaleGetLanguageRegionEncodingForLocaleIdentifier gets the appropriate 
  otherwise may set *langCode and/or *regCode to -1 if there is no appropriate legacy value for the locale.
  This is a replacement for the CFBundle SPI CFBundleGetLocalizationInfoForLocalization (which was intended to be temporary and transitional);
  this function is more up-to-date in its handling of locale strings, and is in CFLocale where this functionality should belong. Compared
- to CFBundleGetLocalizationInfoForLocalization, this function does not spcially interpret a NULL localeIdentifier to mean use the single most
+ to CFBundleGetLocalizationInfoForLocalization, this function does not specially interpret a NULL localeIdentifier to mean use the single most
  preferred localization in the current context (this function returns NO for a NULL localeIdentifier); and in this function
  langCode, regCode, and scriptCode are all SInt16* (not SInt32* like the equivalent parameters in CFBundleGetLocalizationInfoForLocalization).
 */
@@ -1966,18 +1966,18 @@ Boolean CFLocaleGetLanguageRegionEncodingForLocaleIdentifier(CFStringRef localeI
     	char	localeCString[kLocaleIdentifierCStringMax];
 		if ( CFStringGetCString(canonicalIdentifier, localeCString,  sizeof(localeCString), kCFStringEncodingASCII) ) {
 			UErrorCode	icuStatus = U_ZERO_ERROR;
-			int32_t		languagelength;
+			int32_t		languageLength;
 			char		searchString[ULOC_LANG_CAPACITY + ULOC_FULLNAME_CAPACITY];
 			
-			languagelength = uloc_getLanguage( localeCString, searchString, ULOC_LANG_CAPACITY, &icuStatus );
-			if ( U_SUCCESS(icuStatus) && languagelength > 0 ) {
+			languageLength = uloc_getLanguage( localeCString, searchString, ULOC_LANG_CAPACITY, &icuStatus );
+			if ( U_SUCCESS(icuStatus) && languageLength > 0 ) {
 				// OK, here we have at least a language code, check for other components in order
 				LocaleToLegacyCodes			searchEntry = { (const char *)searchString, 0, 0, 0 };
 				const LocaleToLegacyCodes *	foundEntryPtr;
 				int32_t						componentLength;
 				char						componentString[ULOC_FULLNAME_CAPACITY];
 				
-				languagelength = strlen(searchString);	// in case it got truncated
+				languageLength = strlen(searchString);	// in case it got truncated
 				icuStatus = U_ZERO_ERROR;
 				componentLength = uloc_getScript( localeCString, componentString, sizeof(componentString), &icuStatus );
                                 Boolean foundScript = false;
@@ -2006,9 +2006,9 @@ Boolean CFLocaleGetLanguageRegionEncodingForLocaleIdentifier(CFStringRef localeI
 
                                 // Do not try fallback if string encoding is requested AND a script is present in the passed-in locale since the script might affect the string encoding: <rdar://problem/54531339>
                                 BOOL lookingForScript = foundScript && stringEncoding != NULL;
-                                if (foundEntryPtr == NULL && (int32_t) strlen(searchString) > languagelength && !lookingForScript) {
+                                if (foundEntryPtr == NULL && (int32_t) strlen(searchString) > languageLength && !lookingForScript) {
                                         // Otherwise truncate to language alone and try again
-					searchString[languagelength] = 0;
+					searchString[languageLength] = 0;
 					foundEntryPtr = (const LocaleToLegacyCodes *)bsearch( &searchEntry, localeToLegacyCodes, kNumLocaleToLegacyCodes, sizeof(LocaleToLegacyCodes), CompareLocaleToLegacyCodesEntries );
 				}
 

@@ -178,7 +178,7 @@ CF_EXPORT const CFStringRef _kCFURLCustomIconImageDataKey API_AVAILABLE(macos(10
     /* Icon image data of the item's custom icon, if any (CFData) */
 
 CF_EXPORT const CFStringRef _kCFURLEffectiveIconFlattenedReferenceDataKey API_AVAILABLE(macos(10.6), ios(4.0), watchos(2.0), tvos(9.0));
-    /* Icon flattened reference, suitable for cheaply sharing the effective icon reference across processess (CFData) */
+    /* Icon flattened reference, suitable for cheaply sharing the effective icon reference across processes (CFData) */
 
 CF_EXPORT const CFStringRef _kCFURLBundleIdentifierKey API_AVAILABLE(macos(10.6), ios(4.0), watchos(2.0), tvos(9.0));
     /* If resource is a bundle, the bundle identifier (CFString) */
@@ -201,13 +201,13 @@ CF_EXPORT const CFStringRef _kCFURLStatModeKey API_AVAILABLE(macos(10.6), ios(4.
 /* To determine which dictionary to request from _kCFURLLocalizedNameDictionaryKey or _kCFURLLocalizedNameWithExtensionsHiddenDictionaryKey, you can consult _LSGetShowAllExtensionsPreference() on macOS. On iOS, extensions are always hidden. */
 
 CF_EXPORT const CFStringRef _kCFURLLocalizedNameDictionaryKey API_AVAILABLE(macos(10.7), ios(9.0), watchos(2.0), tvos(9.0));
-    /* For items with localized display names, the dictionary of all available localizations. The keys are the cannonical locale strings for the available localizations. (CFDictionary) */
+    /* For items with localized display names, the dictionary of all available localizations. The keys are the canonical locale strings for the available localizations. (CFDictionary) */
 
 CF_EXPORT const CFStringRef _kCFURLLocalizedNameWithExtensionsHiddenDictionaryKey API_AVAILABLE(macosx(10.13), ios(11.0), watchos(4.0), tvos(11.0));
     /* For items with localized display names, the dictionary of all available localizations with extensions hidden if safe. The keys are the cannonical locale strings for the available localizations. (CFDictionary) */
 
 CF_EXPORT const CFStringRef _kCFURLLocalizedTypeDescriptionDictionaryKey API_AVAILABLE(macos(10.7), ios(9.0), watchos(2.0), tvos(9.0));
-    /* The dictionary of all available localizations of the item kind string. The keys are the cannonical locale strings for the available localizations. (CFDictionary) */
+    /* The dictionary of all available localizations of the item kind string. The keys are the canonical locale strings for the available localizations. (CFDictionary) */
 
 CF_EXPORT const CFStringRef _kCFURLApplicationCategoriesKey API_AVAILABLE(macos(10.7)) API_UNAVAILABLE(ios, watchos, tvos);
     /* The array of category UTI strings associated with the url. (CFArray) */
@@ -421,7 +421,7 @@ CF_EXPORT const CFStringRef kCFURLUbiquitousSharedItemRoleOwner API_AVAILABLE(ma
 CF_EXPORT const CFStringRef kCFURLUbiquitousSharedItemRoleParticipant API_AVAILABLE(macos(10.11), ios(9.0), watchos(2.0), tvos(9.0)); // the current user is a participant of this shared item.
 
 CF_EXPORT const CFStringRef kCFURLUbiquitousSharedItemOwnerNameComponentsKey API_AVAILABLE(macos(10.11), ios(9.0), watchos(2.0), tvos(9.0)); // returns a NSPersonNameComponents, or nil if the current user. (Read-only, value type NSPersonNameComponents)
-CF_EXPORT const CFStringRef kCFURLUbiquitousSharedItemMostRecentEditorNameComponentsKey API_AVAILABLE(macosx(10.12), ios(10.0), watchos(3.0), tvos(10.0)); // returns a NSPersonNameComponents for the most recent editro fo the file, or nil if the current user. (Read-only, value type NSPersonNameComponents)
+CF_EXPORT const CFStringRef kCFURLUbiquitousSharedItemMostRecentEditorNameComponentsKey API_AVAILABLE(macosx(10.12), ios(10.0), watchos(3.0), tvos(10.0)); // returns a NSPersonNameComponents for the most recent editor of the file, or nil if the current user. (Read-only, value type NSPersonNameComponents)
 
 CF_EXPORT const CFStringRef kCFURLUbiquitousSharedItemCurrentUserPermissionsKey API_AVAILABLE(macosx(10.12), ios(10.0), watchos(3.0), tvos(10.0)); // returns the permissions for a participant of this shared item, or nil if not shared. (Read-only, value type NSString). Possible values below.
 CF_EXPORT const CFStringRef kCFURLUbiquitousSharedItemPermissionsReadOnly API_AVAILABLE(macosx(10.12), ios(10.0), watchos(3.0), tvos(10.0)); // participants are only allowed to read this item
@@ -867,7 +867,7 @@ CF_EXPORT CFArrayRef _CFURLRevocableBookmarksCopyClientBundleIdentifiers(Boolean
 /** Set the active state of the app with the given bundle identifier. This does not delete the security token for the app, thus is less secure than revoking the bundle identifier. */
 CF_EXPORT Boolean _CFURLRevocableBookmarksSetActiveStatusForBundleIdentifier(CFStringRef identifier, Boolean active) API_AVAILABLE(macos(10.16)) API_UNAVAILABLE(ios, watchos, tvos);
 
-/** Securely revokes all bookmarks for the bundie identifier. This is not reversable. */
+/** Securely revokes all bookmarks for the bundle identifier. This is not reversable. */
 CF_EXPORT Boolean _CFURLRevocableBookmarksRevokeForBundleIdentifier(CFStringRef identifier) API_AVAILABLE(macos(10.16)) API_UNAVAILABLE(ios, watchos, tvos);
 
 /** Notification sent when the set of active clients changes. */

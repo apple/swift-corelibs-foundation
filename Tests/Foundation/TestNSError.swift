@@ -128,7 +128,7 @@ class TestNSError : XCTestCase {
         XCTAssertEqual((SwiftError.fortyTwo as NSError).code, 42)
     }
     
-    func test_ConvertErrorToNSError_errorCodeWithAssosiatedValue() {
+    func test_ConvertErrorToNSError_errorCodeWithAssociatedValue() {
         // Default error code for enum case is based on EnumImplStrategy::getTagIndex
         enum SwiftError: Error {
             case one // 2

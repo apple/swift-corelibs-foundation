@@ -249,7 +249,7 @@ open class NSObject : NSObjectProtocol, Equatable, Hashable {
         return 0
     }
     
-    // TODO: move these back into extensions once extension methods can be overriden
+    // TODO: move these back into extensions once extension methods can be overridden
     
     /// Overridden by subclasses to substitute a class other than its own during coding.
     ///

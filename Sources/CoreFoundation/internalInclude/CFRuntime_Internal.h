@@ -180,7 +180,7 @@ CF_PRIVATE const CFRuntimeClass __CFRelativeDateTimeFormatterClass;
 CF_PRIVATE const CFRuntimeClass __CFListFormatterClass;
 CF_PRIVATE const CFRuntimeClass __CFDateIntervalFormatterClass;
 
-#pragma mark - Private initialiers to run at process start time
+#pragma mark - Private initializers to run at process start time
 
 CF_PRIVATE void __CFDateInitialize(void);
 CF_PRIVATE void __CFCharacterSetInitialize(void);

@@ -861,7 +861,7 @@ extension NSURL {
 
         // File URLs can't be handled on WASI without file system access
 #if !os(WASI)
-        // Since we are appending to a URL, path seperators should
+        // Since we are appending to a URL, path separators should
         // always be '/', even if we're on Windows
         if !pathComponent.hasSuffix("/") && isFileURL {
             if let urlWithoutDirectory = result {

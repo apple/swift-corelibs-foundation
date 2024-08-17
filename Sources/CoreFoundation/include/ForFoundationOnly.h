@@ -105,7 +105,7 @@ _CF_EXPORT_SCOPE_END
 _CF_EXPORT_SCOPE_BEGIN
 
 /// Compares UUID bytes using a secure constant-time comparison rdar://47657832.
-/// Ensure that `lhs` and `rhs` are 128-bytes (`CFUUIDBytes` or `uuid_t`) for the comparision to be valid.
+/// Ensure that `lhs` and `rhs` are 128-bytes (`CFUUIDBytes` or `uuid_t`) for the comparison to be valid.
 CF_INLINE Boolean __CFisEqualUUIDBytes(const void * const lhs, const void * const rhs) {
     uint64_t lhsBytes[2];
     memcpy(lhsBytes, lhs, sizeof(lhsBytes));

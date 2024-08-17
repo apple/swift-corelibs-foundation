@@ -994,7 +994,7 @@ extension TestJSONSerialization {
     func test_serialize_dictionaryWithDecimal() {
         
         //test serialize values less than 1 with maxFractionDigits = 15
-        func excecute_testSetLessThanOne() {
+        func execute_testSetLessThanOne() {
             //expected : input to be serialized
             let params  = [
                            ("0.1",0.1),
@@ -1026,7 +1026,7 @@ extension TestJSONSerialization {
             }
         }
         //test serialize values grater than 1 with maxFractionDigits = 15
-        func excecute_testSetGraterThanOne() {
+        func execute_testSetGraterThanOne() {
             let paramsBove1 = [
                 ("1.1",1.1),
                 ("1.2",1.2),
@@ -1043,7 +1043,7 @@ extension TestJSONSerialization {
         }
 
         //test serialize values for whole integer where the input is in Double format
-        func excecute_testWholeNumbersWithDoubleAsInput() {
+        func execute_testWholeNumbersWithDoubleAsInput() {
             
             let paramsWholeNumbers = [
                 ("-1"  ,-1.0),
@@ -1057,7 +1057,7 @@ extension TestJSONSerialization {
             }
         }
         
-        func excecute_testWholeNumbersWithIntInput() {
+        func execute_testWholeNumbersWithIntInput() {
             for i  in -10..<10 {
                 let iStr = "\(i)"
                 let testDict = [iStr : i]
@@ -1065,10 +1065,10 @@ extension TestJSONSerialization {
                 XCTAssertEqual(str!, "{\"\(iStr)\":\(i)}", "expect that serialized value should not contain trailing zero or decimal as they are whole numbers ")
             }
         }
-        excecute_testSetLessThanOne()
-        excecute_testSetGraterThanOne()
-        excecute_testWholeNumbersWithDoubleAsInput()
-        excecute_testWholeNumbersWithIntInput()
+        execute_testSetLessThanOne()
+        execute_testSetGraterThanOne()
+        execute_testWholeNumbersWithDoubleAsInput()
+        execute_testWholeNumbersWithIntInput()
     }
     
     func test_serialize_null() {

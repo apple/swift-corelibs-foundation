@@ -81,7 +81,7 @@ class TestScanner : XCTestCase {
             expectEqual($0.scanDouble(), 0, "Parse '0.' as a Double")
             expectEqual($0.scanDouble(), 0.1, "Parse '.1' as a Double")
             expectEqual($0.scanDouble(), nil, "Dont parse '.' as a Double")
-            expectEqual($0.scanString("."), ".", "Consue '.'")
+            expectEqual($0.scanString("."), ".", "Consume '.'")
             expectEqual($0.scanDouble(), 100, "Parse '1e2' as a Double")
             expectEqual($0.scanDouble(), nil, "Dont parse 'e+3' as a Double")     // "e+3" doesnt parse as Double
             expectEqual($0.scanString("e+3"), "e+3", "Consume the 'e+3'")
@@ -174,7 +174,7 @@ class TestScanner : XCTestCase {
             expectEqual($0.scanInt64(), -1 as Int64, "Minus one")
             expectEqual($0.scanInt64(), -1 as Int64, "Minus one after whitespace")
             expectEqual($0.scanInt64(), Int64.min, "Min")
-            expectEqual($0.scanInt64(), Int64.max, "Max again after min (no joining it with preceding min even with ignroed whitespace)")
+            expectEqual($0.scanInt64(), Int64.max, "Max again after min (no joining it with preceding min even with ignored whitespace)")
         }
         
         // Overflow:

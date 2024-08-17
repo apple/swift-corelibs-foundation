@@ -105,7 +105,7 @@ enum {
 };
 
 typedef enum {
-    kCFImmutable = 0x0,		/* unchangable and fixed capacity; default */
+    kCFImmutable = 0x0,		/* unchangeable and fixed capacity; default */
     kCFFixedMutable = 0x1,	/* changeable and fixed capacity */
     kCFMutable = 0x3		/* changeable and variable capacity */
 } _CFDataMutableVariety;

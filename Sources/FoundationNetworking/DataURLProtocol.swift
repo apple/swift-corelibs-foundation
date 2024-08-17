@@ -139,7 +139,7 @@ internal class _DataURLProtocol: URLProtocol {
              while let element = iterator.next() {
                 switch element {
                     case .asciiCharacter(let ch) where ch == Character(","):
-                        // ";base64 must be the last part just before the ',' that seperates the header from the data
+                        // ";base64 must be the last part just before the ',' that separates the header from the data
                         if foundCharsetKey {
                             charSet = part
                         } else {

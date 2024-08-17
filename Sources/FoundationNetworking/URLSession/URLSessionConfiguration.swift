@@ -36,7 +36,7 @@ import Foundation
 /// A background session can be used to perform networking operations
 /// on behalf of a suspended application, within certain constraints.
 open class URLSessionConfiguration : NSObject, NSCopying, @unchecked Sendable {
-    // -init is silently incorrect in URLSessionCofiguration on the desktop. Ensure code that relied on swift-corelibs-foundation's init() being functional is redirected to the appropriate cross-platform class property.
+    // -init is silently incorrect in URLSessionConfiguration on the desktop. Ensure code that relied on swift-corelibs-foundation's init() being functional is redirected to the appropriate cross-platform class property.
     @available(*, deprecated, message: "Use .default instead.", renamed: "URLSessionConfiguration.default")
     public override init() {
         self.requestCachePolicy = URLSessionConfiguration.default.requestCachePolicy

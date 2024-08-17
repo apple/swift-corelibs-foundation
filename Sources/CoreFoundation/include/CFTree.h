@@ -199,7 +199,7 @@ void CFTreeGetChildren(CFTreeRef tree, CFTreeRef *children);
 /*!
 	@function CFTreeApplyFunctionToChildren
 	Calls a function once for each child of the tree.  Note that the applier
-        only operates one level deep, and does not operate on descendents further
+        only operates one level deep, and does not operate on descendants further
         removed than the immediate children of the tree.
         @param tree The tree to be operated upon.  If this parameter is not a
 		valid CFTree, the behavior is undefined.
@@ -219,7 +219,7 @@ void CFTreeApplyFunctionToChildren(CFTreeRef tree, CFTreeApplierFunction CF_NOES
 
 /*!
         @function CFTreeFindRoot
-        Returns the root tree of which the specified tree is a descendent.
+        Returns the root tree of which the specified tree is a descendant.
         @param tree The tree to be queried.  If this parameter is not a valid
                 CFTree, the behavior is undefined.
         @result A reference to the root of the tree.

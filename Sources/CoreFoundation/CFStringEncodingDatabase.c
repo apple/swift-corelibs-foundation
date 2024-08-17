@@ -209,7 +209,7 @@ static const uint16_t __CFWindowsCPList[] = {
     0,
     54936,
     
-    50221, // we prefere this over 50220/50221 since that's what CF coverter generates
+    50221, // we prefer this over 50220/50221 since that's what CF converter generates
     0,
     0,
     0,

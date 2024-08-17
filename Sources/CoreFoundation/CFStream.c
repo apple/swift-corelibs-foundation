@@ -561,7 +561,7 @@ static void _signalEventSync(struct _CFStream* stream)
 
                 /* What happens if the callback sets the client to NULL?  We're in a loop here... Hmm. */
                 /* After writing that comment, I see: <rdar://problem/6793636> CFReadStreamSetClient(..., NULL) unsafely releases info pointer immediately */
-                /* Of note, when the stream callbacks are set to to NULL, we're re-initalized so as not to receive more events, so we
+                /* Of note, when the stream callbacks are set to to NULL, we're re-initialized so as not to receive more events, so we
                  * should break pout of this loop */
             }
         }

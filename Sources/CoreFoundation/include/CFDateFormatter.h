@@ -24,7 +24,7 @@ typedef struct CF_BRIDGED_MUTABLE_TYPE(id) __CFDateFormatter *CFDateFormatterRef
 // CFDateFormatters are not thread-safe.  Do not use one from multiple threads!
 
 CF_EXPORT
-CFStringRef CFDateFormatterCreateDateFormatFromTemplate(CFAllocatorRef allocator, CFStringRef tmplate, CFOptionFlags options, CFLocaleRef locale) API_AVAILABLE(macos(10.6), ios(4.0), watchos(2.0), tvos(9.0));
+CFStringRef CFDateFormatterCreateDateFormatFromTemplate(CFAllocatorRef allocator, CFStringRef template, CFOptionFlags options, CFLocaleRef locale) API_AVAILABLE(macos(10.6), ios(4.0), watchos(2.0), tvos(9.0));
 	// no options defined, pass 0 for now
 
 CF_EXPORT

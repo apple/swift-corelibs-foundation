@@ -784,7 +784,7 @@ static CFBundleRef _CFBundleCreate(CFAllocatorRef allocator, CFURLRef bundleURL,
     }
     
     
-    // This section of _CFBundleCreate touches the disk, so it should be done outside the lock. This avoids blocking threads which are just attempting to get an existing bundle on file system access, potentially from a lower-piority thread.
+    // This section of _CFBundleCreate touches the disk, so it should be done outside the lock. This avoids blocking threads which are just attempting to get an existing bundle on file system access, potentially from a lower-priority thread.
     _CFBundleVersion localVersion = _CFBundleGetBundleVersionForURL(newURL);
     if (_CFBundleVersionFlat == localVersion) {
         Boolean exists = false;
@@ -1741,7 +1741,7 @@ CFBundleRef _CFBundleGetBundleWithIdentifierAndLibraryName(CFStringRef bundleID,
 }
 
 static void _CFBundleEnsureAllBundlesUpToDate(void) {
-    // This method returns all the statically linked bundles.  This includes the main bundle as well as any frameworks that the process was linked against at launch time.  It does not include frameworks or opther bundles that were loaded dynamically.
+    // This method returns all the statically linked bundles.  This includes the main bundle as well as any frameworks that the process was linked against at launch time.  It does not include frameworks or other bundles that were loaded dynamically.
     CFArrayRef imagePaths = NULL;
     // Tickle the main bundle into existence
     (void)CFBundleGetMainBundle();

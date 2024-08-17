@@ -156,7 +156,7 @@ fileprivate let FOUNDATION_IPPROTO_TCP = Int32(WinSDK.IPPROTO_TCP.rawValue)
  SocketPort transmits ports by sending _Darwin_ sockaddr values serialized over the wire. (Yeah.)
  This means that whatever the platform, we need to be able to send Darwin sockaddrs and figure them out on the other side of the wire.
  
- Now, the vast majority of the intreresting ports that may be sent is AF_INET and AF_INET6 — other sockets aren't uncommon, but they are generally local to their host (eg. AF_UNIX). So, we make the following tactical choice:
+ Now, the vast majority of the interesting ports that may be sent is AF_INET and AF_INET6 — other sockets aren't uncommon, but they are generally local to their host (eg. AF_UNIX). So, we make the following tactical choice:
  
  - swift-corelibs-foundation clients across all platforms can interoperate between themselves and with Darwin as long as all the ports that are sent through SocketPort are AF_INET or AF_INET6;
  - otherwise, it is the implementor and deployer's responsibility to make sure all the clients are on the same platform. For sockets that do not leave the machine, like AF_UNIX, this is trivial.

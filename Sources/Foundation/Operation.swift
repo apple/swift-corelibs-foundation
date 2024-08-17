@@ -878,7 +878,7 @@ open class OperationQueue : NSObject, ProgressReporting, @unchecked Sendable {
         // There are only three cases where an operation might have a nil queue
         // A) The operation was never added to a queue and we got here by a normal KVO change
         // B) The operation was somehow already finished
-        // C) the operation was attempted to be added to a queue but an exception occured and was ignored...
+        // C) the operation was attempted to be added to a queue but an exception occurred and was ignored...
         // Option C is NOT supported!
         let isBarrier = op is _BarrierOperation
         _lock()
