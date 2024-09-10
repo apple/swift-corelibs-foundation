@@ -113,7 +113,7 @@ class TestSocketPort : XCTestCase {
 
         let data = Data("I cannot weave".utf8)
 
-        for _ in 0..<128 {
+        for _ in 0..<136 {
             let local = try XCTUnwrap(SocketPort(tcpPort: 0))
             let tcpPort = try UInt16(XCTUnwrap(tcpOrUdpPort(of: local)))
             let remote = try XCTUnwrap(SocketPort(remoteWithTCPPort: tcpPort, host: "localhost"))

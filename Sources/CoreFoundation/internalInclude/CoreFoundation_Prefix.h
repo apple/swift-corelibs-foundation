@@ -132,7 +132,7 @@ typedef char * Class;
 #endif
 
 // The order of these includes is important
-#define FD_SETSIZE 1024
+#define FD_SETSIZE 128
 #include <winsock2.h>
 #include <windows.h>
 
