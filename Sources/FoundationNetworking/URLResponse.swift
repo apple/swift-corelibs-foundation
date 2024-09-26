@@ -35,7 +35,6 @@ open class URLResponse : NSObject, NSSecureCoding, NSCopying, @unchecked Sendabl
         guard let nsurl = aDecoder.decodeObject(of: NSURL.self, forKey: "NS.url") else { return nil }
         self.url = nsurl as URL
         
-        
         if let mimetype = aDecoder.decodeObject(of: NSString.self, forKey: "NS.mimeType") {
             self.mimeType = mimetype as String
         }
@@ -46,8 +45,11 @@ open class URLResponse : NSObject, NSSecureCoding, NSCopying, @unchecked Sendabl
             self.textEncodingName = encodedEncodingName as String
         }
         
-        if let encodedFilename = aDecoder.decodeObject(of: NSString.self, forKey: "NS.suggestedFilename") {
-            self.suggestedFilename = encodedFilename as String
+        // re-sanitizing with lastPathComponent because of supportsSecureCoding
+        if let encodedFilename = aDecoder.decodeObject(of: NSString.self, forKey: "NS.suggestedFilename")?.lastPathComponent, !encodedFilename.isEmpty {
+            self.suggestedFilename = encodedFilename
+        } else {
+            self.suggestedFilename = "Unknown"
         }
     }
     
@@ -177,6 +179,25 @@ open class URLResponse : NSObject, NSSecureCoding, NSCopying, @unchecked Sendabl
 /// protocol responses.
 open class HTTPURLResponse : URLResponse, @unchecked Sendable {
     
+    private static func sanitize(headerFields: [String: String]?) -> [String: String] {
+        // Canonicalize the header fields by capitalizing the field names, but not X- Headers
+        // This matches the behaviour of Darwin.
+        guard let headerFields = headerFields else { return [:] }
+        var canonicalizedFields: [String: String] = [:]
+        
+        for (key, value) in headerFields  {
+            if key.isEmpty { continue }
+            if key.hasPrefix("x-") || key.hasPrefix("X-") {
+                canonicalizedFields[key] = value
+            } else if key.caseInsensitiveCompare("WWW-Authenticate") == .orderedSame {
+                canonicalizedFields["WWW-Authenticate"] = value
+            } else {
+                canonicalizedFields[key.capitalized] = value
+            }
+        }
+        return canonicalizedFields
+    }
+    
     /// Initializer for HTTPURLResponse objects.
     ///
     /// - Parameter url: the URL from which the response was generated.
@@ -186,30 +207,13 @@ open class HTTPURLResponse : URLResponse, @unchecked Sendable {
     /// - Returns: the instance of the object, or `nil` if an error occurred during initialization.
     public init?(url: URL, statusCode: Int, httpVersion: String?, headerFields: [String : String]?) {
         self.statusCode = statusCode
-
-        self._allHeaderFields = {
-            // Canonicalize the header fields by capitalizing the field names, but not X- Headers
-            // This matches the behaviour of Darwin.
-            guard let headerFields = headerFields else { return [:] }
-            var canonicalizedFields: [String: String] = [:]
-
-            for (key, value) in headerFields  {
-                if key.isEmpty { continue }
-                if key.hasPrefix("x-") || key.hasPrefix("X-") {
-                    canonicalizedFields[key] = value
-                } else if key.caseInsensitiveCompare("WWW-Authenticate") == .orderedSame {
-                    canonicalizedFields["WWW-Authenticate"] = value
-                } else {
-                    canonicalizedFields[key.capitalized] = value
-                }
-            }
-            return canonicalizedFields
-        }()
-
+        
+        self._allHeaderFields = HTTPURLResponse.sanitize(headerFields: headerFields)
+        
         super.init(url: url, mimeType: nil, expectedContentLength: 0, textEncodingName: nil)
-        expectedContentLength = getExpectedContentLength(fromHeaderFields: headerFields) ?? -1
-        suggestedFilename = getSuggestedFilename(fromHeaderFields: headerFields) ?? "Unknown"
-        if let type = ContentTypeComponents(headerFields: headerFields) {
+        expectedContentLength = getExpectedContentLength(fromHeaderFields: _allHeaderFields) ?? -1
+        suggestedFilename = getSuggestedFilename(fromHeaderFields: _allHeaderFields) ?? "Unknown"
+        if let type = ContentTypeComponents(headerFields: _allHeaderFields) {
             mimeType = type.mimeType.lowercased()
             textEncodingName = type.textEncoding?.lowercased()
         }
@@ -222,13 +226,18 @@ open class HTTPURLResponse : URLResponse, @unchecked Sendable {
         
         self.statusCode = aDecoder.decodeInteger(forKey: "NS.statusCode")
         
-        if aDecoder.containsValue(forKey: "NS.allHeaderFields") {
-            self._allHeaderFields = aDecoder.decodeObject(of: NSDictionary.self, forKey: "NS.allHeaderFields") as! [String: String]
-        } else {
-            self._allHeaderFields = [:]
-        }
+        // re-sanitizing dictionary because of supportsSecureCoding
+        self._allHeaderFields = HTTPURLResponse.sanitize(headerFields: aDecoder.decodeObject(of: NSDictionary.self, forKey: "NS.allHeaderFields") as? [String: String])
         
         super.init(coder: aDecoder)
+        
+        // re-sanitizing from _allHeaderFields because of supportsSecureCoding
+        expectedContentLength = getExpectedContentLength(fromHeaderFields: _allHeaderFields) ?? -1
+        suggestedFilename = getSuggestedFilename(fromHeaderFields: _allHeaderFields) ?? "Unknown"
+        if let type = ContentTypeComponents(headerFields: _allHeaderFields) {
+            mimeType = type.mimeType.lowercased()
+            textEncodingName = type.textEncoding?.lowercased()
+        }
     }
     
     open override func encode(with aCoder: NSCoder) {

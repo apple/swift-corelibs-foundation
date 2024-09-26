@@ -228,7 +228,8 @@ class TestHTTPURLResponse: XCTestCase {
 
     func test_NSCoding() {
         let url = URL(string: "https://apple.com")!
-        let f = ["Content-Type": "text/HTML; charset=ISO-8859-4"]
+        let f = ["Content-Type": "text/HTML; charset=ISO-8859-4",
+				 "Content-Disposition": "attachment; filename=fname.ext"]
 
         let responseA = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: f)!
         let responseB = NSKeyedUnarchiver.unarchiveObject(with: NSKeyedArchiver.archivedData(withRootObject: responseA)) as! HTTPURLResponse
