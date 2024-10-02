@@ -57,6 +57,10 @@
 #define kCFPlatformInterfaceStringEncoding	CFStringGetSystemEncoding()
 #endif
 
+#ifndef __GLIBC_PREREQ
+#define __GLIBC_PREREQ(maj, min) 0
+#endif
+
 extern void __CFGetUGIDs(uid_t *euid, gid_t *egid);
 
 #if TARGET_OS_MAC
@@ -2272,6 +2276,31 @@ CF_EXPORT int _CFPosixSpawnFileActionsAddDup2(_CFPosixSpawnFileActionsRef file_a
 
 CF_EXPORT int _CFPosixSpawnFileActionsAddClose(_CFPosixSpawnFileActionsRef file_actions, int filedes) {
   return posix_spawn_file_actions_addclose((posix_spawn_file_actions_t *)file_actions, filedes);
+}
+
+CF_EXPORT int _CFPosixSpawnFileActionsChdir(_CFPosixSpawnFileActionsRef file_actions, const char *path) {
+  #if defined(__GLIBC__) && !__GLIBC_PREREQ(2, 29)
+  // Glibc versions prior to 2.29 don't support posix_spawn_file_actions_addchdir_np, impacting:
+  //  - Amazon Linux 2 (EoL mid-2025)
+  return ENOSYS;
+  #elif defined(__GLIBC__) || TARGET_OS_DARWIN || defined(__FreeBSD__) || defined(__ANDROID__)
+  // Pre-standard posix_spawn_file_actions_addchdir_np version available in:
+  //  - Solaris 11.3 (October 2015)
+  //  - Glibc 2.29 (February 2019)
+  //  - macOS 10.15 (October 2019)
+  //  - musl 1.1.24 (October 2019)
+  //  - FreeBSD 13.1 (May 2022)
+  //  - Android 14 (October 2023)
+  return posix_spawn_file_actions_addchdir_np((posix_spawn_file_actions_t *)file_actions, path);
+  #else
+  // Standardized posix_spawn_file_actions_addchdir version (POSIX.1-2024, June 2024) available in:
+  //  - Solaris 11.4 (August 2018)
+  //  - NetBSD 10.0 (March 2024)
+  // Currently missing as of:
+  //  - OpenBSD 7.5 (April 2024)
+  //  - QNX 8 (December 2023)
+  return posix_spawn_file_actions_addchdir((posix_spawn_file_actions_t *)file_actions, path);
+  #endif
 }
 
 CF_EXPORT int _CFPosixSpawn(pid_t *_CF_RESTRICT pid, const char *_CF_RESTRICT path, _CFPosixSpawnFileActionsRef file_actions, _CFPosixSpawnAttrRef _Nullable _CF_RESTRICT attrp, char *_Nullable const argv[_Nullable _CF_RESTRICT], char *_Nullable const envp[_Nullable _CF_RESTRICT]) {

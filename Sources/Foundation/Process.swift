@@ -925,6 +925,16 @@ open class Process: NSObject, @unchecked Sendable {
         for fd in addclose.filter({ $0 >= 0 }) {
             try _throwIfPosixError(_CFPosixSpawnFileActionsAddClose(fileActions, fd))
         }
+        let useFallbackChdir: Bool
+        if let dir = currentDirectoryURL?.path {
+            let chdirResult = _CFPosixSpawnFileActionsChdir(fileActions, dir)
+            useFallbackChdir = chdirResult == ENOSYS
+            if !useFallbackChdir {
+                try _throwIfPosixError(chdirResult)
+            }
+        } else {
+            useFallbackChdir = false
+        }
 
 #if canImport(Darwin) || os(Android) || os(OpenBSD)
         var spawnAttrs: posix_spawnattr_t? = nil
@@ -947,15 +957,25 @@ open class Process: NSObject, @unchecked Sendable {
         }
 #endif
 
-        let fileManager = FileManager()
-        let previousDirectoryPath = fileManager.currentDirectoryPath
-        if let dir = currentDirectoryURL?.path, !fileManager.changeCurrentDirectoryPath(dir) {
-            throw _NSErrorWithErrno(errno, reading: true, url: currentDirectoryURL)
+        // Unsafe fallback for systems missing posix_spawn_file_actions_addchdir[_np]
+        // This includes Glibc versions older than 2.29 such as on Amazon Linux 2
+        let previousDirectoryPath: String?
+        if useFallbackChdir {
+            let fileManager = FileManager()
+            previousDirectoryPath = fileManager.currentDirectoryPath
+            if let dir = currentDirectoryURL?.path, !fileManager.changeCurrentDirectoryPath(dir) {
+                throw _NSErrorWithErrno(errno, reading: true, url: currentDirectoryURL)
+            }
+        } else {
+            previousDirectoryPath = nil
         }
 
         defer {
-            // Reset the previous working directory path.
-            _ = fileManager.changeCurrentDirectoryPath(previousDirectoryPath)
+            if let previousDirectoryPath {
+                // Reset the previous working directory path.
+                let fileManager = FileManager()
+                _ = fileManager.changeCurrentDirectoryPath(previousDirectoryPath)
+            }
         }
 
         // Launch
