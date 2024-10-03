@@ -1073,7 +1073,10 @@ CFStringRef _CFXMLNodeCopyPrefix(_CFXMLNodePtr node) {
     xmlChar* result = NULL;
     xmlChar* unused = xmlSplitQName2(_getQName((xmlNodePtr)node), &result);
 
-    CFStringRef resultString = __CFSwiftXMLParserBridgeCF.CFStringCreateWithCString(NULL, (const char*)result, kCFStringEncodingUTF8);
+    CFStringRef resultString = NULL;
+    if (result) {
+      resultString = __CFSwiftXMLParserBridgeCF.CFStringCreateWithCString(NULL, (const char*)result, kCFStringEncodingUTF8);
+    }
     xmlFree(result);
     xmlFree(unused);
 
