@@ -1248,7 +1248,7 @@ CF_EXTERN_C_END
 
 // Load 16,32,64 bit values from unaligned memory addresses. These need to be done bytewise otherwise
 // it is undefined behaviour in C. On some architectures, eg x86, unaligned loads are allowed by the
-// processor and the compiler will convert these byte accesses into the appropiate DWORD/QWORD memory
+// processor and the compiler will convert these byte accesses into the appropriate DWORD/QWORD memory
 // access.
 
 CF_INLINE uint32_t _CFUnalignedLoad32(const void *ptr) {

@@ -651,7 +651,7 @@ CF_PRIVATE CFComparisonResult _CFCompareStringsWithLocale(CFStringInlineBuffer *
         CFIndex str2Max = str2Range.location + str2Range.length;
         CFIndex bufferSize;
 
-        // Extend forward and compare until the result is deterministic. The result is indeterministic if the differences are weak and can be resolved by character folding. For example, comparision between "abc" and "ABC" is considered to be indeterministic.
+        // Extend forward and compare until the result is deterministic. The result is indeterministic if the differences are weak and can be resolved by character folding. For example, comparison between "abc" and "ABC" is considered to be indeterministic.
         do {
             if (str1Range.location < str1Max) {
 		str1Range.location = __extendLocationForward(str1Range.location, str1, alnumBMP, punctBMP, controlBMP, str1Max);

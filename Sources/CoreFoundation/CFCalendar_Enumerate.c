@@ -1755,13 +1755,13 @@ static CFDateRef _Nullable _CFCalendarCreateAdjustedDateForMismatchedLeapMonthOr
     if (!foundGregLeap || !foundGregLeapMatchesComps) {
         if (strictMatching) {
             if (isGregorianCalendar) {
-                *exactMatch = false;  // We couldn't find what we needed but we found sumthin. Step C will decide whether or not to NULL the date out.
+                *exactMatch = false;  // We couldn't find what we needed but we found something. Step C will decide whether or not to NULL the date out.
             } else {
                 // For other calendars (besides Chinese which is already being handled), go to the top of the next period for the next highest unit of the one that bailed.
                 Boolean eraMatch = false;
                 CFDateRef tempDate = _CFCalendarCreateMatchingDateAfterStartDateMatchingComponentsInNextHighestUnitRange(calendar, &eraMatch, matchingComponents, nextHighestUnit, searchingDate, goBackwards, findLast, opts);
                 if (!eraMatch) {
-                    *exactMatch = false;  // We couldn't find what we needed but we found sumthin. Step C will decide whether or not to NULL the date out.
+                    *exactMatch = false;  // We couldn't find what we needed but we found something. Step C will decide whether or not to NULL the date out.
                     CFRelease(tempDate);
                 } else {
                     CFRelease(result);

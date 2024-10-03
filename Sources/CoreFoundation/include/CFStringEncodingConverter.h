@@ -17,7 +17,7 @@ CF_EXTERN_C_BEGIN
 
 /* Values for flags argument for the conversion functions below.  These can be combined, but the three NonSpacing behavior flags are exclusive.
 */
-// kCFStringEncodingBasicDirectionLeftToRight ~ kCFStringEncodingPrependBOM will probably be deprecated and superceded by kCFStringEncodingPartialInput flag
+// kCFStringEncodingBasicDirectionLeftToRight ~ kCFStringEncodingPrependBOM will probably be deprecated and superseded by kCFStringEncodingPartialInput flag
 enum {
     kCFStringEncodingAllowLossyConversion = (1UL << 0), // Uses fallback functions to substitutes non mappable chars
     kCFStringEncodingBasicDirectionLeftToRight = (1UL << 1), // Converted with original direction left-to-right.
@@ -29,7 +29,7 @@ enum {
     kCFStringEncodingUseHFSPlusCanonical = (1UL << 7), // Always use canonical form but leaves 0x2000 ranges
     kCFStringEncodingPrependBOM = (1UL << 8), // Prepend BOM sequence (i.e. ISO2022KR)
     kCFStringEncodingDisableCorporateArea = (1UL << 9), // Disable the usage of 0xF8xx area for Apple proprietary chars in converting to UniChar, resulting loosely mapping.
-    kCFStringEncodingASCIICompatibleConversion = (1UL << 10), // This flag forces strict ASCII compatible converion. i.e. MacJapanese 0x5C maps to Unicode 0x5C.
+    kCFStringEncodingASCIICompatibleConversion = (1UL << 10), // This flag forces strict ASCII compatible conversion. i.e. MacJapanese 0x5C maps to Unicode 0x5C.
     kCFStringEncodingLenientUTF8Conversion = (1UL << 11), // 10.1 (Puma) compatible lenient UTF-8 conversion.
     kCFStringEncodingPartialInput = (1UL << 12), // input buffer is a part of stream
     kCFStringEncodingPartialOutput = (1UL << 13) // output buffer streaming

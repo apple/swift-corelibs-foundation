@@ -33,7 +33,7 @@ struct _URIParseInfo {
     unsigned long	hostExists              : 1;
     unsigned long	portExists              : 1;
     // pathExists is not needed because there's always a path... it just might be zero length.
-    unsigned long	semicolonInPathExists   : 1;    // param is obsolete, but we still percent-encode the ';' for backwards compatiblity with NSURL/CFURL.
+    unsigned long	semicolonInPathExists   : 1;    // param is obsolete, but we still percent-encode the ';' for backwards compatibility with NSURL/CFURL.
     unsigned long	queryExists             : 1;
     unsigned long	fragmentExists          : 1;
 };

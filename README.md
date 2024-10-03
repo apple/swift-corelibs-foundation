@@ -11,7 +11,7 @@ It is designed with these goals in mind:
 
 There is more information on the Foundation framework [here](https://developer.apple.com/library/mac/documentation/Cocoa/Reference/Foundation/ObjC_classic/).
 
-This project, `swift-corelibs-foundation`, provides an compatibility implementation of the Foundation API for platforms where there is no Objective-C runtime. On macOS, iOS, and other Apple platforms, apps should use the Foundation that comes with the operating system. 
+This project, `swift-corelibs-foundation`, provides a compatibility implementation of the Foundation API for platforms where there is no Objective-C runtime. On macOS, iOS, and other Apple platforms, apps should use the Foundation that comes with the operating system.
 
 ## Project Navigator
 

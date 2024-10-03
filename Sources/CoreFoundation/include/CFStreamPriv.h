@@ -38,10 +38,10 @@ struct _CFStreamCallBacks {
     Boolean (*open)(struct _CFStream *stream, CFErrorRef *error, Boolean *openComplete, void *info);
     Boolean (*openCompleted)(struct _CFStream *stream, CFErrorRef *error, void *info);
     CFIndex (*read)(CFReadStreamRef stream, UInt8 *buffer, CFIndex bufferLength, CFErrorRef *error, Boolean *atEOF, void *info);
-    const UInt8 *(*getBuffer)(CFReadStreamRef sream, CFIndex maxBytesToRead, CFIndex *numBytesRead, CFErrorRef *error, Boolean *atEOF, void *info);
-    Boolean (*canRead)(CFReadStreamRef, CFErrorRef *error, void *info);
-    CFIndex (*write)(CFWriteStreamRef, const UInt8 *buffer, CFIndex bufferLength, CFErrorRef *error, void *info);
-    Boolean (*canWrite)(CFWriteStreamRef, CFErrorRef *error, void *info); 
+    const UInt8 *(*getBuffer)(CFReadStreamRef stream, CFIndex maxBytesToRead, CFIndex *numBytesRead, CFErrorRef *error, Boolean *atEOF, void *info);
+    Boolean (*canRead)(CFReadStreamRef stream, CFErrorRef *error, void *info);
+    CFIndex (*write)(CFWriteStreamRef stream, const UInt8 *buffer, CFIndex bufferLength, CFErrorRef *error, void *info);
+    Boolean (*canWrite)(CFWriteStreamRef stream, CFErrorRef *error, void *info);
     void (*close)(struct _CFStream *stream, void *info);
 
     CFTypeRef (*copyProperty)(struct _CFStream *stream, CFStringRef propertyName, void *info);

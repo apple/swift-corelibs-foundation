@@ -852,7 +852,7 @@ void __CFStringHandleOutOfMemory(CFTypeRef _Nullable obj) CLANG_ANALYZER_NORETUR
     CFStringRef msg = CFSTR("Out of memory. We suggest restarting the application. If you have an unsaved document, create a backup copy in Finder, then try to save.");
 }
 
-/* Reallocates the backing store of the string to accomodate the new length. Space is reserved or characters are deleted as indicated by insertLength and the ranges in deleteRanges. The length is updated to reflect the new state. Will also maintain a length byte and a null byte in 8-bit strings. If length cannot fit in length byte, the space will still be reserved, but will be 0. (Hence the reason the length byte should never be looked at as length unless there is no explicit length.)
+/* Reallocates the backing store of the string to accommodate the new length. Space is reserved or characters are deleted as indicated by insertLength and the ranges in deleteRanges. The length is updated to reflect the new state. Will also maintain a length byte and a null byte in 8-bit strings. If length cannot fit in length byte, the space will still be reserved, but will be 0. (Hence the reason the length byte should never be looked at as length unless there is no explicit length.)
 */
 static void __CFStringChangeSizeMultiple(CFMutableStringRef str, const CFRange *deleteRanges, CFIndex numDeleteRanges, CFIndex insertLength, Boolean makeUnicode) {
     const uint8_t *curContents = (uint8_t *)__CFStrContents(str);
@@ -2434,7 +2434,7 @@ CF_INLINE bool _CFCanUseLocale(CFLocaleRef locale) {
 #define HANGUL_SYLLABLE_END (0xD7AF)
 
 
-// Returns the length of characters filled into outCharacters. If no change, returns 0. maxBufLen shoule be at least 8
+// Returns the length of characters filled into outCharacters. If no change, returns 0. maxBufLen should be at least 8
 static CFIndex __CFStringFoldCharacterClusterAtIndex(UTF32Char character, CFStringInlineBuffer *buffer, CFIndex index, CFOptionFlags flags, const uint8_t *langCode, UTF32Char *outCharacters, CFIndex maxBufferLength, CFIndex *consumedLength, bool *insufficientBufferSpace) {
     CFIndex filledLength = 0, currentIndex = index;
 
@@ -4579,9 +4579,8 @@ CFRange CFStringGetRangeOfComposedCharactersAtIndex(CFStringRef theString, CFInd
 			(length 0), in which case no search is performed.
 	@param searchOptions The bitwise-or'ed option flags to control
 			the search behavior.  The supported options are
-			kCFCompareBackwards andkCFCompareAnchored.
-			If other option flags are specified, the behavior
-                        is undefined.
+			kCFCompareBackwards and kCFCompareAnchored.
+			If other option flags are specified, the behavior is undefined.
 	@param result The pointer to a CFRange supplied by the caller in
 			which the search result is stored.  If a pointer to an invalid
 			memory is specified, the behavior is undefined.

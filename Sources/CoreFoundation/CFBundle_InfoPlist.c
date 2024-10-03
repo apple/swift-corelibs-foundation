@@ -1017,7 +1017,7 @@ CF_PRIVATE void _CFBundleRefreshInfoDictionaryAlreadyLocked(CFBundleRef bundle) 
         if (bundle->_infoPlistUrl) {
             CFRelease(bundle->_infoPlistUrl);
         }
-        bundle->_infoPlistUrl = infoPlistUrl; // transfered as retained
+        bundle->_infoPlistUrl = infoPlistUrl; // transferred as retained
 
         // Add or fixup any keys that will be expected later
         if (bundle->_infoDict) _CFBundleInfoPlistFixupInfoDictionary(bundle, (CFMutableDictionaryRef)bundle->_infoDict);

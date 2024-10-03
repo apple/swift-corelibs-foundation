@@ -270,8 +270,8 @@ extension FileManager {
                 guard statxErrno == 0 else {
                     switch statxErrno {
                     case EPERM, ENOSYS:
-                        // statx() may be blocked by a security mechanism (eg libseccomp or Docker) even if the kernel verison is new enough. EPERM or ENONSYS may be reported.
-                        // Dont try to use it in future and fallthough to a normal lstat() call.
+                        // statx() may be blocked by a security mechanism (eg libseccomp or Docker) even if the kernel version is new enough. EPERM or ENONSYS may be reported.
+                        // Dont try to use it in future and fallthrough to a normal lstat() call.
                         previousStatxFailed.withLock { $0 = true }
                         return try _statxFallback(atPath: path, withFileSystemRepresentation: fsRep)
 

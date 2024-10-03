@@ -269,7 +269,7 @@ CF_EXPORT
 cpu_type_t _CFBundleGetPreferredExecutableArchitectureForURL(CFURLRef url) API_AVAILABLE(macos(10.16)) API_UNAVAILABLE(ios, watchos, tvos);
 #endif
 
-/* SPI for AppKit usage only, they should be only used in limited secnarios of the application load lifecycle */
+/* SPI for AppKit usage only, they should be only used in limited scenarios of the application load lifecycle */
 
 CF_EXPORT
 Boolean _CFBundleAddResourceURL(CFBundleRef bundle, CFURLRef url) API_AVAILABLE(macos(10.11), ios(9.0), watchos(2.0), tvos(9.0));

@@ -83,7 +83,7 @@ CF_INLINE void URLPropertyDictRelease(void) {
     __CFUnlock(&_propDictLock);
 }
 
-// Asssumes caller already knows the directory doesn't exist.
+// Assumes caller already knows the directory doesn't exist.
 static Boolean _createDirectory(CFURLRef dirURL, Boolean worldReadable) {
     CFAllocatorRef alloc = __CFPreferencesAllocator();
     CFURLRef parentURL = CFURLCreateCopyDeletingLastPathComponent(alloc, dirURL);

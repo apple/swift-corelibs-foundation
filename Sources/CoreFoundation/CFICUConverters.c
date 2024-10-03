@@ -263,7 +263,7 @@ CF_PRIVATE CFIndex __CFStringEncodingICUToBytes(const char *icuName, uint32_t fl
         ucnv_fromUnicode(converter, &destination, destinationLimit, (const UChar **)&source, (const UChar *)sourceLimit, NULL, flush, &errorCode);
 
 #if HAS_ICU_BUG_6024743
-/* Another critical ICU design issue. Similar to conversion error, source pointer returned from U_BUFFER_OVERFLOW_ERROR is already beyond the last valid character position. It renders the returned value from source entirely unusable. We have to manually back up until succeeding <rdar://problem/7183045> Intrestingly, this issue doesn't apply to ucnv_toUnicode. The asynmmetric nature makes this more dangerous */
+/* Another critical ICU design issue. Similar to conversion error, source pointer returned from U_BUFFER_OVERFLOW_ERROR is already beyond the last valid character position. It renders the returned value from source entirely unusable. We have to manually back up until succeeding <rdar://problem/7183045> Interestingly, this issue doesn't apply to ucnv_toUnicode. The asynmmetric nature makes this more dangerous */
         if (U_BUFFER_OVERFLOW_ERROR == errorCode) {
             const uint8_t *bitmap = CFUniCharGetBitmapPtrForPlane(kCFUniCharNonBaseCharacterSet, 0);
             const uint8_t *nonBase;

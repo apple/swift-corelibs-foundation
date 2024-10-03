@@ -52,8 +52,8 @@ internal func withNTPathRepresentation<Result>(of path: String, _ body: (UnsafeP
     // the path.
     path = path.replacing("/", with: "\\")
 
-    // Droop trailing slashes unless it follows a drive specification.  The
-    // trailing arc separator after a drive specifier iindicates the root as
+    // Drop trailing slashes unless it follows a drive specification.  The
+    // trailing arc separator after a drive specifier indicates the root as
     // opposed to a drive relative path.
     while path.count > 1, path[path.index(before: path.endIndex)] == "\\",
             !(path.count == 3 &&

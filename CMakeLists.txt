@@ -73,7 +73,7 @@ option(FOUNDATION_BUILD_NETWORKING "build FoundationNetworking"
 
 set(CMAKE_POSITION_INDEPENDENT_CODE YES)
 
-# Fetchable dependcies
+# Fetchable dependencies
 include(FetchContent)
 if (_SwiftFoundationICU_SourceDIR)
     FetchContent_Declare(SwiftFoundationICU

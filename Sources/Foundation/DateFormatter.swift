@@ -564,7 +564,7 @@ open class DateFormatter : Formatter, @unchecked Sendable {
             }
             
             // Apple DateFormatter implementation returns nil
-            // if non-whitespace sharacters are left after parsed content.
+            // if non-whitespace characters are left after parsed content.
             let remainder = String(string[swiftRange.upperBound...])
             let characterSet = CharacterSet(charactersIn: remainder)
             guard CharacterSet.whitespaces.isSuperset(of: characterSet) else {
@@ -594,8 +594,8 @@ open class DateFormatter : Formatter, @unchecked Sendable {
         return df.string(for: date._nsObject)!
     }
 
-    open class func dateFormat(fromTemplate tmplate: String, options opts: Int, locale: Locale?) -> String? {
-        guard let res = CFDateFormatterCreateDateFormatFromTemplate(kCFAllocatorSystemDefault, tmplate._cfObject, CFOptionFlags(opts), locale?._cfObject) else {
+    open class func dateFormat(fromTemplate template: String, options opts: Int, locale: Locale?) -> String? {
+        guard let res = CFDateFormatterCreateDateFormatFromTemplate(kCFAllocatorSystemDefault, template._cfObject, CFOptionFlags(opts), locale?._cfObject) else {
             return nil
         }
         return res._swiftObject

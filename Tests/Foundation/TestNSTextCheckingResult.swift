@@ -126,7 +126,7 @@ class TestNSTextCheckingResult: XCTestCase {
         }
     }
     
-    func test_loadedVauesMatch() throws {
+    func test_loadedValuesMatch() throws {
         for fixture in fixtures {
             try fixture.assertLoadedValuesMatch(areEqual(_:_:))
         }

@@ -96,7 +96,7 @@ internal struct JSONParser {
         self.depth += 1
         defer { depth -= 1 }
 
-        // parse first value or end immediatly
+        // parse first value or end immediately
         switch try reader.consumeWhitespace() {
         case ._space, ._return, ._newline, ._tab:
             preconditionFailure("Expected that all white space is consumed")

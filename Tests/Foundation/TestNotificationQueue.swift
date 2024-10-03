@@ -218,7 +218,7 @@ class TestNotificationQueue : XCTestCase {
         waitForExpectations(timeout: 0.2)
 
         // There is a small time gap between "e.fulfill()"
-        // and actuall thread termination.
+        // and actual thread termination.
         // We need a little delay to allow bgThread actually die.
         // Callers of this function are assuming thread is
         // deallocated after call.

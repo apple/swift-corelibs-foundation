@@ -683,7 +683,7 @@ CFIndex __CFStringEncodeByteStream(CFStringRef string, CFIndex rangeLoc, CFIndex
         static dispatch_once_t onceToken;
         static CFStringEncodingToBytesProc __CFToUTF8 = NULL;
         dispatch_once(&onceToken, ^{
-            // Thiis encoder is built-in, no need to check it more than once
+            // This encoder is built-in, no need to check it more than once
             __CFToUTF8 = CFStringEncodingGetConverter(kCFStringEncodingUTF8)->toBytes.standard;
         });
 

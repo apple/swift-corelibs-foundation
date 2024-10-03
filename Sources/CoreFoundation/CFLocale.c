@@ -507,7 +507,7 @@ CFArrayRef _CFLocaleCopyValidNumberingSystemsForLocaleIdentifier(CFStringRef loc
     return numberingSystemIDs;
 }
 
-CFStringRef _CFLocaleCreateLocaleIdentiferByReplacingLanguageCodeAndScriptCode(CFStringRef localeIDWithDesiredLangCode, CFStringRef localeIDWithDesiredComponents) {
+CFStringRef _CFLocaleCreateLocaleIdentifierByReplacingLanguageCodeAndScriptCode(CFStringRef localeIDWithDesiredLangCode, CFStringRef localeIDWithDesiredComponents) {
     CFStringRef localeID = NULL;
     if (localeIDWithDesiredLangCode && localeIDWithDesiredComponents) {
         CFStringRef langIDToUse = _CFLocaleCopyLanguageIdentifierWithScriptCodeForLocaleIdentifier(localeIDWithDesiredLangCode);
@@ -540,7 +540,7 @@ CFStringRef _CFLocaleCreateLocaleIdentiferByReplacingLanguageCodeAndScriptCode(C
                                         if (indexOfNumberingSystem == kCFNotFound || indexOfNumberingSystem == 0) {
                                             CFDictionaryRemoveValue(mutableComps, CFSTR("numbers"));
                                         }
-                                        // If the numbering system for `localeIDWithDesiredComponents` is compatible with the constructed locale’s language and is not already the default numbering system (index 0), then set it on the new locale, e.g. `hi_IN@numbers=latn` + `ar` shoudl get `ar_IN@numbers=latn`, since `latn` is valid for `ar`.
+                                        // If the numbering system for `localeIDWithDesiredComponents` is compatible with the constructed locale’s language and is not already the default numbering system (index 0), then set it on the new locale, e.g. `hi_IN@numbers=latn` + `ar` should get `ar_IN@numbers=latn`, since `latn` is valid for `ar`.
                                         else if (indexOfNumberingSystem > 0) {
                                             CFDictionarySetValue(mutableComps, CFSTR("numbers"), numberingSystem);
                                         }
@@ -601,7 +601,7 @@ static CFStringRef _CFLocaleCreateLocaleIdentifierForAvailableLocalizations(CFAr
                     if (CFEqual(preferredLocaleLanguageID, preferredLocalizationLanguageID)) {
                         result = CFRetain(preferredLocaleID);
                     } else {
-                        result = _CFLocaleCreateLocaleIdentiferByReplacingLanguageCodeAndScriptCode(preferredLocalization, preferredLocaleID);
+                        result = _CFLocaleCreateLocaleIdentifierByReplacingLanguageCodeAndScriptCode(preferredLocalization, preferredLocaleID);
                     }
                 }
                 if (preferredLocaleLanguageID) { CFRelease(preferredLocaleLanguageID); }
@@ -723,7 +723,7 @@ static CFLocaleRef _CFLocaleCopyCurrentGuts(CFStringRef name, Boolean useCache, 
     if (!ident) {
         ident = (CFStringRef)CFRetain(FALLBACK_LOCALE_NAME);
 
-        // <rdar://problem/51409572> CFLocaleCopyCurrent() failed to look up current locale -- gpsd dameon is not localized, does not interact directly with users
+        // <rdar://problem/51409572> CFLocaleCopyCurrent() failed to look up current locale -- gpsd daemon is not localized, does not interact directly with users
         // This log was added to try to catch scenarios in which apps fail to look up the current locale thanks to sandboxing issues or CFPreferences issues. It turns out that in its current formulation, this log has a high false positive rate and is very confusing.
         // Disabled for now.
         /*

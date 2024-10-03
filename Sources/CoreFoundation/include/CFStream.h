@@ -187,7 +187,7 @@ CF_EXPORT const CFStringRef _Nonnull kCFStreamPropertySOCKSVersion CF_AVAILABLE(
  *  kCFStreamSocketSOCKSVersion4
  *
  *  Discussion:
- *    CFDictionary value for SOCKS proxy information.  Indcates that
+ *    CFDictionary value for SOCKS proxy information.  Indicates that
  *    SOCKS will or is using version 4 of the SOCKS protocol.
  *
  */
@@ -437,7 +437,7 @@ Boolean CFWriteStreamSetProperty(CFWriteStreamRef _Null_unspecified stream, CFSt
    or on one or more run loops.  If scheduled on a run loop, it is the caller's responsibility
    to ensure that at least one of the scheduled run loops is being run.
 
-   NOTE: Unlike other CoreFoundation APIs, pasing a NULL clientContext here will remove
+   NOTE: Unlike other CoreFoundation APIs, passing a NULL clientContext here will remove
    the client.  If you do not care about the client context (i.e. your only concern
    is that your callback be called), you should pass in a valid context where every
    entry is 0 or NULL.

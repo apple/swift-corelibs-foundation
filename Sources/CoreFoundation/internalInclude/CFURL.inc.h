@@ -15,7 +15,7 @@
  
  CFURL's URL string parser needs to be able to parse either an array of char or an array of UniChar.
  
- The code in CFURL.c used to use this macro "#define STRING_CHAR(x) (useCString ? cstring[(x)] : ustring[(x)])" to determine which array to get a character from for every character looked at in the URL string. That macro added one or more compare and branch instructins to the parser's execution for *every* character in the URL string. Those extra compares and branches added up to 10% of the time (for long URL strings) it takes to create a URL object.
+ The code in CFURL.c used to use this macro "#define STRING_CHAR(x) (useCString ? cstring[(x)] : ustring[(x)])" to determine which array to get a character from for every character looked at in the URL string. That macro added one or more compare and branch instructions to the parser's execution for *every* character in the URL string. Those extra compares and branches added up to 10% of the time (for long URL strings) it takes to create a URL object.
  
  To ensure the exact same parser code is run over a char or a UniChar string, the source code was move to this .h file and is included multiple times by CFURL.c as needed. "STRING_CHAR(x)" was replaced by "characterArray[x]", and characterArray is defined as either an "const char *" or a "const UniChar *" for the two sets of function headers that are either parsing an array of char or an array of UniChar.
  
@@ -344,7 +344,7 @@
                 surrogatePair[0] = ch;
                 surrogatePair[1] = characterArray[idx + 1];
                 if ( _appendPercentEscapesForCharacter(surrogatePair, true, encoding, *escapedString) ) {
-                    // we consumed 2 chararacters instead of 1
+                    // we consumed 2 characters instead of 1
                     *mark = idx + 2;
                     ++idx;
                 }

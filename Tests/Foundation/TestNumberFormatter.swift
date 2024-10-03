@@ -232,7 +232,7 @@ class TestNumberFormatter: XCTestCase {
         XCTAssertEqual(numberFormatter.secondaryGroupingSize, 0)
     }
 
-    func test_defaultCurrenyAccountingPropertyValues() {
+    func test_defaultCurrencyAccountingPropertyValues() {
         let numberFormatter = NumberFormatter()
         numberFormatter.numberStyle = .currencyAccounting
         numberFormatter.locale = Locale(identifier: "en_US")

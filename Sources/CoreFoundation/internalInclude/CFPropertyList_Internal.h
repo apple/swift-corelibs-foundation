@@ -14,7 +14,7 @@
 
 /// Limit for the max recursion depth to avoid unbounded stack explosion when
 /// parsing a crafted plist during validation of an object graph and during reading.
-/// For macOS use maximum recusrion limit of `512` is used.
+/// For macOS use maximum recursion limit of `512` is used.
 /// For iPhone, tvOS, and Watches use `128` due to the memory limitations.
 ///
 /// rdar://61207578 ([Ward CFPropertyList audit, Low] unbounded recursion (binary and plain plists))
@@ -32,7 +32,7 @@ CF_INLINE size_t _CFPropertyListMaxRecursionDepth() {
 ///
 /// rdar://61529878 ([Ward CFPropertyList audit, Medium] Plist exponential growth DoS)
 CF_INLINE size_t _CFPropertyListMaxRecursionWidth() {
-    // For now let's start with a resonable value that during testing allows many common cases but prevents very "wide" references to the same collections
+    // For now let's start with a reasonable value that during testing allows many common cases but prevents very "wide" references to the same collections
     return _CFPropertyListMaxRecursionDepth() * 3;
 }
 

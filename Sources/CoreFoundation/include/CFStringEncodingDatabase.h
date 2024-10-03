@@ -20,4 +20,4 @@ CF_PRIVATE CFStringEncoding __CFStringEncodingGetFromCanonicalName(const char *c
 
 CF_PRIVATE CFStringEncoding __CFStringEncodingGetMostCompatibleMacScript(CFStringEncoding encoding);
 
-CF_PRIVATE const char *__CFStringEncodingGetName(CFStringEncoding encoding); // Returns simple non-localizd name
+CF_PRIVATE const char *__CFStringEncodingGetName(CFStringEncoding encoding); // Returns simple non-localized name

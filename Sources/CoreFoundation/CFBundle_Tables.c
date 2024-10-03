@@ -91,7 +91,7 @@ static void _CFBundleRemoveFromTables(CFBundleRef bundle, CFURLRef bundleURL, CF
     // Since we no longer allow bundles to be removed from tables, this method does nothing. Modifying the tables during deallocation is risky because if the caller has over-released the bundle object then we will deadlock on the global lock.
 #if TARGET_OS_OSX
     if (_useUnsafeUnretainedTables()) {
-        // Except for special cases of unsafe-unretained, where we must clean up the table or risk handing out a zombie object. There may still be outstanding pointers to these bundes (e.g. the result of CFBundleGetBundleWithIdentifier) but there is nothing we can do about that after this point.
+        // Except for special cases of unsafe-unretained, where we must clean up the table or risk handing out a zombie object. There may still be outstanding pointers to these bundles (e.g. the result of CFBundleGetBundleWithIdentifier) but there is nothing we can do about that after this point.
         
         // Unique bundles aren't in the tables anyway
         if (bundle->_isUnique) return;
