@@ -926,8 +926,8 @@ extension NSURL {
 #if os(Windows)
         let hFile: HANDLE = absolutePath.withCString(encodedAs: UTF16.self) {
           CreateFileW($0, GENERIC_READ,
-                      FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                      nil, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nil)
+                      DWORD(FILE_SHARE_READ) | DWORD(FILE_SHARE_WRITE) | DWORD(FILE_SHARE_DELETE),
+                      nil, DWORD(OPEN_EXISTING), DWORD(FILE_FLAG_BACKUP_SEMANTICS), nil)
         }
         guard hFile == INVALID_HANDLE_VALUE else {
           defer { CloseHandle(hFile) }

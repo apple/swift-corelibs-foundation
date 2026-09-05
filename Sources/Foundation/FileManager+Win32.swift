@@ -183,8 +183,8 @@ extension FileManager {
           // BACKUP_SEMANTICS are (confusingly) required in order to receive a
           // handle to a directory
           CreateFileW($0, 0,
-                      FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                      nil, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nil)
+                      DWORD(FILE_SHARE_READ) | DWORD(FILE_SHARE_WRITE) | DWORD(FILE_SHARE_DELETE),
+                      nil, DWORD(OPEN_EXISTING), DWORD(FILE_FLAG_BACKUP_SEMANTICS), nil)
         }
         if hFile == INVALID_HANDLE_VALUE {
           return try FileManager.default._fileSystemRepresentation(withPath: path) {
@@ -228,8 +228,8 @@ extension FileManager {
 
         var statInfo = stat()
         let handle =
-            CreateFileW(_fsRep, 0, FILE_SHARE_READ, nil, OPEN_EXISTING,
-                        FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS,
+            CreateFileW(_fsRep, 0, DWORD(FILE_SHARE_READ), nil, DWORD(OPEN_EXISTING),
+                        FILE_FLAG_OPEN_REPARSE_POINT | DWORD(FILE_FLAG_BACKUP_SEMANTICS),
                         nil)
         if handle == INVALID_HANDLE_VALUE {
             throw _NSErrorWithWindowsError(GetLastError(), reading: false, paths: [path])
@@ -292,7 +292,7 @@ extension FileManager {
           FILETIME(from: time_t((modificationTime ?? stat.lastModificationDate).timeIntervalSince1970))
 
       let hFile: HANDLE =
-        CreateFileW(fsr, GENERIC_WRITE, FILE_SHARE_WRITE, nil, OPEN_EXISTING, 0,
+        CreateFileW(fsr, GENERIC_WRITE, DWORD(FILE_SHARE_WRITE), nil, DWORD(OPEN_EXISTING), 0,
                     nil)
       if hFile == INVALID_HANDLE_VALUE {
           throw _NSErrorWithWindowsError(GetLastError(), reading: true, paths: [path])
