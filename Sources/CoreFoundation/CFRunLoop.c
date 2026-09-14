@@ -72,7 +72,7 @@ extern bool _dispatch_runloop_root_queue_perform_4CF(dispatch_queue_t queue);
 
 #if TARGET_OS_MAC
 typedef mach_port_t dispatch_runloop_handle_t;
-#elif TARGET_OS_LINUX
+#elif TARGET_OS_LINUX || TARGET_OS_FREEBSD
 typedef int dispatch_runloop_handle_t;
 #elif TARGET_OS_BSD
 typedef uint64_t dispatch_runloop_handle_t;
@@ -110,11 +110,15 @@ DISPATCH_EXPORT void _dispatch_main_queue_callback_4CF(void * _Null_unspecified)
 #define mach_port_name_t HANDLE
 #define mach_port_t HANDLE
 
-#elif TARGET_OS_LINUX
+#elif TARGET_OS_LINUX || TARGET_OS_FREEBSD
 
 #include <dlfcn.h>
 #include <poll.h>
+#if TARGET_OS_FREEBSD
+#include <sys/event.h>
+#else
 #include <sys/epoll.h>
+#endif
 #include <sys/eventfd.h>
 #include <sys/timerfd.h>
 
@@ -411,11 +415,11 @@ static kern_return_t __CFPortSetRemove(__CFPort port, __CFPortSet portSet) {
     return KERN_SUCCESS;
 }
 
-#elif TARGET_OS_LINUX
+#elif TARGET_OS_LINUX || TARGET_OS_FREEBSD
 #define CFPORT_NULL -1
 #define MACH_PORT_NULL CFPORT_NULL
 
-// epoll file descriptor
+// epoll / kqueue file descriptor
 typedef int __CFPortSet;
 #define CFPORTSET_NULL -1
 
@@ -428,26 +432,44 @@ CF_INLINE void __CFPortFree(__CFPort port, __unused uintptr_t guard) {
 }
 
 CF_INLINE __CFPortSet __CFPortSetAllocate(void) {
+#if TARGET_OS_LINUX
     return epoll_create1(EPOLL_CLOEXEC);
+#else
+    return kqueue();
+#endif
 }
 
 CF_INLINE kern_return_t __CFPortSetInsert(__CFPort port, __CFPortSet portSet) {
     if (CFPORT_NULL == port) {
         return -1;
     }
+#if TARGET_OS_LINUX
     struct epoll_event event;
     memset(&event, 0, sizeof(event));
     event.data.fd = port;
     event.events = EPOLLIN|EPOLLET;
     
     return epoll_ctl(portSet, EPOLL_CTL_ADD, port, &event);
+#else
+    struct kevent event;
+    memset(&event, 0, sizeof(struct kevent));
+    EV_SET(&event, port, EVFILT_READ, EV_ADD | EV_ENABLE | EV_CLEAR | EV_RECEIPT, 0, 0, NULL);
+    return kevent(portSet, &event, 1, NULL, 0, NULL);
+#endif
 }
 
 CF_INLINE kern_return_t __CFPortSetRemove(__CFPort port, __CFPortSet portSet) {
     if (CFPORT_NULL == port) {
         return -1;
     }
+#if TARGET_OS_LINUX
     return epoll_ctl(portSet, EPOLL_CTL_DEL, port, NULL);
+#else
+    struct kevent event;
+    memset(&event, 0, sizeof(struct kevent));
+    EV_SET(&event, port, EVFILT_READ, EV_RECEIPT | EV_DELETE, 0, 0, NULL);
+    return kevent(portSet, &event, 1, NULL, 0, NULL);
+#endif
 }
 
 CF_INLINE void __CFPortSetFree(__CFPortSet portSet) {
@@ -473,8 +495,6 @@ typedef struct ___CFPortSet {
     int kq;
 } *__CFPortSet;
 #define CFPORTSET_NULL NULL
-
-#define TIMEOUT_INFINITY UINT64_MAX
 
 // Timers are not pipes; they are kevents on a parent kqueue.
 // We must flag these to differentiate them from pipes, but we have
@@ -643,76 +663,6 @@ CF_INLINE void __CFPortSetFree(__CFPortSet set) {
     free(set);
 }
 
-static int __CFPollFileDescriptors(struct pollfd *fds, nfds_t nfds, uint64_t timeout) {
-    uint64_t elapsed = 0;
-    uint64_t start = mach_absolute_time();
-    int result = 0;
-    while (1) {
-        struct timespec ts = {0};
-        struct timespec *tsPtr = &ts;
-        if (timeout == TIMEOUT_INFINITY) {
-            tsPtr = NULL;
-        } else if (elapsed < timeout) {
-            uint64_t delta = timeout - elapsed;
-            ts.tv_sec = delta / 1000000000UL;
-            ts.tv_nsec = delta % 1000000000UL;
-        }
-
-        result = ppoll(fds, 1, tsPtr, NULL);
-
-        if (result == -1 && errno == EINTR) {
-            uint64_t end = mach_absolute_time();
-            elapsed += (end - start);
-            start = end;
-        } else {
-            return result;
-        }
-    }
-}
-
-static Boolean __CFRunLoopServiceFileDescriptors(__CFPortSet set, __CFPort port, uint64_t timeout, __CFPort *livePort) {
-    __CFPort awokenPort = CFPORT_NULL;
-
-    if (port != CFPORT_NULL) {
-        int rfd = __CFPORT_UNPACK_R(port);
-        struct pollfd fdInfo = {
-            .fd = rfd,
-            .events = POLLIN,
-        };
-
-        ssize_t result = __CFPollFileDescriptors(&fdInfo, 1, timeout);
-        if (result == 0)
-            return false;
-
-        awokenPort = port;
-    } else {
-        struct kevent awake;
-        struct timespec timeout = {0, 0};
-
-        int r = kevent(set->kq, NULL, 0, &awake, 1, &timeout);
-
-        if (r == 0) {
-            return false;
-        }
-
-        if (awake.flags == EV_ERROR) {
-            return false;
-        }
-
-        if (awake.filter == EVFILT_READ) {
-            char x;
-            r = read(awake.ident, &x, 1);
-        }
-
-        awokenPort = (__CFPort)awake.udata;
-    }
-
-    if (livePort)
-        *livePort = awokenPort;
-
-    return true;
-}
-
 #else
 #error "CFPort* stubs for this platform must be implemented
 #endif
@@ -749,7 +699,7 @@ static uint32_t __CFSendTrivialMachMessage(mach_port_t port, uint32_t msg_id, CF
     __CFMachMessageCheckForAndDestroyUnsentMessage(result, &header);
     return result;
 }
-#elif TARGET_OS_LINUX
+#elif TARGET_OS_LINUX || TARGET_OS_FREEBSD
 
 static int mk_timer_create(void) {
     return timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK|TFD_CLOEXEC);
@@ -1137,7 +1087,7 @@ static CFRunLoopModeRef __CFRunLoopCopyMode(CFRunLoopRef rl, CFStringRef modeNam
     if (KERN_SUCCESS != ret) CRASH("*** Unable to insert timer port into port set. (%d) ***", ret);
 #endif
     rlm->_timerPort = CFPORT_NULL;
-#if TARGET_OS_BSD
+#if TARGET_OS_BSD && !TARGET_OS_FREEBSD
     rlm->_timerPort = mk_timer_create(rlm->_portSet);
 #else
     rlm->_timerPort = mk_timer_create();
@@ -2873,6 +2823,168 @@ static Boolean __CFRunLoopServiceFileDescriptors(__CFPortSet portSet, __CFPort o
     
     return true;
 }
+#elif TARGET_OS_FREEBSD
+
+#define TIMEOUT_INFINITY UINT64_MAX
+
+static Boolean __CFRunLoopServiceFileDescriptors(__CFPortSet set, __CFPort port, uint64_t timeout, __CFPort *livePort) {
+    __CFPort awokenPort = CFPORT_NULL;
+
+    uint64_t elapsed = 0;
+    uint64_t start = mach_absolute_time();
+    int r = 0;
+    struct kevent awake;
+    struct pollfd fdInfo = {
+        .fd = port,
+        .events = POLLIN
+    };
+
+    // roll our own loop here since if we ppoll() the kq first before calling
+    // kevent() (similar to epoll on Linux), we are racing the potential something
+    // else may have called kevent on the kq during this gap. so we use the kevent
+    // builtin timeout instead
+    while (1) {
+      struct timespec ts = {0};
+      struct timespec *tsPtr = &ts;
+      if (timeout == TIMEOUT_INFINITY) {
+        tsPtr = NULL;
+      } else if (elapsed < timeout) {
+        uint64_t delta = timeout - elapsed;
+        ts.tv_sec = delta / 1000000000UL;
+        ts.tv_nsec = delta % 1000000000UL;
+      }
+
+      if (port == CFPORT_NULL) {
+        r = kevent(set, NULL, 0, &awake, 1, tsPtr);
+      } else {
+        r = ppoll(&fdInfo, 1, tsPtr, NULL);
+      }
+
+      if (r == -1 && errno == EINTR) {
+        uint64_t end = mach_absolute_time();
+        elapsed += (end - start);
+        start = end;
+      } else if (r < 0) {
+        return false;
+      } else {
+        break;
+      }
+
+      // timeout has reach and fd still not available
+      if (elapsed >= timeout) {
+        return false;
+      }
+    }
+
+    if (port != CFPORT_NULL) {
+        awokenPort = port;
+    } else {
+
+        if (r == 0) {
+            return false;
+        }
+
+        if (awake.flags & EV_ERROR || awake.filter != EVFILT_READ) {
+            return false;
+        }
+
+        awokenPort = (__CFPort)awake.ident;
+    }
+
+    // Now we acknowledge the wakeup. awokenFd is an eventfd (or possibly a
+    // timerfd ?). In either case, we read an 8-byte integer, as per eventfd(2)
+    // and timerfd_create(2).
+    uint64_t value;
+
+    do {
+        r = read(awokenPort, &value, sizeof(value));
+    } while (r == -1 && errno == EINTR);
+
+    if (r == -1 && errno == EAGAIN) {
+        // Another thread stole the wakeup for this fd. (FIXME Can this actually
+        // happen?)
+        return false;
+    }
+
+    CFAssert2(r == sizeof(value), __kCFLogAssertion, "%s(): error %d from read(2) while acknowledging wakeup", __PRETTY_FUNCTION__, errno);
+
+    if (livePort)
+        *livePort = awokenPort;
+
+    return true;
+}
+
+#elif TARGET_OS_BSD
+
+#define TIMEOUT_INFINITY UINT64_MAX
+
+static int __CFPollFileDescriptors(struct pollfd *fds, nfds_t nfds, uint64_t timeout) {
+    uint64_t elapsed = 0;
+    uint64_t start = mach_absolute_time();
+    int result = 0;
+    while (1) {
+        struct timespec ts = {0};
+        struct timespec *tsPtr = &ts;
+        if (timeout == TIMEOUT_INFINITY) {
+            tsPtr = NULL;
+        } else if (elapsed < timeout) {
+            uint64_t delta = timeout - elapsed;
+            ts.tv_sec = delta / 1000000000UL;
+            ts.tv_nsec = delta % 1000000000UL;
+        }
+
+        result = ppoll(fds, 1, tsPtr, NULL);
+
+        if (result == -1 && errno == EINTR) {
+            uint64_t end = mach_absolute_time();
+            elapsed += (end - start);
+            start = end;
+        } else {
+            return result;
+        }
+    }
+}
+
+static Boolean __CFRunLoopServiceFileDescriptors(__CFPortSet set, __CFPort port, uint64_t timeout, __CFPort *livePort) {
+    __CFPort awokenPort = CFPORT_NULL;
+
+    if (port != CFPORT_NULL) {
+        int rfd = __CFPORT_UNPACK_R(port);
+        struct pollfd fdInfo = {
+            .fd = rfd,
+            .events = POLLIN,
+        };
+
+        ssize_t result = __CFPollFileDescriptors(&fdInfo, 1, timeout);
+        if (result == 0)
+            return false;
+
+        awokenPort = port;
+    } else {
+        struct kevent awake;
+        struct timespec timeout = {0, 0};
+        int r = kevent(set->kq, NULL, 0, &awake, 1, &timeout);
+
+        if (r == 0) {
+            return false;
+        }
+
+        if (awake.flags == EV_ERROR) {
+            return false;
+        }
+
+        if (awake.filter == EVFILT_READ) {
+            char x;
+            r = read(awake.ident, &x, 1);
+        }
+        awokenPort = (__CFPort)awake.udata;
+    }
+
+    if (livePort)
+        *livePort = awokenPort;
+
+    return true;
+}
 
 #elif TARGET_OS_WIN32 || TARGET_OS_CYGWIN
 
@@ -3255,7 +3367,7 @@ static int32_t __CFRunLoopRun(CFRunLoopRef rl, CFRunLoopModeRef rlm, CFTimeInter
 		    (void)mach_msg(reply, MACH_SEND_MSG, reply->msgh_size, 0, MACH_PORT_NULL, 0, MACH_PORT_NULL);
 		    CFAllocatorDeallocate(kCFAllocatorSystemDefault, reply);
 		}
-#elif TARGET_OS_WIN32 || (TARGET_OS_LINUX && !TARGET_OS_CYGWIN)
+#elif TARGET_OS_WIN32 || (TARGET_OS_LINUX && !TARGET_OS_CYGWIN) || TARGET_OS_BSD
                 sourceHandledThisLoop = __CFRunLoopDoSource1(rl, rlm, rls) || sourceHandledThisLoop;
 #endif
             } else {
@@ -3410,7 +3522,7 @@ void CFRunLoopWakeUp(CFRunLoopRef rl) {
      * wakeup pending, since the queue length is 1. */
     ret = __CFSendTrivialMachMessage(rl->_wakeUpPort, 0, MACH_SEND_TIMEOUT, 0);
     if (ret != MACH_MSG_SUCCESS && ret != MACH_SEND_TIMED_OUT) CRASH("*** Unable to send message to wake up port. (%x) ***", ret);
-#elif TARGET_OS_LINUX && !TARGET_OS_CYGWIN
+#elif TARGET_OS_FREEBSD || (TARGET_OS_LINUX && !TARGET_OS_CYGWIN)
     int ret;
     do {
         ret = eventfd_write(rl->_wakeUpPort, 1);
@@ -4288,7 +4400,7 @@ static CFStringRef __CFRunLoopObserverCopyDescription(CFTypeRef cf) {	/* DOES CA
     }
 #if TARGET_OS_WIN32
     result = CFStringCreateWithFormat(kCFAllocatorSystemDefault, NULL, CFSTR("<CFRunLoopObserver %p [%p]>{valid = %s, activities = 0x%x, repeats = %s, order = %d, callout = %p, context = %@}"), cf, CFGetAllocator(rlo), __CFIsValid(rlo) ? "Yes" : "No", rlo->_activities, __CFRunLoopObserverRepeats(rlo) ? "Yes" : "No", rlo->_order, rlo->_callout, contextDesc);    
-#elif TARGET_OS_MAC || (TARGET_OS_LINUX && !TARGET_OS_CYGWIN)
+#elif TARGET_OS_MAC || (TARGET_OS_LINUX && !TARGET_OS_CYGWIN) || TARGET_OS_FREEBSD
     void *addr = rlo->_callout;
     Dl_info info;
     const char *name = (dladdr(addr, &info) && info.dli_saddr == addr && info.dli_sname) ? info.dli_sname : "???";

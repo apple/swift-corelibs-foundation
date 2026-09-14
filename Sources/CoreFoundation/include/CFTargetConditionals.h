@@ -60,7 +60,8 @@
               TARGET_OS_WATCH           - Generated code will run under Apple Watch OS
            TARGET_OS_SIMULATOR      - Generated code will run under a simulator
            TARGET_OS_EMBEDDED       - Generated code for firmware
-       
+        TARGET_OS_BSD             - Generated code will run under *BSD
+            TARGET_OS_FREEBSD           - Generated code will run under FreeBSD
         TARGET_IPHONE_SIMULATOR   - DEPRECATED: Same as TARGET_OS_SIMULATOR
         TARGET_OS_NANO            - DEPRECATED: Same as TARGET_OS_WATCH
 
@@ -83,6 +84,7 @@
 #define TARGET_OS_LINUX        0
 #define TARGET_OS_WINDOWS      0
 #define TARGET_OS_BSD          0
+#define TARGET_OS_FREEBSD      0
 #define TARGET_OS_ANDROID      0
 #define TARGET_OS_CYGWIN       0
 #define TARGET_OS_WASI         0
@@ -91,6 +93,7 @@
 #define TARGET_OS_LINUX        1
 #define TARGET_OS_WINDOWS      0
 #define TARGET_OS_BSD          0
+#define TARGET_OS_FREEBSD      0
 #define TARGET_OS_ANDROID      1
 #define TARGET_OS_CYGWIN       0
 #define TARGET_OS_WASI         0
@@ -99,6 +102,7 @@
 #define TARGET_OS_LINUX        1
 #define TARGET_OS_WINDOWS      0
 #define TARGET_OS_BSD          0
+#define TARGET_OS_FREEBSD      0
 #define TARGET_OS_ANDROID      0
 #define TARGET_OS_CYGWIN       0
 #define TARGET_OS_WASI         0
@@ -107,6 +111,7 @@
 #define TARGET_OS_LINUX        1
 #define TARGET_OS_WINDOWS      0
 #define TARGET_OS_BSD          0
+#define TARGET_OS_FREEBSD      0
 #define TARGET_OS_ANDROID      0
 #define TARGET_OS_CYGWIN       1
 #define TARGET_OS_WASI         0
@@ -115,6 +120,16 @@
 #define TARGET_OS_LINUX        0
 #define TARGET_OS_WINDOWS      1
 #define TARGET_OS_BSD          0
+#define TARGET_OS_FREEBSD      0
+#define TARGET_OS_ANDROID      0
+#define TARGET_OS_CYGWIN       0
+#define TARGET_OS_WASI         0
+#elif __FreeBSD__
+#define TARGET_OS_DARWIN       0
+#define TARGET_OS_LINUX        0
+#define TARGET_OS_WINDOWS      0
+#define TARGET_OS_BSD          1
+#define TARGET_OS_FREEBSD      1
 #define TARGET_OS_ANDROID      0
 #define TARGET_OS_CYGWIN       0
 #define TARGET_OS_WASI         0
@@ -123,6 +138,7 @@
 #define TARGET_OS_LINUX        0
 #define TARGET_OS_WINDOWS      0
 #define TARGET_OS_BSD          1
+#define TARGET_OS_FREEBSD      0
 #define TARGET_OS_ANDROID      0
 #define TARGET_OS_CYGWIN       0
 #define TARGET_OS_WASI         0
@@ -131,6 +147,7 @@
 #define TARGET_OS_LINUX        0
 #define TARGET_OS_WINDOWS      0
 #define TARGET_OS_BSD          0
+#define TARGET_OS_FREEBSD      0
 #define TARGET_OS_ANDROID      0
 #define TARGET_OS_CYGWIN       0
 #define TARGET_OS_WASI         1

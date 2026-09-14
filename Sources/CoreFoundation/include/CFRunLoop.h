@@ -107,7 +107,7 @@ typedef struct {
 typedef mach_port_t __CFPort;
 #elif TARGET_OS_WIN32 || TARGET_OS_CYGWIN
 typedef HANDLE __CFPort;
-#elif TARGET_OS_LINUX
+#elif TARGET_OS_LINUX || defined(__FreeBSD__)
 typedef int __CFPort; // eventfd/timerfd descriptor
 #elif TARGET_OS_BSD
 typedef uint64_t __CFPort;
