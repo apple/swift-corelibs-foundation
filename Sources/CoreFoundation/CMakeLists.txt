@@ -156,4 +156,9 @@ if(NOT BUILD_SHARED_LIBS)
         ARCHIVE DESTINATION lib/swift_static/${SWIFT_SYSTEM_NAME}
         LIBRARY DESTINATION lib/swift_static/${SWIFT_SYSTEM_NAME}
         RUNTIME DESTINATION bin)
+    if(MSVC)
+        install(FILES $<TARGET_FILE_DIR:CoreFoundation>/$<TARGET_FILE_BASE_NAME:CoreFoundation>.pdb
+            DESTINATION bin
+            OPTIONAL)
+    endif()
 endif()

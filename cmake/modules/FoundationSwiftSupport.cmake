@@ -26,6 +26,11 @@ function(_foundation_install_target module)
     ARCHIVE DESTINATION lib/${swift}/${swift_os}
     LIBRARY DESTINATION lib/${swift}/${swift_os}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+  if(MSVC AND NOT type STREQUAL STATIC_LIBRARY)
+    install(FILES $<TARGET_FILE_DIR:${module}>/$<TARGET_FILE_BASE_NAME:${module}>.pdb
+      DESTINATION ${CMAKE_INSTALL_BINDIR}
+      OPTIONAL)
+  endif()
   if(type STREQUAL EXECUTABLE)
     return()
   endif()

@@ -42,4 +42,9 @@ if(NOT BUILD_SHARED_LIBS)
         ARCHIVE DESTINATION lib/swift_static/${SWIFT_SYSTEM_NAME}
         LIBRARY DESTINATION lib/swift_static/${SWIFT_SYSTEM_NAME}
         RUNTIME DESTINATION bin)
+    if(MSVC)
+        install(FILES $<TARGET_FILE_DIR:_CFXMLInterface>/$<TARGET_FILE_BASE_NAME:_CFXMLInterface>.pdb
+            DESTINATION bin
+            OPTIONAL)
+    endif()
 endif()

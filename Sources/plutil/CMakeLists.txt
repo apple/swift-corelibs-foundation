@@ -28,3 +28,8 @@ set_target_properties(plutil PROPERTIES
 set_property(GLOBAL APPEND PROPERTY Foundation_EXPORTS plutil)
 install(TARGETS plutil
 	DESTINATION ${CMAKE_INSTALL_BINDIR})
+if(MSVC)
+	install(FILES $<TARGET_FILE_DIR:plutil>/$<TARGET_FILE_BASE_NAME:plutil>.pdb
+		DESTINATION ${CMAKE_INSTALL_BINDIR}
+		OPTIONAL)
+endif()
