@@ -351,9 +351,9 @@ open class XMLNode: NSObject, NSCopying {
             case .document:
                 // As with Darwin, ignore the name when the node is document.
                 break
-            case .notationDeclaration:
+            case .notationDeclaration, .entityDeclaration, .attributeDeclaration, .elementDeclaration:
                 // Use _CFXMLNodeForceSetName because
-                // _CFXMLNodeSetName ignores the new name when the node is notation declaration.
+                // _CFXMLNodeSetName ignores the new name for DTD declaration nodes.
                 _CFXMLNodeForceSetName(_xmlNode, newValue)
             case .namespace:
                 _CFXMLNamespaceSetPrefix(_xmlNode, newValue, Int64(newValue?.utf8.count ?? 0))
@@ -429,7 +429,13 @@ open class XMLNode: NSObject, NSCopying {
                 
             case .comment, .text:
                 _CFXMLNodeSetContent(_xmlNode, newValue)
-                
+
+            case .elementDeclaration:
+                // Element declaration content is a validation string (e.g. "(#PCDATA | array)*"),
+                // not XML text — entity-encoding it would corrupt it, and _CFXMLEncodeEntities
+                // returns nil when there is no owning document, which would wipe the value.
+                _CFXMLNodeSetContent(_xmlNode, newValue)
+
             default:
                 _removeAllChildNodesExceptAttributes() // in case anyone is holding a reference to any of these children we're about to destroy
                 if let string = newValue {
@@ -695,8 +701,13 @@ open class XMLNode: NSObject, NSCopying {
      @abstract Returns the prefix foo if this attribute or element's name if foo:bar
      */
     open var prefix: String? {
-        let returned = _CFXMLNodeCopyPrefix(_xmlNode)
-        return returned == nil ? nil : unsafeBitCast(returned!, to: NSString.self) as String
+        switch kind {
+        case .namespace:
+            return _CFXMLNamespaceCopyPrefix(_xmlNode).map({ unsafeBitCast($0, to: NSString.self) as String }) ?? ""
+        default:
+            let returned = _CFXMLNodeCopyPrefix(_xmlNode)
+            return returned == nil ? nil : unsafeBitCast(returned!, to: NSString.self) as String
+        }
     }
     
     /*!
