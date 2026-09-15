@@ -1,0 +1,28 @@
+name: Pull request
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+jobs:
+  tests:
+    name: Test (SwiftPM)
+    uses: swiftlang/github-workflows/.github/workflows/swift_package_test.yml@0.0.15
+    with:
+      linux_swift_versions: '["nightly-main", "nightly-6.4.x"]'
+      enable_windows_checks: false
+      enable_cross_pr_testing: true
+
+  soundness:
+    name: Soundness
+    uses: swiftlang/github-workflows/.github/workflows/soundness.yml@0.0.15
+    with:
+      license_header_check_project_name: "Swift.org"
+      license_header_check_enabled: false
+      docs_check_enabled: false
+      format_check_enabled: false
+      unacceptable_language_check_enabled: false
+      api_breakage_check_enabled: false
