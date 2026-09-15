@@ -17,6 +17,7 @@
 #include <assert.h>
 
 #if TARGET_OS_WIN32
+#include <shlobj.h>
 #include <userenv.h>
 #endif
 
@@ -94,9 +95,19 @@ CFURLRef _Nullable _CFKnownLocationCreatePreferencesURLForUser(CFKnownLocationUs
             CFRelease(allUsersPath);
             break;
         }
-        case _kCFKnownLocationUserCurrent:
-            username = CFGetUserName();
-            // fallthrough
+        case _kCFKnownLocationUserCurrent: {
+            PWSTR path = NULL;
+            HRESULT result = SHGetKnownFolderPath(&FOLDERID_LocalAppData, 0, NULL, &path);
+            if (SUCCEEDED(result) && path) {
+                CFStringRef pathRef = CFStringCreateWithCharactersNoCopy(kCFAllocatorSystemDefault, (const UniChar *)path, wcslen(path), kCFAllocatorNull);
+                if (pathRef) {
+                    location = CFURLCreateWithFileSystemPath(kCFAllocatorSystemDefault, pathRef, kCFURLWindowsPathStyle, true);
+                    CFRelease(pathRef);
+                }
+            }
+            CoTaskMemFree(path);
+            break;
+        }
         case _kCFKnownLocationUserByName: {
             DWORD size = 0;
             GetProfilesDirectoryW(NULL, &size);
@@ -117,9 +128,6 @@ CFURLRef _Nullable _CFKnownLocationCreatePreferencesURLForUser(CFKnownLocationUs
             CFRelease(appdataDir);
 
             CFRelease(profilesDir);
-            if (user == _kCFKnownLocationUserCurrent) {
-                CFRelease(username);
-            }
             break;
         }
     }

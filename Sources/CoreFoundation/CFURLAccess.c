@@ -246,7 +246,11 @@ static Boolean _CFFileURLWritePropertiesToResource(CFURLRef url, CFDictionaryRef
                 const MODE_TYPE *modePtr = (const MODE_TYPE *)CFDataGetBytePtr((CFDataRef)value);
                 mode = *modePtr;
             }
+#if TARGET_OS_WIN32
+            err = _NS_chmod(cPath, mode);
+#else
             err = chmod(cPath, mode);
+#endif
             if (err != 0) result = false;
         } else {
             result = false;

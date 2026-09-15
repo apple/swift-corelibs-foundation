@@ -120,6 +120,10 @@ target_link_libraries(CoreFoundation
         _FoundationICU
         dispatch)
 
+if(WIN32)
+    target_link_libraries(CoreFoundation PRIVATE shell32 ole32 uuid)
+endif()
+
 if(CMAKE_SYSTEM_NAME STREQUAL "Android")
     # CFLog calls __android_log_print, which lives in liblog.
     target_link_libraries(CoreFoundation PRIVATE log)
