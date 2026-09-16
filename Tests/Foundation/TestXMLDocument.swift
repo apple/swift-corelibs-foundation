@@ -534,6 +534,14 @@ class TestXMLDocument : LoopbackServerTest {
         XCTAssertNil(weakDoc, "document not freed even through it should have")
     }
     
+    // Regression test for https://github.com/swiftlang/swift-docc/issues/1666:
+    // `XMLElement(xmlString:)` traps (Illegal instruction / SIGILL) on Linux
+    // instead of throwing.
+    func test_elementFromMalformedXMLWithNoRootElementThrowsRatherThanCrashing() throws {
+        XCTAssertThrowsError(try XMLElement(xmlString: "</details>"))
+        XCTAssertThrowsError(try XMLElement(xmlString: "body\n</details>"))
+    }
+
     func test_nodeFindingWithNamespaces() throws {
         let xmlString = """
         <?xml version="1.0" encoding="utf-8" standalone="yes"?>

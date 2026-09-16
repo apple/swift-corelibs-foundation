@@ -67,8 +67,16 @@ open class XMLElement: XMLNode {
         """
         // we can use the document string parser to get the element
         let doc = try XMLDocument(xmlString: docString, options: [])
-        // We know the doc has a root element and first child or else the above line would have thrown
-        self.init(ptr:  _CFXMLCopyNode(_CFXMLNodeGetFirstChild(doc._xmlNode)!, true))
+        // A successful parse does not guarantee a root element.
+        // Use `rootElement()` to initialize, which checks for nil.
+        guard let root = doc.rootElement() else {
+            throw NSError(
+                domain: XMLParser.errorDomain,
+                code: XMLParser.ErrorCode.emptyDocumentError.rawValue,
+                userInfo: [NSLocalizedDescriptionKey: "the parsed XML document has no root element"]
+            )
+        }
+        self.init(ptr: _CFXMLCopyNode(root._xmlNode, true))
     }
 
     public convenience override init(kind: XMLNode.Kind, options: XMLNode.Options = []) {
